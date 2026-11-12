@@ -1,3 +1,5 @@
 I want to create custom Linux distro, small, light, total custom look, my own custom desktop, simple graphical setup.
 Minimum that is needed for distro to work, for start only terminal and file explorer. iso should be live and with option to install even if secure boot is on.
 For base we can use ubuntu. Overall design, i want it to look like Spartan NG (https://spartan.ng) Lyra style and Neutral theme.
+There is mockup/ folder with angular mockup of desktop i want, so You can use that as reference for new desktop.
+We will start with minimal ubuntu 26.04 lts as base. Distro will be called FosOS.
