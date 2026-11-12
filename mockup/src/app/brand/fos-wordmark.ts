@@ -19,6 +19,11 @@ import { FosMark, type FosMarkSize } from './fos-mark';
             {{ brand.tagline }}
           </span>
         }
+        @if (showMotto()) {
+          <span class="text-muted-foreground text-[11px] font-normal tracking-wide">
+            {{ brand.motto }}
+          </span>
+        }
       </span>
     </span>
   `,
@@ -27,6 +32,7 @@ export class FosWordmark {
   readonly brand = FOS_BRAND;
   readonly showMark = input(true);
   readonly showTagline = input(false);
+  readonly showMotto = input(false);
   readonly stacked = input(false);
   readonly markSize = input<FosMarkSize>('md');
   readonly inverseMark = input(false);

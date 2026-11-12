@@ -52,11 +52,11 @@ import { DesktopService } from '../desktop.service';
             <h3 hlmCardTitle class="flex items-baseline gap-0">
               <span>Fos</span><span class="font-normal opacity-80">OS</span>
             </h3>
-            <p hlmCardDescription>{{ brand.tagline }}</p>
+            <p hlmCardDescription>{{ brand.etymology }}</p>
           </div>
         </div>
         <div hlmCardAction class="flex items-center gap-1.5">
-          <span hlmBadge variant="secondary">{{ brand.subtitle }}</span>
+          <span hlmBadge variant="secondary">{{ brand.tagline }}</span>
           <kbd hlmKbd>Esc</kbd>
         </div>
       </div>
