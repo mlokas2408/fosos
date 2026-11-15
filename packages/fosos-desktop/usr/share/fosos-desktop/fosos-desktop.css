@@ -213,6 +213,23 @@ button.fos-btn.row {
   font-size: 12px;
 }
 
+/* Start button: four panes, like the Windows Start logo */
+.fos-start-icon {
+  min-width: 14px;
+  min-height: 14px;
+}
+
+.fos-start-cell {
+  background-color: @fos_fg;
+  background-image: none;
+  min-width: 6px;
+  min-height: 6px;
+}
+
+button.fos-btn.default .fos-start-cell {
+  background-color: @fos_primary_fg;
+}
+
 /* Icon tiles in menus and on the desktop */
 .fos-tile {
   min-width: 36px;
@@ -474,4 +491,80 @@ tooltip label {
   color: @fos_background;
   font-family: Inter, sans-serif;
   font-size: 12px;
+}
+
+/* Custom Files / Terminal card apps */
+.fos-card-window {
+  background-color: transparent;
+}
+
+.fos-app-frame {
+  background-color: @fos_card;
+  border: 1px solid alpha(@fos_fg, 0.10);
+}
+
+.fos-app-header {
+  background-color: alpha(@fos_muted, 0.4);
+  border-bottom: 1px solid @fos_border;
+  padding: 4px 8px;
+  min-height: 40px;
+}
+
+.fos-app-toolbar {
+  background-color: @fos_card;
+  border-bottom: 1px solid @fos_border;
+  padding: 6px 8px;
+}
+
+.fos-app-footer {
+  background-color: @fos_card;
+  border-top: 1px solid @fos_border;
+  padding: 6px 12px;
+  min-height: 28px;
+}
+
+.fos-files-sidebar {
+  background-color: alpha(@fos_muted, 0.35);
+  border-right: 1px solid @fos_border;
+}
+
+.fos-breadcrumb {
+  background-color: alpha(@fos_fg, 0.045);
+  border: 1px solid @fos_input;
+  min-height: 28px;
+  padding: 0 6px;
+}
+
+.fos-files-table {
+  border: 1px solid @fos_border;
+}
+
+.fos-files-table-header {
+  background-color: alpha(@fos_muted, 0.5);
+  padding: 4px 10px;
+}
+
+.fos-files-row {
+  border-top: 1px solid @fos_border;
+  padding: 2px 4px;
+}
+
+.fos-term-tabs {
+  background-color: transparent;
+  min-height: 28px;
+}
+
+.fos-term-tab {
+  min-width: 96px;
+  min-height: 28px;
+}
+
+.fos-term-body {
+  background-color: #171717;
+}
+
+.fos-editor-view {
+  background-color: @fos_card;
+  color: @fos_fg;
+  font-family: "Liberation Mono", "DejaVu Sans Mono", monospace;
 }

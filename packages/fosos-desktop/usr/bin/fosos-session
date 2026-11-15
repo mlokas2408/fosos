@@ -7,7 +7,18 @@ export XDG_SESSION_DESKTOP=fosos-desktop
 export DESKTOP_SESSION=fosos-desktop
 # Applications follow the dark FosOS look in this session only. XFCE keeps
 # its own settings.
-export GTK_THEME=Greybird-dark
+export GTK_THEME=FosOS
+export GTK_ICON_THEME_NAME=FosOS
+
+# Session-only MIME and helper defaults (Files / Terminal) without changing XFCE.
+if [ -z "${XDG_CONFIG_DIRS}" ]; then
+	XDG_CONFIG_DIRS="/etc/xdg"
+fi
+case ":${XDG_CONFIG_DIRS}:" in
+*:/etc/xdg/fosos-desktop:*) ;;
+*) XDG_CONFIG_DIRS="/etc/xdg/fosos-desktop:${XDG_CONFIG_DIRS}" ;;
+esac
+export XDG_CONFIG_DIRS
 
 data=/usr/share/fosos-desktop
 config="${XDG_CONFIG_HOME:-$HOME/.config}/fosos-desktop"
@@ -18,7 +29,7 @@ if [ -f "$config/openbox/rc.xml" ]; then
 	rc="$config/openbox/rc.xml"
 fi
 
-activation_env="DISPLAY XAUTHORITY XDG_CURRENT_DESKTOP XDG_SESSION_DESKTOP DESKTOP_SESSION GTK_THEME"
+activation_env="DISPLAY XAUTHORITY XDG_CURRENT_DESKTOP XDG_SESSION_DESKTOP DESKTOP_SESSION GTK_THEME GTK_ICON_THEME_NAME"
 if command -v dbus-update-activation-environment >/dev/null 2>&1; then
 	# shellcheck disable=SC2086
 	dbus-update-activation-environment --systemd $activation_env >/dev/null 2>&1 || true
@@ -29,6 +40,35 @@ fi
 if command -v xfsettingsd >/dev/null 2>&1; then
 	xfsettingsd >/dev/null 2>&1 &
 fi
+
+# xfsettingsd publishes theme names over XSETTINGS, which wins over the
+# environment. Switch to FosOS for this session and restore afterwards so
+# XFCE keeps Greybird and elementary-xfce.
+previous_gtk_theme=""
+previous_icon_theme=""
+if command -v xfconf-query >/dev/null 2>&1; then
+	previous_gtk_theme=$(xfconf-query -c xsettings -p /Net/ThemeName 2>/dev/null || true)
+	previous_icon_theme=$(xfconf-query -c xsettings -p /Net/IconThemeName 2>/dev/null || true)
+	xfconf-query -c xsettings -p /Net/ThemeName -n -t string -s FosOS >/dev/null 2>&1 \
+		|| xfconf-query -c xsettings -p /Net/ThemeName -s FosOS >/dev/null 2>&1 \
+		|| true
+	xfconf-query -c xsettings -p /Net/IconThemeName -n -t string -s FosOS >/dev/null 2>&1 \
+		|| xfconf-query -c xsettings -p /Net/IconThemeName -s FosOS >/dev/null 2>&1 \
+		|| true
+fi
+
+restore_session_themes() {
+	if ! command -v xfconf-query >/dev/null 2>&1; then
+		return 0
+	fi
+	if [ -n "$previous_gtk_theme" ]; then
+		xfconf-query -c xsettings -p /Net/ThemeName -s "$previous_gtk_theme" >/dev/null 2>&1 || true
+	fi
+	if [ -n "$previous_icon_theme" ]; then
+		xfconf-query -c xsettings -p /Net/IconThemeName -s "$previous_icon_theme" >/dev/null 2>&1 || true
+	fi
+}
+trap restore_session_themes EXIT
 
 # An authentication agent for pkexec and other password prompts.
 # lxpolkit is the one the XFCE session starts. Prefer it here too.
@@ -79,7 +119,7 @@ status=$?
 kill "$shell_loop" 2>/dev/null || true
 pkill -u "$(id -u)" -x fosos-shell 2>/dev/null || true
 if command -v systemctl >/dev/null 2>&1; then
-	systemctl --user unset-environment XDG_CURRENT_DESKTOP XDG_SESSION_DESKTOP DESKTOP_SESSION GTK_THEME \
+	systemctl --user unset-environment XDG_CURRENT_DESKTOP XDG_SESSION_DESKTOP DESKTOP_SESSION GTK_THEME GTK_ICON_THEME_NAME \
 		>/dev/null 2>&1 || true
 fi
 exit "$status"

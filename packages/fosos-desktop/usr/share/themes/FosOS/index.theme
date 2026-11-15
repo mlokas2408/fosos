@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=X-GNOME-Metatheme
+Name=FosOS
+Comment=FosOS Desktop: neutral dark, square corners
+Encoding=UTF-8
+
+[X-GNOME-Metatheme]
+GtkTheme=FosOS
+MetacityTheme=FosOS
+IconTheme=FosOS
+CursorTheme=DMZ-White
+ButtonLayout=:minimize,maximize,close

@@ -103,6 +103,24 @@ def mark(size: str = "md", inverse: bool = False) -> Gtk.Label:
     return widget
 
 
+def start_icon() -> Gtk.Grid:
+    """Four-pane mark, like the Windows Start button."""
+    grid = Gtk.Grid()
+    grid.set_row_spacing(2)
+    grid.set_column_spacing(2)
+    grid.set_row_homogeneous(True)
+    grid.set_column_homogeneous(True)
+    grid.set_halign(Gtk.Align.CENTER)
+    grid.set_valign(Gtk.Align.CENTER)
+    for index in range(4):
+        cell = Gtk.Box()
+        cell.set_size_request(6, 6)
+        add_classes(cell, "fos-start-cell")
+        grid.attach(cell, index % 2, index // 2, 1, 1)
+    add_classes(grid, "fos-start-icon")
+    return grid
+
+
 def brand_title(size_px: int = 14) -> Gtk.Label:
     widget = Gtk.Label()
     widget.set_markup(

@@ -202,7 +202,7 @@ class Desktop(Gtk.Window):
         self.icons_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
         self.icons: list[DesktopIcon] = []
         self.selected: DesktopIcon | None = None
-        self._add_icon("Files", "folder-symbolic", lambda: self._launch("thunar.desktop"))
+        self._add_icon("Files", "folder-symbolic", lambda: self._launch("fosos-files.desktop"))
         if appmod.is_live() and appmod.load_app("calamares-install-fosos.desktop"):
             self._add_icon(
                 "Install FosOS", "system-software-install-symbolic", lambda: self._launch("calamares-install-fosos.desktop")

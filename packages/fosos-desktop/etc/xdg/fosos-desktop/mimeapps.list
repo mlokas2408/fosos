@@ -1,0 +1,13 @@
+[Default Applications]
+inode/directory=fosos-files.desktop
+x-scheme-handler/terminal=fosos-terminal.desktop
+text/plain=fosos-notepad.desktop
+text/markdown=fosos-notepad.desktop
+text/x-log=fosos-notepad.desktop
+text/csv=fosos-notepad.desktop
+application/x-zerosize=fosos-notepad.desktop
+
+[Added Associations]
+inode/directory=fosos-files.desktop;
+text/plain=fosos-notepad.desktop;
+text/markdown=fosos-notepad.desktop;

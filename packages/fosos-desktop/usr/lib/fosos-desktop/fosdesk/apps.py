@@ -20,11 +20,14 @@ DEFAULT_PINNED_FILE = DATA_DIR / "pinned"
 
 # Short names and monochrome icons for the apps FosOS ships.
 KNOWN_APPS = {
-    "thunar.desktop": ("Files", "folder-symbolic"),
-    "xfce4-terminal.desktop": ("Terminal", "utilities-terminal-symbolic"),
+    "fosos-files.desktop": ("Files", "folder-symbolic"),
+    "fosos-terminal.desktop": ("Terminal", "utilities-terminal-symbolic"),
+    "fosos-notepad.desktop": ("Notepad", "accessories-text-editor-symbolic"),
+    "thunar.desktop": ("Thunar", "folder-symbolic"),
+    "xfce4-terminal.desktop": ("XFCE Terminal", "utilities-terminal-symbolic"),
     "firefox-esr.desktop": ("Firefox", "web-browser-symbolic"),
     "fosos-settings.desktop": ("Settings", "preferences-system-symbolic"),
-    "org.xfce.mousepad.desktop": ("Text Editor", "accessories-text-editor-symbolic"),
+    "org.xfce.mousepad.desktop": ("Mousepad", "accessories-text-editor-symbolic"),
     "calamares-install-fosos.desktop": ("Install FosOS", "system-software-install-symbolic"),
     "fosos-welcome.desktop": ("Welcome", "help-about-symbolic"),
     "org.pulseaudio.pavucontrol.desktop": ("Sound", "audio-volume-high-symbolic"),
@@ -171,7 +174,12 @@ class Pinned:
                 if line and not line.startswith("#") and line not in ids:
                     ids.append(line)
         except OSError:
-            ids = ["thunar.desktop", "xfce4-terminal.desktop", "firefox-esr.desktop"]
+            ids = [
+                "fosos-files.desktop",
+                "fosos-terminal.desktop",
+                "fosos-notepad.desktop",
+                "firefox-esr.desktop",
+            ]
         self.ids = [app_id for app_id in ids if load_app(app_id) is not None]
 
     def apps(self) -> list[App]:
@@ -209,7 +217,9 @@ def open_path(path: Path) -> bool:
     try:
         return Gio.AppInfo.launch_default_for_uri(path.as_uri(), context)
     except GLib.Error:
-        return spawn(["thunar", str(path)])
+        if path.is_dir():
+            return spawn(["fosos-files", str(path)]) or spawn(["thunar", str(path)])
+        return False
 
 
 def user_dir(kind, fallback: str) -> Path:

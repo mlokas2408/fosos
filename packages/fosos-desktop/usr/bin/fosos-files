@@ -1,0 +1,12 @@
+#!/usr/bin/python3
+"""FosOS Files: the File Explorer for FosOS Desktop."""
+
+import os
+import sys
+
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.realpath(__file__)), "..", "lib", "fosos-desktop"))
+
+from fosdesk.files import main  # noqa: E402
+
+if __name__ == "__main__":
+    sys.exit(main())

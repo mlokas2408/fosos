@@ -1,9 +1,9 @@
-# FosOS window frames for Openbox: flat, square, neutral dark.
-# Openbox draws its built-in button shapes, since no bitmaps are provided.
+# FosOS window frames for Openbox: flat, square, mockup palette.
+# Button masks (close/max/iconify.xbm) match the mockup line icons.
 
 border.width: 1
-padding.width: 8
-padding.height: 6
+padding.width: 10
+padding.height: 10
 window.handle.width: 0
 window.client.padding.width: 0
 window.client.padding.height: 0
@@ -13,17 +13,19 @@ menu.separator.width: 1
 menu.separator.padding.width: 6
 menu.separator.padding.height: 3
 
-window.active.border.color: #333333
-window.inactive.border.color: #262626
+# Ring-style border: near white at ~10% on the dark card.
+window.active.border.color: #2a2a2a
+window.inactive.border.color: #1f1f1f
 window.active.client.color: #171717
 window.inactive.client.color: #171717
-window.active.title.separator.color: #262626
+window.active.title.separator.color: #2a2a2a
 window.inactive.title.separator.color: #1f1f1f
 
+# Active titlebar is muted, like the mockup header.
 window.active.title.bg: flat solid
-window.active.title.bg.color: #171717
+window.active.title.bg.color: #1f1f1f
 window.inactive.title.bg: flat solid
-window.inactive.title.bg.color: #0f0f0f
+window.inactive.title.bg.color: #141414
 
 window.active.label.bg: parentrelative
 window.active.label.text.color: #fafafa
@@ -32,13 +34,13 @@ window.inactive.label.text.color: #a1a1a1
 window.label.text.justify: left
 
 window.active.handle.bg: flat solid
-window.active.handle.bg.color: #171717
+window.active.handle.bg.color: #1f1f1f
 window.inactive.handle.bg: flat solid
-window.inactive.handle.bg.color: #0f0f0f
+window.inactive.handle.bg.color: #141414
 window.active.grip.bg: flat solid
-window.active.grip.bg.color: #171717
+window.active.grip.bg.color: #1f1f1f
 window.inactive.grip.bg: flat solid
-window.inactive.grip.bg.color: #0f0f0f
+window.inactive.grip.bg.color: #141414
 
 window.active.button.unpressed.bg: parentrelative
 window.active.button.unpressed.image.color: #fafafa
@@ -52,6 +54,12 @@ window.active.button.disabled.bg: parentrelative
 window.active.button.disabled.image.color: #525252
 window.active.button.toggled.unpressed.bg: parentrelative
 window.active.button.toggled.unpressed.image.color: #fafafa
+window.active.button.toggled.hover.bg: flat solid
+window.active.button.toggled.hover.bg.color: #262626
+window.active.button.toggled.hover.image.color: #fafafa
+window.active.button.toggled.pressed.bg: flat solid
+window.active.button.toggled.pressed.bg.color: #333333
+window.active.button.toggled.pressed.image.color: #fafafa
 
 window.inactive.button.unpressed.bg: parentrelative
 window.inactive.button.unpressed.image.color: #737373
@@ -65,8 +73,14 @@ window.inactive.button.disabled.bg: parentrelative
 window.inactive.button.disabled.image.color: #404040
 window.inactive.button.toggled.unpressed.bg: parentrelative
 window.inactive.button.toggled.unpressed.image.color: #737373
+window.inactive.button.toggled.hover.bg: flat solid
+window.inactive.button.toggled.hover.bg.color: #262626
+window.inactive.button.toggled.hover.image.color: #fafafa
+window.inactive.button.toggled.pressed.bg: flat solid
+window.inactive.button.toggled.pressed.bg.color: #333333
+window.inactive.button.toggled.pressed.image.color: #fafafa
 
-menu.border.color: #333333
+menu.border.color: #2a2a2a
 menu.title.bg: flat solid
 menu.title.bg.color: #171717
 menu.title.text.color: #a1a1a1
@@ -80,7 +94,7 @@ menu.items.active.bg.color: #262626
 menu.items.active.text.color: #fafafa
 menu.separator.color: #262626
 
-osd.border.color: #333333
+osd.border.color: #2a2a2a
 osd.bg: flat solid
 osd.bg.color: #171717
 osd.label.bg: parentrelative
@@ -91,7 +105,7 @@ osd.unhilight.bg: flat solid
 osd.unhilight.bg.color: #262626
 osd.button.unpressed.bg: flat solid
 osd.button.unpressed.bg.color: #171717
-osd.button.unpressed.*.border.color: #333333
+osd.button.unpressed.*.border.color: #2a2a2a
 osd.button.pressed.bg: flat solid
 osd.button.pressed.bg.color: #262626
 osd.button.focused.bg: flat solid

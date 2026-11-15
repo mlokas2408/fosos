@@ -11,7 +11,7 @@ gi.require_version("Wnck", "3.0")
 from gi.repository import Gdk, GdkX11, GLib, Gtk, Wnck  # noqa: F401 (GdkX11 enables get_xid)
 
 from . import apps as appmod
-from .ui import BRAND, add_classes, badge, button, icon, label, mark, separator, set_class
+from .ui import BRAND, add_classes, badge, button, icon, label, separator, set_class, start_icon
 
 HEIGHT = 48
 SKIP_TYPES = (Wnck.WindowType.DESKTOP, Wnck.WindowType.DOCK, Wnck.WindowType.SPLASHSCREEN)
@@ -71,9 +71,8 @@ class TaskButton(Gtk.Box):
         if icon_name:
             self.button.add(icon(icon_name, 16))
         else:
-            pixbuf = window.get_mini_icon()
-            image = Gtk.Image.new_from_pixbuf(pixbuf) if pixbuf else icon("application-x-executable-symbolic")
-            self.button.add(image)
+            # Prefer a monochrome symbolic icon over the app's coloured mini icon.
+            self.button.add(icon("application-x-executable-symbolic", 16))
         self.button.connect("clicked", self._on_clicked)
         self.button.connect("button-release-event", self._on_release)
         self.indicator = Gtk.Box()
@@ -148,8 +147,8 @@ class Panel(Gtk.Window):
         self.add(row)
 
         self.start_button = button(variant="ghost", size="icon", tooltip=BRAND["name"])
-        self.start_mark = mark("sm")
-        self.start_button.add(self.start_mark)
+        self.start_icon = start_icon()
+        self.start_button.add(self.start_icon)
         self.start_button.connect("clicked", lambda _b: self.shell.toggle_start())
         row.pack_start(self.start_button, False, False, 0)
         row.pack_start(separator(), False, False, 4)
@@ -336,7 +335,6 @@ class Panel(Gtk.Window):
     def set_start_open(self, is_open: bool) -> None:
         set_class(self.start_button, "default", is_open)
         set_class(self.start_button, "ghost", not is_open)
-        set_class(self.start_mark, "inverse", is_open)
 
     def set_unread(self, unread: bool) -> None:
         self.unread_dot.set_visible(unread)

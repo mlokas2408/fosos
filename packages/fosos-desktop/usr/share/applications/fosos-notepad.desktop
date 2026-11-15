@@ -1,0 +1,13 @@
+[Desktop Entry]
+Type=Application
+Name=Notepad
+GenericName=Text Editor
+Comment=Edit plain text files
+Exec=fosos-notepad %F
+Icon=accessories-text-editor
+Terminal=false
+Categories=Utility;TextEditor;
+MimeType=text/plain;text/markdown;text/x-log;text/csv;application/x-zerosize;
+Keywords=text;editor;notepad;notes;plain;
+StartupWMClass=fosos-notepad
+OnlyShowIn=FosOS;

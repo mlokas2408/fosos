@@ -1,0 +1,13 @@
+[Desktop Entry]
+Type=Application
+Name=Files
+GenericName=File Manager
+Comment=Browse folders and open files
+Exec=fosos-files %U
+Icon=system-file-manager
+Terminal=false
+Categories=System;FileTools;FileManager;
+MimeType=inode/directory;
+Keywords=folder;manager;explore;files;directory;
+StartupWMClass=fosos-files
+OnlyShowIn=FosOS;

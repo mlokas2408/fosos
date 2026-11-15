@@ -1,0 +1,436 @@
+/* FosOS GTK theme for the experimental desktop session.
+   Starts from Adwaita dark, then forces the mockup palette and square corners. */
+@import url("resource:///org/gtk/libgtk/theme/Adwaita/gtk-dark.css");
+
+@define-color fos_background #0a0a0a;
+@define-color fos_card #171717;
+@define-color fos_muted #262626;
+@define-color fos_muted_fg #a1a1a1;
+@define-color fos_fg #fafafa;
+@define-color fos_primary #e5e5e5;
+@define-color fos_primary_fg #171717;
+@define-color fos_border rgba(255, 255, 255, 0.10);
+@define-color fos_input rgba(255, 255, 255, 0.15);
+@define-color fos_ring #737373;
+@define-color fos_destructive #ff6467;
+
+@define-color theme_bg_color @fos_card;
+@define-color theme_fg_color @fos_fg;
+@define-color theme_base_color @fos_card;
+@define-color theme_text_color @fos_fg;
+@define-color theme_selected_bg_color @fos_muted;
+@define-color theme_selected_fg_color @fos_fg;
+@define-color insensitive_bg_color @fos_card;
+@define-color insensitive_fg_color @fos_muted_fg;
+@define-color insensitive_base_color @fos_card;
+@define-color borders @fos_border;
+@define-color warning_color #f5c542;
+@define-color error_color @fos_destructive;
+@define-color success_color #4ade80;
+
+* {
+  border-radius: 0;
+  -gtk-outline-radius: 0;
+  -gtk-icon-style: symbolic;
+  font-family: Inter, sans-serif;
+  color: @fos_fg;
+}
+
+window,
+.background,
+.csd > decoration,
+decoration {
+  background-color: @fos_card;
+  color: @fos_fg;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+headerbar,
+.titlebar,
+.titlebar .titlebutton {
+  background-color: #1f1f1f;
+  background-image: none;
+  border-color: @fos_border;
+  border-radius: 0;
+  box-shadow: none;
+  color: @fos_fg;
+  min-height: 40px;
+  padding: 0 8px;
+}
+
+headerbar:backdrop,
+.titlebar:backdrop {
+  background-color: #141414;
+  color: @fos_muted_fg;
+}
+
+headerbar .title,
+.titlebar .title {
+  font-weight: 500;
+}
+
+menubar,
+.menubar {
+  background-color: @fos_card;
+  background-image: none;
+  border-bottom: 1px solid @fos_border;
+  color: @fos_fg;
+  box-shadow: none;
+}
+
+menubar > menuitem,
+.menubar > menuitem {
+  padding: 4px 10px;
+}
+
+menu,
+.menu,
+.context-menu {
+  background-color: @fos_card;
+  border: 1px solid @fos_border;
+  border-radius: 0;
+  color: @fos_fg;
+  padding: 4px;
+}
+
+menu menuitem,
+.menu menuitem,
+.context-menu menuitem {
+  padding: 6px 10px;
+}
+
+menu menuitem:hover,
+.menu menuitem:hover,
+.context-menu menuitem:hover {
+  background-color: @fos_muted;
+  color: @fos_fg;
+}
+
+toolbar,
+.toolbar {
+  background-color: @fos_card;
+  background-image: none;
+  border-color: @fos_border;
+  color: @fos_fg;
+  padding: 4px;
+}
+
+button {
+  background-color: @fos_muted;
+  background-image: none;
+  border: 1px solid transparent;
+  border-radius: 0;
+  box-shadow: none;
+  color: @fos_fg;
+  min-height: 28px;
+  padding: 0 10px;
+  text-shadow: none;
+  -gtk-icon-shadow: none;
+}
+
+button:hover {
+  background-color: alpha(@fos_muted, 0.8);
+}
+
+button:active,
+button:checked {
+  background-color: @fos_primary;
+  color: @fos_primary_fg;
+}
+
+button.flat,
+button.text-button.flat {
+  background-color: transparent;
+}
+
+button.flat:hover,
+button.text-button.flat:hover {
+  background-color: alpha(@fos_muted, 0.5);
+}
+
+button.suggested-action {
+  background-color: @fos_primary;
+  color: @fos_primary_fg;
+}
+
+button.destructive-action {
+  background-color: alpha(@fos_destructive, 0.2);
+  color: @fos_destructive;
+}
+
+entry,
+spinbutton,
+combobox > .linked > entry,
+searchbar entry {
+  background-color: alpha(@fos_fg, 0.045);
+  background-image: none;
+  border: 1px solid @fos_input;
+  border-radius: 0;
+  box-shadow: none;
+  caret-color: @fos_fg;
+  color: @fos_fg;
+  min-height: 30px;
+  padding: 0 10px;
+}
+
+entry:focus,
+spinbutton:focus {
+  border-color: @fos_ring;
+}
+
+notebook,
+notebook > header,
+notebook > header tabs,
+notebook > header tab {
+  background-color: @fos_card;
+  background-image: none;
+  border-color: @fos_border;
+  border-radius: 0;
+  color: @fos_fg;
+}
+
+notebook > header tab:checked {
+  background-color: @fos_muted;
+  box-shadow: none;
+}
+
+scrollbar,
+scrollbar contents,
+scrollbar trough {
+  background-color: transparent;
+  border: none;
+  min-width: 10px;
+  min-height: 10px;
+}
+
+scrollbar slider {
+  background-color: alpha(@fos_fg, 0.15);
+  border: none;
+  border-radius: 0;
+  min-width: 6px;
+  min-height: 6px;
+}
+
+scrollbar slider:hover {
+  background-color: alpha(@fos_fg, 0.25);
+}
+
+treeview,
+list,
+list row,
+.view {
+  background-color: @fos_card;
+  color: @fos_fg;
+  border-radius: 0;
+}
+
+treeview:selected,
+list row:selected,
+.view:selected,
+.view:selected:focus {
+  background-color: @fos_muted;
+  color: @fos_fg;
+}
+
+separator {
+  background-color: @fos_border;
+  min-height: 1px;
+  min-width: 1px;
+}
+
+tooltip,
+tooltip.background {
+  background-color: @fos_fg;
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+  color: @fos_background;
+}
+
+tooltip label {
+  color: @fos_background;
+}
+
+frame > border,
+.frame {
+  border-color: @fos_border;
+  border-radius: 0;
+}
+
+progressbar trough {
+  background-color: @fos_muted;
+  border: none;
+  border-radius: 0;
+  min-height: 4px;
+}
+
+progressbar progress {
+  background-color: @fos_primary;
+  border-radius: 0;
+}
+
+switch {
+  background-color: @fos_muted;
+  border: 1px solid @fos_input;
+  border-radius: 0;
+}
+
+switch:checked {
+  background-color: @fos_primary;
+}
+
+switch slider {
+  background-color: @fos_fg;
+  border-radius: 0;
+  min-width: 16px;
+  min-height: 16px;
+}
+
+switch:checked slider {
+  background-color: @fos_primary_fg;
+}
+
+popover,
+.popover {
+  background-color: @fos_card;
+  border: 1px solid @fos_border;
+  border-radius: 0;
+  color: @fos_fg;
+}
+
+infobar {
+  border-radius: 0;
+}
+
+infobar.info {
+  background-color: @fos_muted;
+  color: @fos_fg;
+}
+
+infobar.warning {
+  background-color: alpha(@warning_color, 0.2);
+  color: @fos_fg;
+}
+
+infobar.error {
+  background-color: alpha(@fos_destructive, 0.2);
+  color: @fos_fg;
+}
+
+/* Client-side decorations keep the same flat frame as Openbox SSD. */
+.csd decoration {
+  border: 1px solid @fos_border;
+  border-radius: 0;
+  box-shadow: none;
+  margin: 0;
+}
+
+.csd.maximized decoration,
+.csd.tiled decoration {
+  border-radius: 0;
+  box-shadow: none;
+}
+
+/* Thunar: mockup File Explorer colours (card body, muted sidebar). */
+.thunar {
+  background-color: @fos_card;
+  color: @fos_fg;
+}
+
+.thunar toolbar,
+.thunar .toolbar {
+  background-color: @fos_card;
+  background-image: none;
+  border-bottom: 1px solid @fos_border;
+  color: @fos_fg;
+  padding: 4px 6px;
+}
+
+.thunar .path-bar,
+.thunar entry {
+  background-color: alpha(@fos_fg, 0.045);
+  border: 1px solid @fos_input;
+  border-radius: 0;
+  color: @fos_fg;
+  min-height: 28px;
+}
+
+.thunar .sidebar,
+.thunar .sidebar.frame,
+.thunar .sidebar .view,
+.thunar .sidebar iconview,
+.thunar .shortcuts-pane .view {
+  background-color: alpha(@fos_muted, 0.35);
+  background-image: none;
+  border: none;
+  border-radius: 0;
+  color: @fos_fg;
+}
+
+.thunar .sidebar .view:hover,
+.thunar .shortcuts-pane .view:hover {
+  background-color: alpha(@fos_muted, 0.7);
+}
+
+.thunar .sidebar .view:selected,
+.thunar .sidebar .view:selected:focus,
+.thunar .shortcuts-pane .view:selected,
+.thunar .shortcuts-pane .view:selected:focus {
+  background-color: @fos_muted;
+  color: @fos_fg;
+}
+
+.thunar .standard-view,
+.thunar .standard-view .view,
+.thunar .standard-view treeview,
+.thunar .standard-view iconview {
+  background-color: @fos_card;
+  background-image: none;
+  border: none;
+  color: @fos_fg;
+}
+
+.thunar .standard-view .view:hover,
+.thunar .standard-view treeview:hover {
+  background-color: alpha(@fos_muted, 0.45);
+}
+
+.thunar .standard-view .view:selected,
+.thunar .standard-view .view:selected:focus,
+.thunar .standard-view treeview:selected,
+.thunar .standard-view treeview:selected:focus {
+  background-color: @fos_muted;
+  color: @fos_fg;
+}
+
+.thunar treeview.view header button {
+  background-color: @fos_card;
+  background-image: none;
+  border: none;
+  border-bottom: 1px solid @fos_border;
+  border-radius: 0;
+  color: @fos_muted_fg;
+  box-shadow: none;
+  padding: 6px 8px;
+}
+
+.thunar statusbar,
+.thunar .statusbar {
+  background-color: @fos_card;
+  border-top: 1px solid @fos_border;
+  color: @fos_muted_fg;
+  min-height: 28px;
+  padding: 0 10px;
+}
+
+/* Terminal and text editors stay on the card surface. */
+VteTerminal,
+vte-terminal,
+.terminal,
+textview,
+textview > text,
+textview text {
+  background-color: @fos_card;
+  color: @fos_fg;
+}

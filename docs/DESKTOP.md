@@ -21,9 +21,14 @@ Wayland compositor, and FosOS does not build one at this stage.
   was not used because its settings are shared with XFCE.
 - `fosos-shell` is one Python and GTK 3 process for the taskbar, Start menu,
   desktop, notifications and status menus.
+- `fosos-files` and `fosos-terminal` are first-party apps with the same card
+  chrome as the mockup. Thunar and xfce4-terminal stay installed as fallbacks
+  and still appear under All apps.
 - The XFCE settings daemon still runs, so display, keyboard, mouse and font
   settings, and the XFCE settings dialogs, work in both sessions.
-- Applications use the Greybird-dark GTK theme in this session only.
+- Applications use the FosOS GTK theme and monochrome FosOS icons in this
+  session only (neutral dark palette and square corners). XFCE keeps Greybird
+  and elementary-xfce.
 
 Revisit Wayland when the shell is stable for daily use and the supported
 hardware is known. Moving would mean a compositor such as labwc in place of
@@ -35,8 +40,13 @@ Openbox, with the shell rewritten on layer-shell.
 | --- | --- |
 | `fosos-session` | Login session script: settings daemon, password agent, Wi-Fi password agent, the shell with crash restart, Welcome, then Openbox |
 | `fosos-shell` | Taskbar, Start menu, desktop, notification server, volume, network and clock menus |
+| `fosos-files` | File Explorer: Quick Access, breadcrumbs, list/grid views |
+| `fosos-terminal` | Simple Windows-style tabbed terminal |
+| `fosos-notepad` | Simple Notepad-style plain text editor |
 | `fosos-settings` | Settings shell: Display, Sound, Network, Bluetooth, Keyboard, Mouse, Default apps, Updates, Welcome and About |
-| Openbox theme `FosOS` | Flat, square window frames in the FosOS palette |
+| Openbox theme `FosOS` | Flat, square window frames and line-style window buttons |
+| GTK theme `FosOS` | App chrome and client areas in the same neutral palette |
+| Icon theme `FosOS` | White outline icons for Files and other session apps |
 
 The shell owns `org.freedesktop.Notifications` in this session, so
 `notify-send` and application notifications appear above the taskbar and in
@@ -60,8 +70,8 @@ the bell menu.
 | Keys | Action |
 | --- | --- |
 | Super+Space or Alt+F1 | Open or close the Start menu |
-| Super+E | Files |
-| Ctrl+Alt+T | Terminal |
+| Super+E | Files (`fosos-files`) |
+| Ctrl+Alt+T | Terminal (`fosos-terminal`) |
 | Super+I | Settings |
 | Super+D | Show the desktop |
 | Super+Up | Maximize |
@@ -71,6 +81,11 @@ the bell menu.
 | Alt+F4 | Close the window |
 | Alt+Space | Window menu |
 | Print / Shift+Print | Screenshot of the screen / of a region |
+| Ctrl+Shift+T / W | Terminal: new tab / close tab |
+| Ctrl+Tab | Terminal: next tab |
+| Ctrl+Shift+C / V | Terminal: copy / paste |
+| Ctrl+N / O / S | Notepad: new / open / save |
+| Ctrl+Shift+S | Notepad: save as |
 
 Super on its own does not open the Start menu. Openbox acts on key press, so
 binding Super alone would also fire for every Super shortcut.
@@ -83,8 +98,8 @@ To change shortcuts for one account, copy
 
 `scripts/test-desktop.sh` runs the shell headless in a throwaway Debian root
 under Xvfb. It opens the Start menu, searches, sends notifications, opens
-Settings, starts the real session script and signs out. It saves screenshots
-to `output/desktop/`.
+Files, Terminal and Settings, starts the real session script and signs out.
+It saves screenshots to `output/desktop/`.
 
 ```bash
 sudo bash scripts/test-desktop.sh

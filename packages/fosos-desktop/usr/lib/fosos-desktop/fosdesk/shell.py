@@ -131,8 +131,9 @@ class Shell(Gtk.Application):
             frame = add_classes(Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2), "fos-card")
             frame.set_border_width(4)
             for text, icon_name, app_id in (
-                ("Open Files", "folder-symbolic", "thunar.desktop"),
-                ("Open Terminal", "utilities-terminal-symbolic", "xfce4-terminal.desktop"),
+                ("Open Files", "folder-symbolic", "fosos-files.desktop"),
+                ("Open Terminal", "utilities-terminal-symbolic", "fosos-terminal.desktop"),
+                ("Open Notepad", "accessories-text-editor-symbolic", "fosos-notepad.desktop"),
                 ("Settings", "preferences-system-symbolic", "fosos-settings.desktop"),
             ):
                 item = button(text, icon_name=icon_name, variant="ghost")

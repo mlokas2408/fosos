@@ -3,10 +3,13 @@
 <openbox_menu xmlns="http://openbox.org/3.4/menu">
   <menu id="root-menu" label="FosOS">
     <item label="Terminal">
-      <action name="Execute"><command>xfce4-terminal</command></action>
+      <action name="Execute"><command>fosos-terminal</command></action>
     </item>
     <item label="Files">
-      <action name="Execute"><command>thunar</command></action>
+      <action name="Execute"><command>fosos-files</command></action>
+    </item>
+    <item label="Notepad">
+      <action name="Execute"><command>fosos-notepad</command></action>
     </item>
     <item label="Settings">
       <action name="Execute"><command>fosos-settings</command></action>

@@ -11,8 +11,8 @@ mirror="${FOSOS_MIRROR:-http://deb.debian.org/debian}"
 
 packages=(
   xvfb openbox dbus dbus-x11 x11-utils xdotool libnotify-bin mousepad
-  python3-gi python3-gi-cairo gir1.2-gtk-3.0 gir1.2-wnck-3.0 python3-xlib
-  fonts-inter greybird-gtk-theme adwaita-icon-theme elementary-xfce-icon-theme librsvg2-common
+  python3-gi python3-gi-cairo gir1.2-gtk-3.0 gir1.2-wnck-3.0 gir1.2-vte-2.91 python3-xlib
+  fonts-inter fonts-liberation libgtk-3-0 adwaita-icon-theme elementary-xfce-icon-theme librsvg2-common
 )
 
 if [[ "${EUID}" -ne 0 ]]; then
@@ -70,8 +70,12 @@ find "$root/opt/fosos-desktop" -type d -name '__pycache__' -prune -exec rm -rf {
 find "$root/opt/fosos-desktop" -type f -exec sed -i 's/\r$//' {} +
 chmod 755 "$root/opt/fosos-desktop/usr/bin/"*
 mkdir -p "$root/usr/share/themes"
-rm -rf -- "$root/usr/share/themes/FosOS"
+rm -rf -- "$root/usr/share/themes/FosOS" "$root/usr/share/icons/FosOS"
 cp -a "$root/opt/fosos-desktop/usr/share/themes/FosOS" "$root/usr/share/themes/FosOS"
+cp -a "$root/opt/fosos-desktop/usr/share/icons/FosOS" "$root/usr/share/icons/FosOS"
+if chroot "$root" command -v gtk-update-icon-cache >/dev/null 2>&1; then
+  chroot "$root" gtk-update-icon-cache -f -t /usr/share/icons/FosOS >/dev/null 2>&1 || true
+fi
 
 ln -sfn /opt/fosos-desktop/usr/share/fosos-desktop "$root/usr/share/fosos-desktop"
 
@@ -94,7 +98,7 @@ cat > "$root/opt/run-desktop-test.sh" <<'EOF'
 #!/bin/bash
 set -u
 export HOME=/root LANG=C.UTF-8 DISPLAY=:99 NO_AT_BRIDGE=1
-export XDG_CURRENT_DESKTOP=FosOS GTK_THEME=Greybird-dark
+export XDG_CURRENT_DESKTOP=FosOS GTK_THEME=FosOS GTK_ICON_THEME_NAME=FosOS
 export XDG_DATA_DIRS=/opt/fosos-desktop/usr/share:/usr/local/share:/usr/share
 export PATH=/opt/fosos-desktop/usr/bin:$PATH
 out=/opt/shots
@@ -127,9 +131,22 @@ fosos-shell >/tmp/shell.log 2>&1 &
 sleep 4
 shot 01-desktop
 
-mousepad /root/Documents/"Meeting notes.md" >/dev/null 2>&1 &
+fosos-files /root/Documents >/tmp/files.log 2>&1 &
 sleep 3
 shot 02-window
+
+fosos-terminal >/tmp/terminal.log 2>&1 &
+sleep 2
+shot 02b-terminal
+pkill -f fosos-terminal || true
+sleep 0.5
+
+printf 'Hello from FosOS Notepad.\n' > /tmp/sample-note.txt
+fosos-notepad /tmp/sample-note.txt >/tmp/notepad.log 2>&1 &
+sleep 2
+shot 02c-notepad
+pkill -f fosos-notepad || true
+sleep 0.5
 
 fosos-shell --toggle-start
 sleep 1.5
@@ -182,11 +199,15 @@ xdotool key Escape
 
 echo "--- shell log"
 cat /tmp/shell.log
+echo "--- files log"
+cat /tmp/files.log 2>/dev/null || true
+echo "--- terminal log"
+cat /tmp/terminal.log 2>/dev/null || true
 echo "--- settings log"
 cat /tmp/settings.log
 echo "--- openbox log"
 cat /tmp/openbox.log
-pkill -f fosos-settings; pkill -f fosos-shell; pkill mousepad; pkill openbox
+pkill -f fosos-settings; pkill -f fosos-files; pkill -f fosos-terminal; pkill -f fosos-notepad; pkill -f fosos-shell; pkill mousepad; pkill openbox
 sleep 1
 
 # The real session script: it must start the shell and end cleanly on sign-out.

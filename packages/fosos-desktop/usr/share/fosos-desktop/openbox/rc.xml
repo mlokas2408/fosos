@@ -25,42 +25,43 @@
 
   <theme>
     <name>FosOS</name>
-    <titleLayout>NLIMC</titleLayout>
+    <!-- No window icon (N): apps ship colored icons; FosOS stays monochrome. -->
+    <titleLayout>LIMC</titleLayout>
     <keepBorder>yes</keepBorder>
     <animateIconify>no</animateIconify>
     <font place="ActiveWindow">
       <name>Inter</name>
-      <size>9</size>
-      <weight>Bold</weight>
+      <size>10</size>
+      <weight>Normal</weight>
       <slant>Normal</slant>
     </font>
     <font place="InactiveWindow">
       <name>Inter</name>
-      <size>9</size>
-      <weight>Bold</weight>
+      <size>10</size>
+      <weight>Normal</weight>
       <slant>Normal</slant>
     </font>
     <font place="MenuHeader">
       <name>Inter</name>
-      <size>9</size>
+      <size>10</size>
       <weight>Bold</weight>
       <slant>Normal</slant>
     </font>
     <font place="MenuItem">
       <name>Inter</name>
-      <size>9</size>
+      <size>10</size>
       <weight>Normal</weight>
       <slant>Normal</slant>
     </font>
     <font place="ActiveOnScreenDisplay">
       <name>Inter</name>
-      <size>9</size>
+      <size>10</size>
       <weight>Bold</weight>
       <slant>Normal</slant>
     </font>
     <font place="InactiveOnScreenDisplay">
       <name>Inter</name>
-      <size>9</size>
+      <size>10</size>
       <weight>Normal</weight>
       <slant>Normal</slant>
     </font>
@@ -100,10 +101,10 @@
     </keybind>
 
     <keybind key="W-e">
-      <action name="Execute"><command>thunar</command></action>
+      <action name="Execute"><command>fosos-files</command></action>
     </keybind>
     <keybind key="C-A-t">
-      <action name="Execute"><command>xfce4-terminal</command></action>
+      <action name="Execute"><command>fosos-terminal</command></action>
     </keybind>
     <keybind key="W-i">
       <action name="Execute"><command>fosos-settings</command></action>
@@ -311,6 +312,18 @@
 
   <applications>
     <application class="Fosos-settings">
+      <position force="no"><x>center</x><y>center</y></position>
+    </application>
+    <application class="Fosos-files">
+      <decor>no</decor>
+      <position force="no"><x>center</x><y>center</y></position>
+    </application>
+    <application class="Fosos-terminal">
+      <decor>no</decor>
+      <position force="no"><x>center</x><y>center</y></position>
+    </application>
+    <application class="Fosos-notepad">
+      <decor>no</decor>
       <position force="no"><x>center</x><y>center</y></position>
     </application>
   </applications>
