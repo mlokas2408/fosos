@@ -61,6 +61,7 @@ sudo bash scripts/test-desktop.sh
 
 ## Phase status
 
-**Phase 7b** removed remaining `xfce4-*` package dependencies. **7c** cleaned
-leftover XFCE theme defaults and documents ISO size in [ISO-SIZE.md](ISO-SIZE.md);
-record your rebuild size and run the Hyper-V soak in [TESTING.md](TESTING.md).
+**Phase 7b** removed remaining `xfce4-*` package dependencies. **7c** drops
+Greybird / elementary-xfce from the image, records ISO size in
+[ISO-SIZE.md](ISO-SIZE.md), and completes the Hyper-V soak in
+[TESTING.md](TESTING.md).

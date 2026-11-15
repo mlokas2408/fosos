@@ -19,7 +19,7 @@ Record the result in the table below (and in release notes when tagging).
 | Build | Date | Bytes | MiB | Notes |
 | --- | --- | ---: | ---: | --- |
 | Pre–Phase 7 baseline (repo `output/`) | 2026-11-15 | 879394816 | ~839 | Existing ISO before 7c packaging cleanup; may still include Phase 6/7a content depending when it was built |
-| Post–Phase 7 (after your rebuild) | _TBD_ | | | Rebuild with 7a–7c package list + `fosos-desktop` 1.2.0 / `fosos-theme` 0.4.0 |
+| Post–Phase 7c (WSL rebuild) | 2026-11-16 | 854405120 | ~815 | 7a–7c package list; `fosos-desktop` 1.3.5; `fosos-theme` 0.6.0 (no greybird/elementary); Dawn Aperture GRUB; −24 MiB vs baseline |
 
 ## What was removed from the image path
 
@@ -31,10 +31,12 @@ Dropped from the live package list and/or package Depends (Phase 7a–7b):
 - `xfce4-settings`, `xfce4-power-manager`, `xfce4-screenshooter`
 - `xfdesktop4` (theme Depends)
 
-Still present for the greeter only (not an XFCE session):
+Dropped in Phase 7c (`fosos-theme` 0.6.0):
 
 - `greybird-gtk-theme`
-- `elementary-xfce-icon-theme`
+- `elementary-xfce-icon-theme` (~67 MiB Installed-Size; squashfs saving is smaller)
+
+gtk-greeter remains installed as an emergency fallback and uses FosOS / Adwaita.
 
 ## Approximate payload removed (Debian Installed-Size, KiB)
 
@@ -52,9 +54,12 @@ Direct packages no longer pulled for the session (not counting the large
 | xfce4-notifyd | 1336 |
 | xfce4-pulseaudio-plugin | 593 |
 | xfdesktop4 | 875 |
+| greybird-gtk-theme (7c) | 5415 |
+| elementary-xfce-icon-theme (7c) | 67818 |
 
 Squashfs savings on the ISO are smaller than the sum of Installed-Size, but
-dropping the full XFCE session stack is still a clear reduction.
+dropping the full XFCE session stack is still a clear reduction. The 2026-11-16
+rebuild is **~24 MiB** smaller than the recorded pre–Phase 7 baseline.
 
 ## Expected direction
 

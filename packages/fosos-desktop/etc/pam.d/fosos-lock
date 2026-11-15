@@ -1,0 +1,4 @@
+#%PAM-1.0
+# Screen unlock for fosos-lock. Keep this lighter than /etc/pam.d/login.
+@include common-auth
+@include common-account

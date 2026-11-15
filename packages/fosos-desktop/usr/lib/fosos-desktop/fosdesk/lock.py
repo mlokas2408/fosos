@@ -18,17 +18,21 @@ from .authui import AuthWidgets, build_auth_ui, focus_first
 from .ui import add_classes, load_css
 
 PREVIEW = "--preview" in sys.argv
+PAM_SERVICE = "fosos-lock"
 
 
 def authenticate(user: str, password: str) -> bool:
     if PREVIEW:
         return True
     try:
-        import pam  # type: ignore
+        import pamela  # type: ignore
     except ImportError:
         return False
-    handle = pam.pam()
-    return bool(handle.authenticate(user, password, service="login"))
+    try:
+        pamela.authenticate(user, password, service=PAM_SERVICE)
+        return True
+    except pamela.PAMError:
+        return False
 
 
 class LockScreen(Gtk.Window):
@@ -48,10 +52,11 @@ class LockScreen(Gtk.Window):
         self.connect("realize", self._on_realize)
 
         self.user = getpass.getuser()
+        self.live = is_live()
         self.ui: AuthWidgets = build_auth_ui(
             mode="lock",
             username=self.user,
-            live=is_live(),
+            live=self.live,
             show_username=True,
             username_editable=False,
         )
@@ -61,6 +66,8 @@ class LockScreen(Gtk.Window):
         self._wire_power()
         if PREVIEW:
             self.ui.message.set_text("Preview mode. Escape exits.")
+        elif self.live:
+            self.ui.message.set_text("Live password is live.")
 
         self._place()
         screen = Gdk.Screen.get_default()
@@ -109,14 +116,22 @@ class LockScreen(Gtk.Window):
 
     def _try_unlock(self) -> None:
         password = self.ui.password.get_text()
-        if not password and not PREVIEW:
+        if not password and not PREVIEW and not self.live:
             self.ui.message.set_text("Enter your password.")
             return
-        if authenticate(self.user, password):
-            Gtk.main_quit()
-            return
+        # Live: empty is allowed (try blank, then the documented "live" password).
+        candidates = [password]
+        if self.live and password == "":
+            candidates = ["", "live"]
+        for candidate in candidates:
+            if authenticate(self.user, candidate):
+                Gtk.main_quit()
+                return
         self.ui.password.set_text("")
-        self.ui.message.set_text("Incorrect password.")
+        if self.live:
+            self.ui.message.set_text("Incorrect password. On live media use live.")
+        else:
+            self.ui.message.set_text("Incorrect password.")
         self.ui.password.grab_focus()
 
 

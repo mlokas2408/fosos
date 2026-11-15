@@ -235,12 +235,11 @@ defaults/power panels plus `arandr` for display; screenshots use
 **Exit condition:** documented ISO size delta and a passed soak with Recovery
 as the only graphical fallback.
 
-**Status:** Phase 7c packaging cleanup is done: XFCE xfconf defaults and
-`fosos-apply-defaults` removed from `fosos-theme` 0.4.0; `fosos-desktop`
-1.2.0 and `fosos-theme` 0.4.0 are published and promoted in fosos-apt; size
-guidance is in [ISO-SIZE.md](docs/ISO-SIZE.md). Record the post-rebuild ISO
-size and complete the Hyper-V soak in [TESTING.md](docs/TESTING.md) after you
-rebuild the image.
+**Status:** Phase 7c implemented. XFCE session leftovers and greeter-only
+Greybird / elementary-xfce themes are gone (`fosos-theme` **0.6.0**). ISO
+size is recorded in [ISO-SIZE.md](docs/ISO-SIZE.md). Complete the Hyper-V
+soak checklist in [TESTING.md](docs/TESTING.md) on the rebuilt image before
+tagging a release ISO.
 
 ## Build, test, and release flow
 

@@ -46,6 +46,7 @@ required_files=(
   "$repo_root/packages/fosos-desktop/usr/bin/fosos-recovery-session"
   "$repo_root/packages/fosos-desktop/usr/bin/fosos-shell"
   "$repo_root/packages/fosos-desktop/usr/bin/fosos-lock"
+  "$repo_root/packages/fosos-desktop/etc/pam.d/fosos-lock"
   "$repo_root/packages/fosos-desktop/usr/bin/fosos-greeter"
   "$repo_root/packages/fosos-desktop/usr/share/xgreeters/fosos-greeter.desktop"
   "$repo_root/packages/fosos-desktop/usr/bin/fosos-screenshot"
@@ -128,6 +129,14 @@ if ! grep -q 'gir1.2-lightdm-1' "$repo_root/packages/fosos-desktop/DEBIAN/contro
   echo "fosos-desktop must depend on gir1.2-lightdm-1 for the greeter." >&2
   exit 1
 fi
+if ! grep -q 'python3-pamela' "$repo_root/packages/fosos-desktop/DEBIAN/control"; then
+  echo "fosos-desktop must depend on python3-pamela for fosos-lock." >&2
+  exit 1
+fi
+if grep -qE '(^|[, ])python3-pam([, ]|$)' "$repo_root/packages/fosos-desktop/DEBIAN/control"; then
+  echo "fosos-desktop must not depend on python3-pam (wrong module name PAM)." >&2
+  exit 1
+fi
 if ! grep -q 'desktopFile: "fosos-desktop.desktop"' \
   "$repo_root/packages/fosos-installer/etc/calamares/modules/displaymanager.conf"; then
   echo "Calamares must default to fosos-desktop.desktop." >&2
@@ -157,6 +166,15 @@ if grep -qE 'xfce4-' "$repo_root/packages/fosos-desktop/DEBIAN/control" \
 fi
 if grep -qE '^xfce4-' "$repo_root/build/live-build/config/package-lists/fosos-base.list.chroot"; then
   echo "Phase 7b: image package list must not list xfce4-* packages." >&2
+  exit 1
+fi
+if grep -qE 'greybird-gtk-theme|elementary-xfce-icon-theme' \
+  "$repo_root/packages/fosos-theme/DEBIAN/control"; then
+  echo "Phase 7c: fosos-theme must not Depend on greybird or elementary-xfce." >&2
+  exit 1
+fi
+if ! grep -q '^Version: 0\.6\.' "$repo_root/packages/fosos-theme/DEBIAN/control"; then
+  echo "Phase 7c: fosos-theme should be 0.6.x after dropping greybird/elementary." >&2
   exit 1
 fi
 

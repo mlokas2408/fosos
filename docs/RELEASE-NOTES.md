@@ -1,5 +1,20 @@
 # FosOS release notes
 
+## FosOS 1.3.6 — Lock screen unlock on live
+
+- Lock used `import pam`, but Debian’s `python3-pam` exports `PAM` — unlock
+  always failed with “Incorrect password”
+- Switch to `python3-pamela` and `/etc/pam.d/fosos-lock`
+- Live unlock accepts blank or password `live`
+
+## FosOS theme 0.6.0 — Phase 7c image shrink
+
+- Dropped `greybird-gtk-theme` and `elementary-xfce-icon-theme` Depends
+- gtk-greeter fallback uses FosOS / Adwaita themes
+- Live ISO **854405120** bytes (~815 MiB), ~24 MiB under the pre–Phase 7
+  baseline — see [ISO-SIZE.md](ISO-SIZE.md)
+- Finish Hyper-V soak in [TESTING.md](TESTING.md) before tagging a release ISO
+
 ## FosOS 1.3.5 — Login power menu
 
 - Sign in and Unlock: power button bottom-right (Shut down, Restart, Suspend)

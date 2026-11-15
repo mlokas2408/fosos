@@ -204,7 +204,12 @@ def build_auth_ui(
 
     password = add_classes(Gtk.Entry(), "fos-input")
     password.set_visibility(False)
-    password.set_placeholder_text("Optional on live media" if live and mode == "login" else "Password")
+    if live and mode == "login":
+        password.set_placeholder_text("Optional on live media")
+    elif live and mode == "lock":
+        password.set_placeholder_text("live")
+    else:
+        password.set_placeholder_text("Password")
     password.set_margin_top(16 if show_username else 0)
     form.pack_start(_field("Password", password), False, False, 0)
 

@@ -81,9 +81,10 @@ output/FosOS-trixie-amd64.iso
   FosOS Recovery (Openbox + terminal) as the greeter fallback
 - A FosOS GRUB live menu (Dawn Aperture splash, dark theme, FosOS Live
   entries) and the FosOS LightDM greeter (`fosos-greeter`, two-column
-  Sign in; Greybird / elementary-xfce kept as fallback). Regenerate the
-  splash with `node scripts/_render_grub_splash.mjs` after logo changes;
-  live-build reads `config/bootloaders/grub-pc/` for both BIOS and UEFI
+  Sign in; `lightdm-gtk-greeter` kept as emergency fallback on FosOS/Adwaita).
+  Regenerate the splash with `node scripts/_render_grub_splash.mjs` after
+  logo changes; live-build reads `config/bootloaders/grub-pc/` for both
+  BIOS and UEFI
 - Install FosOS, a Calamares installer for language, keyboard, disk,
   optional encryption, and the account that owns the installed system
 - A first-login welcome screen for network status, the FosOS guide, and updates

@@ -66,8 +66,9 @@ Review the screenshots in `output/desktop/`. Then, in Hyper-V:
 3. Open and minimize windows from the taskbar. Use Alt+Tab and Super+Left.
 4. Switch workspaces with Super+1…4 or the pager. Move a window with
    Super+Shift+2 and confirm it leaves the taskbar on Desktop 1.
-5. Press Super+L. Unlock with the account password. Confirm Start > Lock and
-   the Power menu Lock entry also lock the session.
+5. Press Super+L. Unlock with the account password (`live` on the live
+   image). Confirm Start > Lock and the Power menu Lock entry also lock
+   the session.
 6. Run `notify-send Test "Hello"` in a terminal. The popup appears above the
    taskbar and stays in the bell menu.
 7. Check the volume slider, the network menu and the calendar. On a laptop,
