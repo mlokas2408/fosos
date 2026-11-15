@@ -12,7 +12,6 @@ required_files=(
   "$repo_root/build/live-build/config/includes.chroot/etc/default/keyboard"
   "$repo_root/packages/fosos-theme/DEBIAN/control"
   "$repo_root/packages/fosos-theme/DEBIAN/postinst"
-  "$repo_root/packages/fosos-theme/usr/libexec/fosos-apply-defaults"
   "$repo_root/packages/fosos-theme/etc/xdg/autostart/fosos-polkit-agent.desktop"
   "$repo_root/packages/fosos-theme/usr/share/backgrounds/fosos/fosos-wallpaper.png"
   "$repo_root/packages/fosos-installer/DEBIAN/control"
@@ -31,8 +30,12 @@ required_files=(
   "$repo_root/packages/fosos-cli/usr/bin/fos"
   "$repo_root/packages/fosos-desktop/DEBIAN/control"
   "$repo_root/packages/fosos-desktop/usr/bin/fosos-session"
+  "$repo_root/packages/fosos-desktop/usr/bin/fosos-recovery-session"
   "$repo_root/packages/fosos-desktop/usr/bin/fosos-shell"
+  "$repo_root/packages/fosos-desktop/usr/bin/fosos-lock"
+  "$repo_root/packages/fosos-desktop/usr/bin/fosos-screenshot"
   "$repo_root/packages/fosos-desktop/usr/bin/fosos-settings"
+  "$repo_root/packages/fosos-desktop/usr/share/fosos-desktop/xsettingsd.conf"
   "$repo_root/packages/fosos-desktop/usr/bin/fosos-files"
   "$repo_root/packages/fosos-desktop/usr/bin/fosos-terminal"
   "$repo_root/packages/fosos-desktop/usr/bin/fosos-notepad"
@@ -56,6 +59,11 @@ required_files=(
   "$repo_root/packages/fosos-desktop/usr/share/icons/FosOS/scalable/places/folder.svg"
   "$repo_root/packages/fosos-desktop/DEBIAN/postinst"
   "$repo_root/packages/fosos-desktop/etc/lightdm/lightdm.conf.d/50-fosos-default-session.conf"
+  "$repo_root/packages/fosos-desktop/usr/libexec/fosos-shell-recovery"
+  "$repo_root/packages/fosos-desktop/usr/share/doc/fosos-desktop/RECOVERY.md"
+  "$repo_root/docs/RECOVERY.md"
+  "$repo_root/docs/RELEASE-NOTES.md"
+  "$repo_root/docs/ISO-SIZE.md"
   "$repo_root/archive/distributions.in"
   "$repo_root/scripts/stage-deb.sh"
   "$repo_root/scripts/apt-archive.sh"
@@ -70,12 +78,55 @@ for file in "${required_files[@]}"; do
 done
 
 agent_desktop="$repo_root/packages/fosos-theme/etc/xdg/autostart/fosos-polkit-agent.desktop"
-if ! grep -q '^OnlyShowIn=XFCE;$' "$agent_desktop" || ! grep -q '^Exec=/usr/bin/lxpolkit$' "$agent_desktop"; then
-  echo "XFCE authentication agent autostart is incomplete: $agent_desktop" >&2
+if ! grep -q '^OnlyShowIn=FosOS;$' "$agent_desktop" || ! grep -q '^Exec=/usr/bin/lxpolkit$' "$agent_desktop"; then
+  echo "FosOS authentication agent autostart is incomplete: $agent_desktop" >&2
   exit 1
 fi
 if ! grep -q '^lxpolkit$' "$repo_root/build/live-build/config/package-lists/fosos-base.list.chroot"; then
   echo "The image package list must install lxpolkit so APT does not choose ukui-polkit." >&2
+  exit 1
+fi
+
+default_session="$repo_root/packages/fosos-desktop/etc/lightdm/lightdm.conf.d/50-fosos-default-session.conf"
+live_session="$repo_root/build/live-build/config/includes.chroot/etc/lightdm/lightdm.conf.d/90-fosos-live.conf"
+if ! grep -q '^user-session=fosos-desktop$' "$default_session"; then
+  echo "Installed default session must be fosos-desktop: $default_session" >&2
+  exit 1
+fi
+if ! grep -q '^user-session=fosos-desktop$' "$live_session" \
+  || ! grep -q '^autologin-session=fosos-desktop$' "$live_session"; then
+  echo "Live image must autologin to fosos-desktop: $live_session" >&2
+  exit 1
+fi
+if ! grep -q 'desktopFile: "fosos-desktop.desktop"' \
+  "$repo_root/packages/fosos-installer/etc/calamares/modules/displaymanager.conf"; then
+  echo "Calamares must default to fosos-desktop.desktop." >&2
+  exit 1
+fi
+if ! grep -q '^Name=FosOS Desktop$' \
+  "$repo_root/packages/fosos-desktop/usr/share/xsessions/fosos-desktop.desktop"; then
+  echo "xsessions entry must be named FosOS Desktop." >&2
+  exit 1
+fi
+if [[ ! -f "$repo_root/packages/fosos-desktop/usr/share/xsessions/fosos-recovery.desktop" ]]; then
+  echo "Missing FosOS Recovery xsessions entry." >&2
+  exit 1
+fi
+if [[ ! -f "$repo_root/packages/fosos-desktop/usr/bin/fosos-recovery-session" ]]; then
+  echo "Missing fosos-recovery-session." >&2
+  exit 1
+fi
+if grep -qE '^xfce4$' "$repo_root/build/live-build/config/package-lists/fosos-base.list.chroot"; then
+  echo "Phase 7a: do not install the xfce4 metapackage in the image list." >&2
+  exit 1
+fi
+if grep -qE 'xfce4-' "$repo_root/packages/fosos-desktop/DEBIAN/control" \
+  || grep -qE 'xfce4-' "$repo_root/packages/fosos-theme/DEBIAN/control"; then
+  echo "Phase 7b: fosos-desktop and fosos-theme must not Depend on xfce4-* packages." >&2
+  exit 1
+fi
+if grep -qE '^xfce4-' "$repo_root/build/live-build/config/package-lists/fosos-base.list.chroot"; then
+  echo "Phase 7b: image package list must not list xfce4-* packages." >&2
   exit 1
 fi
 
@@ -87,6 +138,8 @@ bash -n "$repo_root/scripts/test-apt-archive.sh"
 bash -n "$repo_root/scripts/test-desktop.sh"
 sh -n "$repo_root/packages/fosos-cli/usr/bin/fos"
 sh -n "$repo_root/packages/fosos-desktop/usr/bin/fosos-session"
+sh -n "$repo_root/packages/fosos-desktop/usr/bin/fosos-recovery-session"
+sh -n "$repo_root/packages/fosos-desktop/usr/libexec/fosos-shell-recovery"
 
 # Parse the Python sources without writing bytecode into the package tree.
 python3 - "$repo_root" <<'PY'
@@ -98,6 +151,7 @@ root = pathlib.Path(sys.argv[1])
 sources = [
     root / "packages/fosos-welcome/usr/bin/fosos-welcome",
     root / "packages/fosos-desktop/usr/bin/fosos-shell",
+    root / "packages/fosos-desktop/usr/bin/fosos-lock",
     root / "packages/fosos-desktop/usr/bin/fosos-settings",
     *sorted((root / "packages/fosos-desktop/usr/lib/fosos-desktop/fosdesk").glob("*.py")),
 ]

@@ -1,7 +1,7 @@
 [Desktop Entry]
 Type=Application
-Name=FosOS Desktop (experimental)
-Comment=The FosOS panel, launcher and notifications. Choose Xfce Session to go back.
+Name=FosOS Desktop
+Comment=The FosOS panel, launcher and notifications. Use FosOS Recovery or a text console if this session fails.
 Exec=fosos-session
 TryExec=fosos-session
 DesktopNames=FosOS

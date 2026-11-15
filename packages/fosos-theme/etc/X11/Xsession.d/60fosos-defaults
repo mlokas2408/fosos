@@ -1,4 +1,4 @@
-# FosOS defaults override the stock XFCE channel files.
+# Prefer FosOS system defaults (mimeapps, etc.) over stock XDG configs.
 if [ -z "${XDG_CONFIG_DIRS}" ]; then
 	XDG_CONFIG_DIRS="/etc/xdg"
 fi

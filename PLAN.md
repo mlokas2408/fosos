@@ -18,13 +18,13 @@ need from Debian or an upstream vendor.
 | --- | --- |
 | Distribution base | Debian Stable |
 | Architecture | x86_64/amd64 with UEFI boot only |
-| Initial desktop | XFCE, branded and configured as FosOS |
+| Desktop | FosOS Desktop (`fosos-desktop`) on Openbox; no XFCE session |
+| Fallback | FosOS Recovery (Openbox + terminal) and text consoles |
 | Browser | Firefox |
 | Package management | APT and Debian repositories |
 | FosOS packages | Native `.deb` packages in a signed FosOS APT archive |
 | ISO builder | Debian `live-build` in a clean, scripted build environment |
 | Test targets | Hyper-V for WSL development builds; a dedicated Debian VM rebuilds release ISOs, then USB boot on selected hardware |
-| Custom desktop | `fosos-desktop`, installed as an experimental session until stable |
 
 ## Scope boundaries
 
@@ -164,6 +164,11 @@ See [FosOS Desktop](docs/DESKTOP.md).
 **Exit condition:** FosOS Desktop is stable enough for daily internal testing
 and can be upgraded as a standalone package.
 
+**Status:** Phase 5 exit is met. The session includes the panel, Start menu,
+Files, Terminal, Notepad, notifications, settings shell, screen locker,
+multi-monitor taskbars, battery and brightness indicators, and four
+workspaces.
+
 ### Phase 6 — FosOS Desktop default
 
 **Goal:** promote the custom desktop only after it is dependable.
@@ -177,6 +182,65 @@ and can be upgraded as a standalone package.
 
 **Exit condition:** the custom session is more reliable for its supported use
 cases than the XFCE default it replaces.
+
+**Status:** Phase 6 packaging and documentation are in place for FosOS 1.0:
+LightDM and Calamares default to `fosos-desktop`, failed-shell recovery opens
+a recovery terminal, and [RELEASE-NOTES.md](docs/RELEASE-NOTES.md) /
+[RECOVERY.md](docs/RECOVERY.md) cover the release and rollback. Complete the
+soak checklist in [TESTING.md](docs/TESTING.md) on Hyper-V (and USB hardware)
+before tagging the release ISO. The XFCE greeter fallback is removed in
+Phase 7.
+
+### Phase 7 — FosOS-only desktop, smaller ISO
+
+**Goal:** ship a single desktop product and shrink the image by dropping the
+XFCE session, without breaking settings that still use shared tools.
+
+#### 7a — product cutover (this change)
+
+- Remove the XFCE login session from the image (do not install `xfce4` /
+  `xfce4-session`).
+- Keep FosOS Desktop as the only full desktop; add **FosOS Recovery**
+  (Openbox + terminal) on the greeter and document TTY recovery.
+- Drop Thunar, Mousepad, xfce4-terminal, xfce4-notifyd and panel plugins from
+  the image list; first-party apps cover those roles.
+- Keep `xfce4-settings`, `xfce4-power-manager` and `xfce4-screenshooter` as
+  temporary dependencies of FosOS Desktop.
+
+**Exit condition:** a fresh ISO boots only FosOS Desktop (or Recovery), with
+no Xfce Session entry, and is smaller than the Phase 6 image.
+
+#### 7b — unbundle settings tools
+
+- Replace or wrap display, keyboard, mouse, mime and power dialogs so the
+  image no longer needs `xfce4-settings` / `xfce4-power-manager`.
+- Replace `xfce4-screenshooter` with a FosOS-owned or smaller tool.
+- Drop remaining XFCE package dependencies from `fosos-desktop` and
+  `fosos-theme`.
+
+**Exit condition:** `apt depends fosos-desktop` lists no `xfce4-*` packages.
+
+**Status:** Phase 7b is implemented. Settings use built-in keyboard/mouse/
+defaults/power panels plus `arandr` for display; screenshots use
+`fosos-screenshot` (`scrot`); the session uses `xsettingsd` instead of
+`xfsettingsd`. `fosos-desktop` 1.2.0 and `fosos-theme` 0.3.0 have no
+`xfce4-*` Depends.
+
+#### 7c — ISO size and soak
+
+- Remove leftover XFCE libraries pulled only by the old session.
+- Measure live ISO size before/after; target a clear reduction vs Phase 6.
+- Re-run the Hyper-V soak with Recovery and TTY paths.
+
+**Exit condition:** documented ISO size delta and a passed soak with Recovery
+as the only graphical fallback.
+
+**Status:** Phase 7c packaging cleanup is done: XFCE xfconf defaults and
+`fosos-apply-defaults` removed from `fosos-theme` 0.4.0; `fosos-desktop`
+1.2.0 and `fosos-theme` 0.4.0 are published and promoted in fosos-apt; size
+guidance is in [ISO-SIZE.md](docs/ISO-SIZE.md). Record the post-rebuild ISO
+size and complete the Hyper-V soak in [TESTING.md](docs/TESTING.md) after you
+rebuild the image.
 
 ## Build, test, and release flow
 

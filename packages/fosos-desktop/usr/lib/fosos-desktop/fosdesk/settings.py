@@ -13,6 +13,7 @@ from gi.repository import Gio, GLib, Gtk
 
 from . import VERSION
 from . import apps as appmod
+from . import settings_pages as pages
 from .ui import add_classes, brand_title, button, clear, label, load_css, mark, tile
 
 APP_ID = "org.fosos.Settings"
@@ -24,23 +25,31 @@ UPDATE_SCRIPT = (
     "printf 'Press Enter to close. '; read _"
 )
 
-# (group, title, description, icon, command)
+# External tools or built-in page ids.
+# (group, title, description, icon, {"command": [...]} | {"page": "id"})
 PANELS = [
-    ("System", "Display", "Resolution, scaling and monitors", "video-display-symbolic", ["xfce4-display-settings"]),
-    ("System", "Sound", "Output, input and volume", "audio-volume-high-symbolic", ["pavucontrol"]),
-    ("System", "Network", "Wi-Fi, cable and VPN connections", "network-wireless-symbolic", ["nm-connection-editor"]),
-    ("System", "Bluetooth", "Pair and manage devices", "bluetooth-active-symbolic", ["blueman-manager"]),
-    ("Input", "Keyboard", "Layout, repeat and shortcuts", "input-keyboard-symbolic", ["xfce4-keyboard-settings"]),
-    ("Input", "Mouse and touchpad", "Pointer speed and buttons", "input-mouse-symbolic", ["xfce4-mouse-settings"]),
-    ("Apps", "Default apps", "Browser, mail and file types", "starred-symbolic", ["xfce4-mime-settings"]),
+    ("System", "Display", "Resolution, scaling and monitors", "video-display-symbolic", {"command": ["arandr"]}),
+    ("System", "Sound", "Output, input and volume", "audio-volume-high-symbolic", {"command": ["pavucontrol"]}),
+    (
+        "System",
+        "Network",
+        "Wi-Fi, cable and VPN connections",
+        "network-wireless-symbolic",
+        {"command": ["nm-connection-editor"]},
+    ),
+    ("System", "Bluetooth", "Pair and manage devices", "bluetooth-active-symbolic", {"command": ["blueman-manager"]}),
+    ("System", "Power", "Idle blanking and suspend", "battery-good-symbolic", {"page": "power"}),
+    ("Input", "Keyboard", "Layout, repeat and shortcuts", "input-keyboard-symbolic", {"page": "keyboard"}),
+    ("Input", "Mouse and touchpad", "Pointer speed and buttons", "input-mouse-symbolic", {"page": "mouse"}),
+    ("Apps", "Default apps", "Browser, mail and file types", "starred-symbolic", {"page": "defaults"}),
     (
         "FosOS",
         "Updates",
         "Install Debian and FosOS updates",
         "software-update-available-symbolic",
-        ["xfce4-terminal", "--title=FosOS updates", "-x", "sh", "-c", UPDATE_SCRIPT],
+        {"command": ["fosos-terminal", "-e", "sh", "-c", UPDATE_SCRIPT]},
     ),
-    ("FosOS", "Welcome", "Open the FosOS welcome again", "help-about-symbolic", ["fosos-welcome", "--again"]),
+    ("FosOS", "Welcome", "Open the FosOS welcome again", "help-about-symbolic", {"command": ["fosos-welcome", "--again"]}),
 ]
 
 
@@ -85,6 +94,13 @@ def disk_text() -> str:
         return "Unknown"
     gib = 1024**3
     return f"{usage.free / gib:.0f} GiB free of {usage.total / gib:.0f} GiB"
+
+
+def panel_available(action: dict) -> bool:
+    if "page" in action:
+        return action["page"] in pages.PAGES
+    command = action.get("command") or []
+    return bool(command) and shutil.which(command[0]) is not None
 
 
 class SettingsWindow(Gtk.ApplicationWindow):
@@ -139,7 +155,7 @@ class SettingsWindow(Gtk.ApplicationWindow):
         main.pack_start(scroller, True, True, 0)
 
         self.status = add_classes(Gtk.Box(spacing=8), "fos-card-footer")
-        self.status_text = label(f"FosOS Desktop {VERSION} · experimental", "fos-small", "fos-muted")
+        self.status_text = label(f"FosOS Desktop {VERSION}", "fos-small", "fos-muted")
         self.status.pack_start(self.status_text, True, True, 0)
         main.pack_start(self.status, False, False, 0)
 
@@ -162,11 +178,32 @@ class SettingsWindow(Gtk.ApplicationWindow):
             self._all_settings(self.search.get_text().strip().lower())
         self.content.show_all()
 
+    def show_builtin(self, page_id: str) -> None:
+        entry = pages.PAGES.get(page_id)
+        if entry is None:
+            self.status_text.set_text("That settings page is not available.")
+            return
+        title, builder = entry
+        for page, nav in self.pages.items():
+            ctx = nav.get_style_context()
+            ctx.add_class("ghost")
+            ctx.remove_class("secondary")
+        self.heading.set_text(title)
+        clear(self.content)
+        back = button("Back to all settings", variant="ghost", size="sm")
+        back.connect("clicked", lambda _b: self.show_page("All settings"))
+        self.content.pack_start(back, False, False, 0)
+        self.content.pack_start(builder(self._set_status), False, False, 0)
+        self.content.show_all()
+
+    def _set_status(self, text: str) -> None:
+        self.status_text.set_text(text)
+
     def _all_settings(self, query: str) -> None:
         groups: dict[str, list] = {}
         for entry in PANELS:
-            group, title, desc, _icon, command = entry
-            if shutil.which(command[0]) is None:
+            group, title, desc, _icon, action = entry
+            if not panel_available(action):
                 continue
             if query and query not in f"{group} {title} {desc}".lower():
                 continue
@@ -179,12 +216,12 @@ class SettingsWindow(Gtk.ApplicationWindow):
             section = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
             section.pack_start(label(group, "fos-label"), False, False, 0)
             grid = Gtk.Grid(column_spacing=8, row_spacing=8, column_homogeneous=True)
-            for index, (_group, title, desc, icon_name, command) in enumerate(entries):
-                grid.attach(self._panel_tile(title, desc, icon_name, command), index % 3, index // 3, 1, 1)
+            for index, (_group, title, desc, icon_name, action) in enumerate(entries):
+                grid.attach(self._panel_tile(title, desc, icon_name, action), index % 3, index // 3, 1, 1)
             section.pack_start(grid, False, False, 0)
             self.content.pack_start(section, False, False, 0)
 
-    def _panel_tile(self, title: str, desc: str, icon_name: str, command: list[str]) -> Gtk.Button:
+    def _panel_tile(self, title: str, desc: str, icon_name: str, action: dict) -> Gtk.Button:
         widget = button(variant="outline")
         add_classes(widget, "row")
         row = Gtk.Box(spacing=12)
@@ -196,10 +233,14 @@ class SettingsWindow(Gtk.ApplicationWindow):
         row.pack_start(texts, True, True, 0)
         widget.add(row)
         widget.set_tooltip_text(desc)
-        widget.connect("clicked", lambda _b: self._run(title, command))
+        widget.connect("clicked", lambda _b: self._open(title, action))
         return widget
 
-    def _run(self, title: str, command: list[str]) -> None:
+    def _open(self, title: str, action: dict) -> None:
+        if "page" in action:
+            self.show_builtin(action["page"])
+            return
+        command = action.get("command") or []
         if appmod.spawn(command):
             self.status_text.set_text(f"Opened {title}.")
         else:
@@ -223,7 +264,7 @@ class SettingsWindow(Gtk.ApplicationWindow):
         rows = [
             ("Edition", release.get("EDITION", "Unknown")),
             ("Debian", debian),
-            ("Desktop", f"FosOS Desktop {VERSION} (experimental), XFCE fallback"),
+            ("Desktop", f"FosOS Desktop {VERSION}; recovery session available"),
             ("Session", "Live session" if appmod.is_live() else "Installed system"),
             ("Kernel", platform.release()),
             ("Processor", cpu_text()),

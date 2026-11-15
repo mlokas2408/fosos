@@ -1,16 +1,14 @@
 #!/bin/sh
-# FosOS Desktop session (experimental). XFCE stays the default session and
-# the fallback on the login screen.
+# FosOS Desktop session. Fallback: FosOS Recovery on the greeter, or a
+# text console (Ctrl+Alt+F2).
 
 export XDG_CURRENT_DESKTOP=FosOS
 export XDG_SESSION_DESKTOP=fosos-desktop
 export DESKTOP_SESSION=fosos-desktop
-# Applications follow the dark FosOS look in this session only. XFCE keeps
-# its own settings.
 export GTK_THEME=FosOS
 export GTK_ICON_THEME_NAME=FosOS
 
-# Session-only MIME and helper defaults (Files / Terminal) without changing XFCE.
+# Session-only MIME and helper defaults (Files / Terminal).
 if [ -z "${XDG_CONFIG_DIRS}" ]; then
 	XDG_CONFIG_DIRS="/etc/xdg"
 fi
@@ -29,49 +27,30 @@ if [ -f "$config/openbox/rc.xml" ]; then
 	rc="$config/openbox/rc.xml"
 fi
 
+xsettings_conf="$data/xsettingsd.conf"
+if [ -f "$config/xsettingsd.conf" ]; then
+	xsettings_conf="$config/xsettingsd.conf"
+fi
+
 activation_env="DISPLAY XAUTHORITY XDG_CURRENT_DESKTOP XDG_SESSION_DESKTOP DESKTOP_SESSION GTK_THEME GTK_ICON_THEME_NAME"
 if command -v dbus-update-activation-environment >/dev/null 2>&1; then
 	# shellcheck disable=SC2086
 	dbus-update-activation-environment --systemd $activation_env >/dev/null 2>&1 || true
 fi
 
-# Display, keyboard, mouse and font settings come from the XFCE settings
-# daemon, so the XFCE settings dialogs work in this session too.
-if command -v xfsettingsd >/dev/null 2>&1; then
-	xfsettingsd >/dev/null 2>&1 &
+# Lightweight XSETTINGS (theme, icons, fonts) without xfsettingsd.
+if command -v xsettingsd >/dev/null 2>&1 && [ -f "$xsettings_conf" ]; then
+	xsettingsd -c "$xsettings_conf" >/dev/null 2>&1 &
 fi
 
-# xfsettingsd publishes theme names over XSETTINGS, which wins over the
-# environment. Switch to FosOS for this session and restore afterwards so
-# XFCE keeps Greybird and elementary-xfce.
-previous_gtk_theme=""
-previous_icon_theme=""
-if command -v xfconf-query >/dev/null 2>&1; then
-	previous_gtk_theme=$(xfconf-query -c xsettings -p /Net/ThemeName 2>/dev/null || true)
-	previous_icon_theme=$(xfconf-query -c xsettings -p /Net/IconThemeName 2>/dev/null || true)
-	xfconf-query -c xsettings -p /Net/ThemeName -n -t string -s FosOS >/dev/null 2>&1 \
-		|| xfconf-query -c xsettings -p /Net/ThemeName -s FosOS >/dev/null 2>&1 \
-		|| true
-	xfconf-query -c xsettings -p /Net/IconThemeName -n -t string -s FosOS >/dev/null 2>&1 \
-		|| xfconf-query -c xsettings -p /Net/IconThemeName -s FosOS >/dev/null 2>&1 \
-		|| true
+# Restore keyboard, mouse and idle blanking saved by fosos-settings.
+if command -v python3 >/dev/null 2>&1; then
+	PYTHONPATH="/usr/lib/fosos-desktop${PYTHONPATH:+:$PYTHONPATH}" \
+		python3 -c 'from fosdesk.settings_pages import restore_session_input; restore_session_input()' \
+		>/dev/null 2>&1 || true
 fi
-
-restore_session_themes() {
-	if ! command -v xfconf-query >/dev/null 2>&1; then
-		return 0
-	fi
-	if [ -n "$previous_gtk_theme" ]; then
-		xfconf-query -c xsettings -p /Net/ThemeName -s "$previous_gtk_theme" >/dev/null 2>&1 || true
-	fi
-	if [ -n "$previous_icon_theme" ]; then
-		xfconf-query -c xsettings -p /Net/IconThemeName -s "$previous_icon_theme" >/dev/null 2>&1 || true
-	fi
-}
-trap restore_session_themes EXIT
 
 # An authentication agent for pkexec and other password prompts.
-# lxpolkit is the one the XFCE session starts. Prefer it here too.
 for agent in \
 	/usr/bin/lxpolkit \
 	/usr/libexec/polkit-mate-authentication-agent-1 \
@@ -89,8 +68,27 @@ if command -v nm-applet >/dev/null 2>&1; then
 	nm-applet >/dev/null 2>&1 &
 fi
 
+# Lock on idle, lid close and before suspend. Super+L and Start > Lock also
+# run fosos-lock directly.
+if command -v xss-lock >/dev/null 2>&1 && command -v fosos-lock >/dev/null 2>&1; then
+	xset s 300 5 >/dev/null 2>&1 || true
+	xss-lock -l --transfer-sleep-lock -- fosos-lock >/dev/null 2>&1 &
+fi
+
+open_recovery_terminal() {
+	date -u +"%Y-%m-%dT%H:%M:%SZ shell gave up after repeated crashes" >"$config/shell-failed"
+	if command -v fosos-terminal >/dev/null 2>&1; then
+		fosos-terminal -e /usr/libexec/fosos-shell-recovery >/dev/null 2>&1 &
+		return
+	fi
+	if command -v xterm >/dev/null 2>&1; then
+		xterm -T "FosOS recovery" -e /usr/libexec/fosos-shell-recovery >/dev/null 2>&1 &
+	fi
+}
+
 # Restart the shell if it crashes, but give up after repeated failures so a
-# broken package cannot loop forever. The window manager keeps running.
+# broken package cannot loop forever. The window manager keeps running and a
+# recovery terminal is opened so the user can use Recovery or restart the shell.
 (
 	failures=0
 	while [ "$failures" -lt 5 ]; do
@@ -98,6 +96,7 @@ fi
 		fosos-shell
 		status=$?
 		if [ "$status" -eq 0 ]; then
+			rm -f "$config/shell-failed"
 			break
 		fi
 		if [ $(($(date +%s) - started)) -gt 60 ]; then
@@ -106,6 +105,9 @@ fi
 		failures=$((failures + 1))
 		sleep 1
 	done
+	if [ "$failures" -ge 5 ]; then
+		open_recovery_terminal
+	fi
 ) &
 shell_loop=$!
 
@@ -118,6 +120,9 @@ status=$?
 
 kill "$shell_loop" 2>/dev/null || true
 pkill -u "$(id -u)" -x fosos-shell 2>/dev/null || true
+pkill -u "$(id -u)" -x fosos-lock 2>/dev/null || true
+pkill -u "$(id -u)" -x xss-lock 2>/dev/null || true
+pkill -u "$(id -u)" -x xsettingsd 2>/dev/null || true
 if command -v systemctl >/dev/null 2>&1; then
 	systemctl --user unset-environment XDG_CURRENT_DESKTOP XDG_SESSION_DESKTOP DESKTOP_SESSION GTK_THEME GTK_ICON_THEME_NAME \
 		>/dev/null 2>&1 || true

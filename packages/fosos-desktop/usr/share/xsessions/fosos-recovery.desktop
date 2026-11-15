@@ -1,0 +1,7 @@
+[Desktop Entry]
+Type=Application
+Name=FosOS Recovery
+Comment=Minimal Openbox session with a terminal. Use when FosOS Desktop fails.
+Exec=fosos-recovery-session
+TryExec=fosos-recovery-session
+DesktopNames=FosOS

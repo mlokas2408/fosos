@@ -77,33 +77,33 @@ output/FosOS-trixie-amd64.iso
 
 ## What the image includes
 
-- XFCE as the default desktop session, with the FosOS wallpaper, Greybird GTK
-  theme, elementary-xfce icons, DMZ-White cursor, and Inter font
-- A FosOS boot splash and a matching LightDM login screen
+- FosOS Desktop as the only full login session (Openbox + FosOS shell), with
+  FosOS Recovery (Openbox + terminal) as the greeter fallback
+- A FosOS boot splash and a matching LightDM login screen (Greybird /
+  elementary-xfce on the greeter; FosOS GTK/icons in the desktop session)
 - Install FosOS, a Calamares installer for language, keyboard, disk,
   optional encryption, and the account that owns the installed system
 - A first-login welcome screen for network status, the FosOS guide, and updates
-- FosOS Desktop, an experimental second login session with the FosOS taskbar,
-  Start menu, notifications and settings, on Openbox. See
-  [FosOS Desktop](DESKTOP.md)
+- First-party Files, Terminal, Notepad, Settings, screenshot, lock screen and
+  notifications (no XFCE session or xfce4-* Depends)
 - A FosOS archive key and the `fos` command for update, upgrade, install,
   remove, and repair
 - Firefox ESR as the preinstalled browser
 - NetworkManager with Wi-Fi powersave disabled, PipeWire audio, Bluetooth,
-  power defaults, a terminal, file manager, archive utility, text editor,
-  screenshot tool, firmware, and a recovery console on Ctrl+Alt+F2
-- No Git, Node.js, Docker, compilers, language SDKs, Chrome, or other
-  development stack by default
+  power defaults, archive utility, screenshot tool, firmware, and a recovery
+  console on Ctrl+Alt+F2
+- No XFCE login session; no Git, Node.js, Docker, compilers, language SDKs,
+  Chrome, or other development stack by default
 
 The installer is Calamares. FosOS packages are published separately to the
 public archive at `https://mlokas2408.github.io/fosos-apt`. The image installs
 `fosos-archive-keyring`, which points APT at the stable suite. New packages
-go to testing first. XFCE remains the default session; FosOS Desktop is
-chosen on the login screen. The keyboard layout default on the live image is US; the installer asks again
-for the installed system.
+go to testing first. The keyboard layout default on the live image is US; the
+installer asks again for the installed system.
 
 Boot the image in Hyper-V before writing it to a USB drive. See
-[the testing guide](TESTING.md).
+[the testing guide](TESTING.md). After a Phase 7 rebuild, record the ISO
+byte size in [ISO-SIZE.md](ISO-SIZE.md).
 
 ## Package archive
 

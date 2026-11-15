@@ -11,7 +11,7 @@ mirror="${FOSOS_MIRROR:-http://deb.debian.org/debian}"
 
 packages=(
   xvfb openbox dbus dbus-x11 x11-utils xdotool libnotify-bin mousepad
-  python3-gi python3-gi-cairo gir1.2-gtk-3.0 gir1.2-wnck-3.0 gir1.2-vte-2.91 python3-xlib
+  python3-gi python3-gi-cairo python3-pam gir1.2-gtk-3.0 gir1.2-wnck-3.0 gir1.2-vte-2.91 python3-xlib
   fonts-inter fonts-liberation libgtk-3-0 adwaita-icon-theme elementary-xfce-icon-theme librsvg2-common
 )
 
@@ -56,12 +56,10 @@ mount_into sysfs sysfs sys
 mount_into bind /dev dev
 mount_into devpts devpts dev/pts
 
-if [[ ! -f "$root/.fosos-desktop-ready" ]]; then
-  chroot "$root" apt-get update
-  DEBIAN_FRONTEND=noninteractive chroot "$root" apt-get install -y --no-install-recommends "${packages[@]}"
-  chroot "$root" dbus-uuidgen --ensure
-  touch "$root/.fosos-desktop-ready"
-fi
+chroot "$root" apt-get update
+DEBIAN_FRONTEND=noninteractive chroot "$root" apt-get install -y --no-install-recommends "${packages[@]}"
+chroot "$root" dbus-uuidgen --ensure
+touch "$root/.fosos-desktop-ready"
 
 # Stage the package tree the same way the .deb is built: LF endings, executable bins.
 rm -rf -- "$root/opt/fosos-desktop"
@@ -82,14 +80,14 @@ ln -sfn /opt/fosos-desktop/usr/share/fosos-desktop "$root/usr/share/fosos-deskto
 # Stand-ins for apps and settings tools the test root does not install, so the
 # pinned row and the settings grid are complete.
 mkdir -p "$root/usr/local/share/applications" "$root/usr/local/bin"
-for stub in "thunar:Thunar File Manager" "xfce4-terminal:Xfce Terminal" "firefox-esr:Firefox ESR"; do
+for stub in "firefox-esr:Firefox ESR"; do
   id="${stub%%:*}"
   name="${stub#*:}"
   printf '[Desktop Entry]\nType=Application\nName=%s\nExec=true\nIcon=%s\n' "$name" "$id" \
     > "$root/usr/local/share/applications/$id.desktop"
 done
-for tool in xfce4-display-settings pavucontrol nm-connection-editor blueman-manager \
-  xfce4-keyboard-settings xfce4-mouse-settings xfce4-mime-settings xfce4-terminal fosos-welcome; do
+for tool in arandr pavucontrol nm-connection-editor blueman-manager scrot xsettingsd \
+  setxkbmap xset fosos-welcome; do
   printf '#!/bin/sh\nexit 0\n' > "$root/usr/local/bin/$tool"
   chmod 755 "$root/usr/local/bin/$tool"
 done
@@ -175,6 +173,20 @@ shot 07-clock
 xdotool key Escape
 sleep 0.5
 
+fosos-shell --workspace 2
+sleep 1
+shot 07b-workspace-2
+fosos-shell --workspace 1
+sleep 0.5
+
+fosos-lock --preview >/tmp/lock.log 2>&1 &
+sleep 2
+shot 07c-lock
+xdotool key Escape
+sleep 1
+pkill -f fosos-lock || true
+sleep 0.5
+
 fosos-settings >/tmp/settings.log 2>&1 &
 sleep 3
 shot 08-settings
@@ -207,7 +219,7 @@ echo "--- settings log"
 cat /tmp/settings.log
 echo "--- openbox log"
 cat /tmp/openbox.log
-pkill -f fosos-settings; pkill -f fosos-files; pkill -f fosos-terminal; pkill -f fosos-notepad; pkill -f fosos-shell; pkill mousepad; pkill openbox
+pkill -f fosos-settings; pkill -f fosos-files; pkill -f fosos-terminal; pkill -f fosos-notepad; pkill -f fosos-lock; pkill -f fosos-shell; pkill mousepad; pkill openbox
 sleep 1
 
 # The real session script: it must start the shell and end cleanly on sign-out.

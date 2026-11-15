@@ -213,6 +213,24 @@ button.fos-btn.row {
   font-size: 12px;
 }
 
+.fos-mark.size-lg {
+  min-width: 48px;
+  min-height: 48px;
+  font-size: 20px;
+}
+
+/* Workspace pager on the taskbar */
+button.fos-btn.fos-workspace {
+  min-width: 22px;
+  min-height: 22px;
+  padding: 0;
+  font-size: 11px;
+}
+
+.fos-lock entry.fos-input {
+  min-height: 36px;
+}
+
 /* Start button: four panes, like the Windows Start logo */
 .fos-start-icon {
   min-width: 14px;

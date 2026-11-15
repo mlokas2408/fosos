@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=Screenshot
+Comment=Capture the screen or a region
+Exec=fosos-screenshot -f
+Icon=camera-photo
+Terminal=false
+Categories=Utility;Graphics;
+Keywords=screenshot;capture;

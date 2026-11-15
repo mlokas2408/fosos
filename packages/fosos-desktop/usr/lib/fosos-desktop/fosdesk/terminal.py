@@ -53,7 +53,7 @@ def default_shell() -> str:
 
 
 class TerminalTab:
-    def __init__(self, window: "TerminalWindow", cwd: Path) -> None:
+    def __init__(self, window: "TerminalWindow", cwd: Path, argv: list[str] | None = None) -> None:
         self.window = window
         self.terminal = Vte.Terminal()
         self.terminal.set_cursor_blink_mode(Vte.CursorBlinkMode.ON)
@@ -83,10 +83,10 @@ class TerminalTab:
         self.tab_button.add(tab_row)
         self.tab_button.connect("clicked", lambda _b: self.window.focus_tab(self))
 
-        self.spawn(cwd)
+        self.spawn(cwd, argv)
 
-    def spawn(self, cwd: Path) -> None:
-        shell = default_shell()
+    def spawn(self, cwd: Path, argv: list[str] | None = None) -> None:
+        command = argv if argv else [default_shell()]
 
         def _spawned(_terminal, _pid, _error, _data=None) -> None:
             return
@@ -95,7 +95,7 @@ class TerminalTab:
             self.terminal.spawn_async(
                 Vte.PtyFlags.DEFAULT,
                 str(cwd),
-                [shell],
+                command,
                 None,
                 GLib.SpawnFlags.DEFAULT,
                 None,
@@ -110,7 +110,7 @@ class TerminalTab:
                 self.terminal.spawn_sync(
                     Vte.PtyFlags.DEFAULT,
                     str(cwd),
-                    [shell],
+                    command,
                     [],
                     GLib.SpawnFlags.DEFAULT,
                     None,
@@ -176,10 +176,13 @@ class TerminalWindow(CardWindow):
         self.body.pack_start(self.stack, True, True, 0)
 
         self.connect("key-press-event", self._on_key)
-        self.new_tab(self.start_cwd)
+        initial_argv = getattr(app, "_initial_argv", None)
+        if hasattr(app, "_initial_argv"):
+            app._initial_argv = None
+        self.new_tab(self.start_cwd, initial_argv)
 
-    def new_tab(self, cwd: Path | None = None) -> None:
-        tab = TerminalTab(self, cwd or self.start_cwd)
+    def new_tab(self, cwd: Path | None = None, argv: list[str] | None = None) -> None:
+        tab = TerminalTab(self, cwd or self.start_cwd, argv=argv)
         self.tabs.append(tab)
         self.stack.add_named(tab.page, str(id(tab)))
         self._rebuild_tabs()
@@ -270,6 +273,7 @@ class TerminalApp(Gtk.Application):
             flags=Gio.ApplicationFlags.HANDLES_COMMAND_LINE | Gio.ApplicationFlags.HANDLES_OPEN,
         )
         self.window: TerminalWindow | None = None
+        self._initial_argv: list[str] | None = None
 
     def do_startup(self) -> None:
         Gtk.Application.do_startup(self)
@@ -295,10 +299,16 @@ class TerminalApp(Gtk.Application):
     def do_command_line(self, command_line):
         argv = command_line.get_arguments()[1:]
         path = Path.home()
+        run_argv = None
+        if "-e" in argv:
+            index = argv.index("-e")
+            run_argv = argv[index + 1 :]
+            argv = argv[:index]
         if argv:
             candidate = Path(argv[0]).expanduser()
             if candidate.is_dir():
                 path = candidate
+        self._initial_argv = run_argv
         self._ensure_window(path)
         self.window.present()
         return 0
@@ -308,7 +318,8 @@ class TerminalApp(Gtk.Application):
             self.window = TerminalWindow(self, cwd=cwd)
             self.window.show_all()
         elif cwd is not None:
-            self.window.new_tab(cwd)
+            self.window.new_tab(cwd, self._initial_argv)
+            self._initial_argv = None
 
 
 def main() -> int:

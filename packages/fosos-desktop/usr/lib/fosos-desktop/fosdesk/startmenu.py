@@ -105,6 +105,7 @@ class StartMenu(Popup):
         for icon_name, tooltip, handler in (
             ("system-shutdown-symbolic", "Power", self._on_power),
             ("system-log-out-symbolic", "Sign out", self._on_sign_out),
+            ("system-lock-screen-symbolic", "Lock", self._on_lock),
             ("preferences-system-symbolic", "Settings", self._on_settings),
         ):
             action = button(icon_name=icon_name, variant="outline", size="icon-sm", tooltip=tooltip)
@@ -286,6 +287,10 @@ class StartMenu(Popup):
         self.dismiss()
         self.shell.open_settings()
 
+    def _on_lock(self, _button) -> None:
+        self.dismiss()
+        self.shell.lock_screen()
+
     def _confirm(self, text: str, actions: list[tuple[str, str, callable]]) -> None:
         clear(self.confirm_box)
         self.confirm_box.pack_start(label(text, "fos-text", "fos-strong"), True, True, 0)
@@ -318,6 +323,7 @@ class StartMenu(Popup):
                 ("Shut down", "destructive", lambda: self._session("poweroff")),
                 ("Restart", "outline", lambda: self._session("reboot")),
                 ("Suspend", "outline", lambda: self._session("suspend")),
+                ("Lock", "ghost", lambda: self._session("lock")),
             ],
         )
 

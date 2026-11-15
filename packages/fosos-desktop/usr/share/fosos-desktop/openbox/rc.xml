@@ -68,10 +68,13 @@
   </theme>
 
   <desktops>
-    <number>1</number>
+    <number>4</number>
     <firstdesk>1</firstdesk>
     <names>
-      <name>Desktop</name>
+      <name>Desktop 1</name>
+      <name>Desktop 2</name>
+      <name>Desktop 3</name>
+      <name>Desktop 4</name>
     </names>
     <popupTime>0</popupTime>
   </desktops>
@@ -109,11 +112,51 @@
     <keybind key="W-i">
       <action name="Execute"><command>fosos-settings</command></action>
     </keybind>
+    <keybind key="W-l">
+      <action name="Execute"><command>fosos-lock</command></action>
+    </keybind>
     <keybind key="Print">
-      <action name="Execute"><command>xfce4-screenshooter -f</command></action>
+      <action name="Execute"><command>fosos-screenshot -f</command></action>
     </keybind>
     <keybind key="S-Print">
-      <action name="Execute"><command>xfce4-screenshooter -r</command></action>
+      <action name="Execute"><command>fosos-screenshot -r</command></action>
+    </keybind>
+
+    <keybind key="W-1">
+      <action name="GoToDesktop"><to>1</to></action>
+    </keybind>
+    <keybind key="W-2">
+      <action name="GoToDesktop"><to>2</to></action>
+    </keybind>
+    <keybind key="W-3">
+      <action name="GoToDesktop"><to>3</to></action>
+    </keybind>
+    <keybind key="W-4">
+      <action name="GoToDesktop"><to>4</to></action>
+    </keybind>
+    <keybind key="C-A-Left">
+      <action name="GoToDesktop"><to>left</to><wrap>no</wrap></action>
+    </keybind>
+    <keybind key="C-A-Right">
+      <action name="GoToDesktop"><to>right</to><wrap>no</wrap></action>
+    </keybind>
+    <keybind key="W-S-Left">
+      <action name="SendToDesktop"><to>left</to><wrap>no</wrap></action>
+    </keybind>
+    <keybind key="W-S-Right">
+      <action name="SendToDesktop"><to>right</to><wrap>no</wrap></action>
+    </keybind>
+    <keybind key="W-S-1">
+      <action name="SendToDesktop"><to>1</to></action>
+    </keybind>
+    <keybind key="W-S-2">
+      <action name="SendToDesktop"><to>2</to></action>
+    </keybind>
+    <keybind key="W-S-3">
+      <action name="SendToDesktop"><to>3</to></action>
+    </keybind>
+    <keybind key="W-S-4">
+      <action name="SendToDesktop"><to>4</to></action>
     </keybind>
 
     <keybind key="A-Tab">

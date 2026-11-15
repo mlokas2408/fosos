@@ -1,3 +1,3 @@
-"""FosOS Desktop, the experimental FosOS session."""
+"""FosOS Desktop, the default FosOS session."""
 
-VERSION = "0.1.0"
+VERSION = "1.2.0"

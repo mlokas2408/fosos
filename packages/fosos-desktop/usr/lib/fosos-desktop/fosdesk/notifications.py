@@ -289,7 +289,8 @@ class NotificationServer:
             self.history.append(note)
             del self.history[:-HISTORY_LIMIT]
             self.unread = True
-            self.shell.panel.set_unread(True)
+            if self.shell.panel is not None:
+                self.shell.panel.set_unread(True)
         popup = NotificationPopup(self, note)
         self.popups[nid] = popup
         while len(self.popups) > MAX_POPUPS:
@@ -301,8 +302,11 @@ class NotificationServer:
         return nid
 
     def stack(self) -> None:
-        area = self.shell.panel.area()
-        bottom = self.shell.panel.top() - 8
+        panel = self.shell.panel
+        if panel is None:
+            return
+        area = panel.area()
+        bottom = panel.top() - 8
         for popup in reversed(list(self.popups.values())):
             _minimum, natural = popup.get_preferred_size()
             x = area.x + area.width - POPUP_WIDTH - 8
@@ -338,4 +342,5 @@ class NotificationServer:
 
     def mark_read(self) -> None:
         self.unread = False
-        self.shell.panel.set_unread(False)
+        if self.shell.panel is not None:
+            self.shell.panel.set_unread(False)

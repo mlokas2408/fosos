@@ -1,4 +1,4 @@
-"""The FosOS taskbar along the bottom of the primary monitor."""
+"""The FosOS taskbar along the bottom of each monitor."""
 
 import time
 
@@ -11,6 +11,7 @@ gi.require_version("Wnck", "3.0")
 from gi.repository import Gdk, GdkX11, GLib, Gtk, Wnck  # noqa: F401 (GdkX11 enables get_xid)
 
 from . import apps as appmod
+from .indicators import battery_present, brightness_available
 from .ui import BRAND, add_classes, badge, button, icon, label, separator, set_class, start_icon
 
 HEIGHT = 48
@@ -54,6 +55,15 @@ def set_struts(window: Gdk.Window, area: Gdk.Rectangle, height: int) -> None:
         disp.close()
 
 
+def window_center(window: Wnck.Window) -> tuple[int, int]:
+    x, y, width, height = window.get_geometry()
+    return x + width // 2, y + height // 2
+
+
+def point_in_rect(x: int, y: int, area: Gdk.Rectangle) -> bool:
+    return area.x <= x < area.x + area.width and area.y <= y < area.y + area.height
+
+
 class TaskButton(Gtk.Box):
     """A pinned or running app with its running indicator underneath."""
 
@@ -71,7 +81,6 @@ class TaskButton(Gtk.Box):
         if icon_name:
             self.button.add(icon(icon_name, 16))
         else:
-            # Prefer a monochrome symbolic icon over the app's coloured mini icon.
             self.button.add(icon("application-x-executable-symbolic", 16))
         self.button.connect("clicked", self._on_clicked)
         self.button.connect("button-release-event", self._on_release)
@@ -124,10 +133,12 @@ class TaskButton(Gtk.Box):
 
 
 class Panel(Gtk.Window):
-    def __init__(self, shell) -> None:
+    def __init__(self, shell, monitor: Gdk.Monitor, is_primary: bool = True) -> None:
         super().__init__(type=Gtk.WindowType.TOPLEVEL)
         self.shell = shell
-        self.set_title("FosOS Panel")
+        self.monitor = monitor
+        self.is_primary = is_primary
+        self.set_title("FosOS Panel" if is_primary else "FosOS Panel (secondary)")
         self.set_type_hint(Gdk.WindowTypeHint.DOCK)
         self.set_decorated(False)
         self.set_resizable(False)
@@ -149,46 +160,73 @@ class Panel(Gtk.Window):
         self.start_button = button(variant="ghost", size="icon", tooltip=BRAND["name"])
         self.start_icon = start_icon()
         self.start_button.add(self.start_icon)
-        self.start_button.connect("clicked", lambda _b: self.shell.toggle_start())
+        self.start_button.connect("clicked", lambda _b: self.shell.toggle_start(self))
         row.pack_start(self.start_button, False, False, 0)
         row.pack_start(separator(), False, False, 4)
+
+        self.workspace_box = Gtk.Box(spacing=2)
+        self.workspace_box.set_valign(Gtk.Align.CENTER)
+        row.pack_start(self.workspace_box, False, False, 0)
+        row.pack_start(separator(), False, False, 4)
+        self.workspace_buttons: list[Gtk.Button] = []
 
         self.tasks = Gtk.Box(spacing=2)
         row.pack_start(self.tasks, False, False, 0)
 
         row.pack_start(Gtk.Box(), True, True, 0)
 
-        if appmod.is_live():
+        if is_primary and appmod.is_live():
             live = badge(BRAND["live_label"], "outline")
             live.set_margin_end(4)
             row.pack_start(live, False, False, 0)
 
-        self.volume_button = button(icon_name="audio-volume-high-symbolic", size="icon-sm", tooltip="Volume")
-        self.volume_button.connect("clicked", lambda b: self.shell.toggle_popup("volume", b))
-        row.pack_start(self.volume_button, False, False, 0)
+        self.battery_button = None
+        self.brightness_button = None
+        self.volume_button = None
+        self.network_button = None
+        self.bell_button = None
+        self.unread_dot = None
 
-        self.network_button = button(icon_name="network-wireless-symbolic", size="icon-sm", tooltip="Network")
-        self.network_button.connect("clicked", lambda b: self.shell.toggle_popup("network", b))
-        row.pack_start(self.network_button, False, False, 0)
+        if is_primary:
+            if battery_present():
+                self.battery_button = button(
+                    icon_name="battery-good-symbolic", size="icon-sm", tooltip="Battery"
+                )
+                self.battery_button.connect("clicked", lambda b: self.shell.toggle_popup("battery", b))
+                row.pack_start(self.battery_button, False, False, 0)
 
-        bell = Gtk.Overlay()
-        self.bell_button = button(
-            icon_name="preferences-system-notifications-symbolic", size="icon-sm", tooltip="Notifications"
-        )
-        self.bell_button.connect("clicked", lambda b: self.shell.toggle_popup("notifications", b))
-        bell.add(self.bell_button)
-        self.unread_dot = Gtk.Box()
-        self.unread_dot.set_halign(Gtk.Align.END)
-        self.unread_dot.set_valign(Gtk.Align.START)
-        self.unread_dot.set_margin_top(4)
-        self.unread_dot.set_margin_end(4)
-        self.unread_dot.set_no_show_all(True)
-        add_classes(self.unread_dot, "fos-dot")
-        bell.add_overlay(self.unread_dot)
-        bell.set_overlay_pass_through(self.unread_dot, True)
-        row.pack_start(bell, False, False, 0)
+            if brightness_available():
+                self.brightness_button = button(
+                    icon_name="display-brightness-symbolic", size="icon-sm", tooltip="Brightness"
+                )
+                self.brightness_button.connect("clicked", lambda b: self.shell.toggle_popup("brightness", b))
+                row.pack_start(self.brightness_button, False, False, 0)
 
-        row.pack_start(separator(), False, False, 4)
+            self.volume_button = button(icon_name="audio-volume-high-symbolic", size="icon-sm", tooltip="Volume")
+            self.volume_button.connect("clicked", lambda b: self.shell.toggle_popup("volume", b))
+            row.pack_start(self.volume_button, False, False, 0)
+
+            self.network_button = button(icon_name="network-wireless-symbolic", size="icon-sm", tooltip="Network")
+            self.network_button.connect("clicked", lambda b: self.shell.toggle_popup("network", b))
+            row.pack_start(self.network_button, False, False, 0)
+
+            bell = Gtk.Overlay()
+            self.bell_button = button(
+                icon_name="preferences-system-notifications-symbolic", size="icon-sm", tooltip="Notifications"
+            )
+            self.bell_button.connect("clicked", lambda b: self.shell.toggle_popup("notifications", b))
+            bell.add(self.bell_button)
+            self.unread_dot = Gtk.Box()
+            self.unread_dot.set_halign(Gtk.Align.END)
+            self.unread_dot.set_valign(Gtk.Align.START)
+            self.unread_dot.set_margin_top(4)
+            self.unread_dot.set_margin_end(4)
+            self.unread_dot.set_no_show_all(True)
+            add_classes(self.unread_dot, "fos-dot")
+            bell.add_overlay(self.unread_dot)
+            bell.set_overlay_pass_through(self.unread_dot, True)
+            row.pack_start(bell, False, False, 0)
+            row.pack_start(separator(), False, False, 4)
 
         self.clock_button = button(variant="ghost", tooltip="Date & time")
         clock_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
@@ -203,26 +241,17 @@ class Panel(Gtk.Window):
         row.pack_start(self.clock_button, False, False, 0)
 
         self.task_buttons: list[TaskButton] = []
-        self.shell.pinned.listeners.append(self.rebuild_tasks)
-        for signal in ("window-opened", "window-closed"):
-            self.screen.connect(signal, self._on_screen_changed)
-        for signal in ("active-window-changed", "window-stacking-changed"):
-            self.screen.connect(signal, lambda *_a: self.refresh_tasks())
-        self._watched = set()
 
-        display_screen = Gdk.Screen.get_default()
-        display_screen.connect("monitors-changed", lambda _s: self.place())
-        display_screen.connect("size-changed", lambda _s: self.place())
         self.connect("realize", lambda _w: self.place())
-
         self.update_clock()
         GLib.timeout_add_seconds(5, self.update_clock)
+        self.rebuild_workspaces()
         self.rebuild_tasks()
 
     # Geometry
 
     def area(self) -> Gdk.Rectangle:
-        return primary_monitor()
+        return self.monitor.get_geometry()
 
     def place(self) -> None:
         area = self.area()
@@ -234,12 +263,18 @@ class Panel(Gtk.Window):
             set_struts(window, area, HEIGHT)
 
     def popup_anchors(self) -> dict[str, Gtk.Widget]:
-        return {
-            "volume": self.volume_button,
-            "network": self.network_button,
-            "notifications": self.bell_button,
-            "clock": self.clock_button,
-        }
+        anchors = {"clock": self.clock_button}
+        if self.volume_button is not None:
+            anchors["volume"] = self.volume_button
+        if self.network_button is not None:
+            anchors["network"] = self.network_button
+        if self.bell_button is not None:
+            anchors["notifications"] = self.bell_button
+        if self.battery_button is not None:
+            anchors["battery"] = self.battery_button
+        if self.brightness_button is not None:
+            anchors["brightness"] = self.brightness_button
+        return anchors
 
     def top(self) -> int:
         area = self.area()
@@ -253,9 +288,78 @@ class Panel(Gtk.Window):
         alloc = widget.get_allocation()
         return origin_x + alloc.x
 
+    # Workspaces
+
+    def rebuild_workspaces(self) -> None:
+        for child in self.workspace_box.get_children():
+            self.workspace_box.remove(child)
+            child.destroy()
+        self.workspace_buttons = []
+        count = self.screen.get_workspace_count()
+        if count <= 1:
+            self.workspace_box.hide()
+            self.refresh_workspaces()
+            return
+        self.workspace_box.show()
+        for index in range(count):
+            workspace = self.screen.get_workspace(index)
+            name = workspace.get_name() if workspace is not None else f"Desktop {index + 1}"
+            btn = button(str(index + 1), variant="ghost", size="icon-xs", tooltip=name)
+            add_classes(btn, "fos-workspace")
+            btn.connect("clicked", lambda _b, i=index: self.shell.switch_workspace(i))
+            self.workspace_buttons.append(btn)
+            self.workspace_box.pack_start(btn, False, False, 0)
+        self.workspace_box.show_all()
+        self.refresh_workspaces()
+
+    def refresh_workspaces(self) -> None:
+        active = self.screen.get_active_workspace()
+        active_number = active.get_number() if active is not None else 0
+        for index, btn in enumerate(self.workspace_buttons):
+            selected = index == active_number
+            set_class(btn, "default", selected)
+            set_class(btn, "ghost", not selected)
+
     # Windows and tasks
 
+    def _on_this_monitor(self, window: Wnck.Window) -> bool:
+        display = Gdk.Display.get_default()
+        if display.get_n_monitors() <= 1:
+            return True
+        cx, cy = window_center(window)
+        area = self.area()
+        if point_in_rect(cx, cy, area):
+            return True
+        # Prefer the primary panel for windows whose centre falls outside every
+        # panel (rare during moves) so they stay reachable.
+        for index in range(display.get_n_monitors()):
+            if point_in_rect(cx, cy, display.get_monitor(index).get_geometry()):
+                return False
+        return self.is_primary
+
+    def _on_active_workspace(self, window: Wnck.Window) -> bool:
+        if window.is_pinned():
+            return True
+        active = self.screen.get_active_workspace()
+        workspace = window.get_workspace()
+        if active is None or workspace is None:
+            return True
+        return workspace == active
+
     def windows(self) -> list[Wnck.Window]:
+        result = []
+        for window in self.screen.get_windows():
+            if window.is_skip_tasklist() or window.get_window_type() in SKIP_TYPES:
+                continue
+            if not self._on_active_workspace(window):
+                continue
+            if not self._on_this_monitor(window):
+                continue
+            result.append(window)
+        return result
+
+    def all_session_windows(self) -> list[Wnck.Window]:
+        """Windows to close on sign-out / power-off, across monitors and workspaces."""
         result = []
         for window in self.screen.get_windows():
             if window.is_skip_tasklist() or window.get_window_type() in SKIP_TYPES:
@@ -274,15 +378,6 @@ class Panel(Gtk.Window):
 
     def active_window(self) -> Wnck.Window | None:
         return self.screen.get_active_window()
-
-    def _on_screen_changed(self, *_args) -> None:
-        for window in self.screen.get_windows():
-            key = window.get_xid()
-            if key not in self._watched:
-                self._watched.add(key)
-                window.connect("state-changed", lambda *_a: self.refresh_tasks())
-                window.connect("name-changed", lambda *_a: self.refresh_tasks())
-        self.rebuild_tasks()
 
     def rebuild_tasks(self) -> None:
         for child in self.tasks.get_children():
@@ -337,12 +432,44 @@ class Panel(Gtk.Window):
         set_class(self.start_button, "ghost", not is_open)
 
     def set_unread(self, unread: bool) -> None:
-        self.unread_dot.set_visible(unread)
+        if self.unread_dot is not None:
+            self.unread_dot.set_visible(unread)
 
     def set_volume_icon(self, name: str, tooltip: str) -> None:
+        if self.volume_button is None:
+            return
         self.volume_button.get_child().set_from_icon_name(name, Gtk.IconSize.MENU)
         self.volume_button.set_tooltip_text(tooltip)
 
     def set_network_icon(self, name: str, tooltip: str) -> None:
+        if self.network_button is None:
+            return
         self.network_button.get_child().set_from_icon_name(name, Gtk.IconSize.MENU)
         self.network_button.set_tooltip_text(tooltip)
+
+    def set_battery_icon(self, name: str, tooltip: str) -> None:
+        if self.battery_button is None:
+            return
+        self.battery_button.get_child().set_from_icon_name(name, Gtk.IconSize.MENU)
+        self.battery_button.set_tooltip_text(tooltip)
+
+    def set_brightness_icon(self, name: str, tooltip: str) -> None:
+        if self.brightness_button is None:
+            return
+        self.brightness_button.get_child().set_from_icon_name(name, Gtk.IconSize.MENU)
+        self.brightness_button.set_tooltip_text(tooltip)
+
+    def apply_status(
+        self,
+        volume: tuple[str, str] | None,
+        network: tuple[str, str],
+        battery: tuple[str, str] | None,
+        brightness: tuple[str, str] | None,
+    ) -> None:
+        if volume is not None:
+            self.set_volume_icon(*volume)
+        self.set_network_icon(*network)
+        if battery is not None:
+            self.set_battery_icon(*battery)
+        if brightness is not None:
+            self.set_brightness_icon(*brightness)

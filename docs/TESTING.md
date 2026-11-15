@@ -14,9 +14,9 @@ Hyper-V check before it is written to USB. See [the build guide](BUILDING.md).
    first in the boot order. Hyper-V Generation 2 enables Secure Boot by
    default, and this live image is not set up to boot with it.
 4. Start the VM and boot into the live environment.
-5. Verify the FosOS wallpaper, login appearance, terminal, Firefox, file
-   manager, screenshot tool, network applet, audio controls, shutdown, and
-   restart.
+5. Confirm the live image autologins to **FosOS Desktop** (taskbar, Start,
+   drawn wallpaper). Verify Firefox, Files, Terminal, screenshot tool,
+   network, audio, shutdown, and restart.
 6. Press Ctrl+Alt+F2 and confirm the recovery console accepts the live
    account. Ctrl+Alt+F1 returns to the desktop.
 
@@ -33,16 +33,18 @@ locked; the new account can use `sudo`.
 2. Choose **Install FosOS**. Pick a language, keyboard, disk, and account.
    Erase the disk for a first install. Encryption is optional.
 3. When the installer finishes, restart, detach the ISO, and boot the disk.
-4. Sign in as the account you created. Welcome should show the network status.
-   Install updates if the network is up, open the guide, then finish setup.
+4. Sign in as the account you created. The greeter default must be
+   **FosOS Desktop**. Welcome should show the network status. Install updates
+   if the network is up, open the guide, then finish setup.
 5. To reinstall, boot the ISO again and erase the disk.
 
 Firefox is the only browser. The installer does not offer another one.
 
 ## FosOS Desktop session
 
-FosOS Desktop is experimental. XFCE must stay the default. See
-[FosOS Desktop](DESKTOP.md) for its shortcuts and conventions.
+FosOS Desktop is the only full desktop session. FosOS Recovery and text
+consoles are the fallback. See [FosOS Desktop](DESKTOP.md) and
+[RECOVERY.md](RECOVERY.md).
 
 Before booting a VM, run the headless check in Debian WSL:
 
@@ -52,20 +54,50 @@ sudo bash scripts/test-desktop.sh
 
 Review the screenshots in `output/desktop/`. Then, in Hyper-V:
 
-1. Boot the live image. It must still sign in to XFCE automatically.
-2. Sign out. On the login screen, open the session menu and choose
-   **FosOS Desktop (experimental)**. Sign in as `user` with password `live`.
-3. Check the taskbar, the Start menu (Super+Space), search, All apps, and the
+1. Boot the live image. It must autologin to **FosOS Desktop**.
+2. Check the taskbar, the Start menu (Super+Space), search, All apps, and the
    Files, Terminal, Firefox and Settings pins.
-4. Open and minimize windows from the taskbar. Use Alt+Tab and Super+Left.
-5. Run `notify-send Test "Hello"` in a terminal. The popup appears above the
+3. Open and minimize windows from the taskbar. Use Alt+Tab and Super+Left.
+4. Switch workspaces with Super+1…4 or the pager. Move a window with
+   Super+Shift+2 and confirm it leaves the taskbar on Desktop 1.
+5. Press Super+L. Unlock with the account password. Confirm Start > Lock and
+   the Power menu Lock entry also lock the session.
+6. Run `notify-send Test "Hello"` in a terminal. The popup appears above the
    taskbar and stays in the bell menu.
-6. Check the volume slider, the network menu and the calendar.
-7. Open Settings. Each tile opens its tool. About shows the system details.
-8. Sign out from the Start menu. Sign in to **Xfce Session** and confirm XFCE
-   looks the same as before.
+7. Check the volume slider, the network menu and the calendar. On a laptop,
+   confirm battery and brightness icons appear and their menus work.
+8. Open Settings. Each tile opens its tool. About shows the system details.
+9. Sign out from the Start menu. Sign in to **FosOS Recovery** and confirm a
+   terminal opens under Openbox. Sign out and return to **FosOS Desktop**.
+   Also check Ctrl+Alt+F2 for a text console.
 
-On an installed system, repeat steps 2 to 8 with the installed account.
+On a machine with two monitors, confirm a taskbar on each display and that
+windows appear on the taskbar for the monitor they sit on.
+
+On an installed system, repeat the checks with the installed account.
+
+## Phase 6 / 7 soak checklist
+
+Run this on a Hyper-V (or hardware) install before shipping a release ISO.
+After Phase 7, rebuild the ISO first, then record its size in
+[ISO-SIZE.md](ISO-SIZE.md).
+
+- [ ] Fresh login to FosOS Desktop (live and installed)
+- [ ] Lock and unlock (Super+L, idle lock if practical)
+- [ ] Display settings (`arandr`) change and apply
+- [ ] Settings: keyboard, mouse, default apps, power panels
+- [ ] Screenshot: Print / Shift+Print → file under Pictures
+- [ ] Multi-monitor: panel per display, windows on the correct taskbar
+- [ ] Network connect / disconnect from the panel menu
+- [ ] Audio volume and mute
+- [ ] Notifications (`notify-send`) and the bell menu
+- [ ] Shutdown, reboot, and suspend / resume
+- [ ] `fos update` / `fos upgrade` (or `apt`) of FosOS packages
+- [ ] Failed-session recovery: kill `fosos-shell` until the recovery terminal
+      appears, run `fosos-shell`, then verify **FosOS Recovery** and a TTY
+- [ ] Greeter has no Xfce Session entry
+- [ ] Post–Phase 7 ISO size recorded in [ISO-SIZE.md](ISO-SIZE.md)
+- [ ] Rollback path in [RECOVERY.md](RECOVERY.md) reviewed
 
 ## Package upgrade
 
@@ -85,8 +117,9 @@ take it from stable.
 ## Release check
 
 Before tagging a release, rebuild the ISO on the dedicated Debian 13 VM and
-repeat the Hyper-V smoke test with that image. Do not publish an ISO that was
-built only in WSL.
+repeat the Hyper-V smoke test and Phase 6 soak with that image. Do not publish
+an ISO that was built only in WSL. Record the result against
+[RELEASE-NOTES.md](RELEASE-NOTES.md).
 
 ## Physical USB smoke test
 

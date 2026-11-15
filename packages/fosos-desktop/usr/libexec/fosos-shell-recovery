@@ -1,0 +1,15 @@
+#!/bin/sh
+# Opened when fosos-shell crashes repeatedly. Keeps the session usable until
+# the user restarts the shell or signs in to FosOS Recovery.
+cat <<'EOF'
+FosOS Desktop shell stopped after repeated crashes.
+
+  fosos-shell          restart the panel and Start menu
+  openbox --exit       sign out to the login screen
+
+On the login screen, choose FosOS Recovery for a minimal terminal session,
+or use Ctrl+Alt+F2 for a text console. See
+/usr/share/doc/fosos-desktop/RECOVERY.md if installed.
+EOF
+echo
+exec bash

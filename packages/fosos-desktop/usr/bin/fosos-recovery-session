@@ -1,0 +1,58 @@
+#!/bin/sh
+# Minimal recovery session: Openbox plus a terminal. No FosOS shell.
+# Choose "FosOS Recovery" on the LightDM greeter when the desktop fails.
+
+export XDG_CURRENT_DESKTOP=FosOS
+export XDG_SESSION_DESKTOP=fosos-recovery
+export DESKTOP_SESSION=fosos-recovery
+export GTK_THEME=FosOS
+export GTK_ICON_THEME_NAME=FosOS
+
+data=/usr/share/fosos-desktop
+config="${XDG_CONFIG_HOME:-$HOME/.config}/fosos-desktop"
+mkdir -p "$config"
+
+rc="$data/openbox/rc.xml"
+if [ -f "$config/openbox/rc.xml" ]; then
+	rc="$config/openbox/rc.xml"
+fi
+
+xsettings_conf="$data/xsettingsd.conf"
+if [ -f "$config/xsettingsd.conf" ]; then
+	xsettings_conf="$config/xsettingsd.conf"
+fi
+
+if command -v dbus-update-activation-environment >/dev/null 2>&1; then
+	dbus-update-activation-environment --systemd DISPLAY XAUTHORITY \
+		XDG_CURRENT_DESKTOP XDG_SESSION_DESKTOP DESKTOP_SESSION \
+		GTK_THEME GTK_ICON_THEME_NAME >/dev/null 2>&1 || true
+fi
+
+if command -v xsettingsd >/dev/null 2>&1 && [ -f "$xsettings_conf" ]; then
+	xsettingsd -c "$xsettings_conf" >/dev/null 2>&1 &
+fi
+
+for agent in \
+	/usr/bin/lxpolkit \
+	/usr/libexec/polkit-mate-authentication-agent-1 \
+	/usr/lib/policykit-1-gnome/polkit-gnome-authentication-agent-1; do
+	if [ -x "$agent" ]; then
+		"$agent" >/dev/null 2>&1 &
+		break
+	fi
+done
+
+(
+	sleep 1
+	if command -v fosos-terminal >/dev/null 2>&1; then
+		fosos-terminal -e /usr/libexec/fosos-shell-recovery >/dev/null 2>&1 &
+	elif command -v xterm >/dev/null 2>&1; then
+		xterm -T "FosOS recovery" -e /usr/libexec/fosos-shell-recovery >/dev/null 2>&1 &
+	fi
+) &
+
+openbox --config-file "$rc"
+status=$?
+pkill -u "$(id -u)" -x fosos-terminal 2>/dev/null || true
+pkill -u "$(id -u)" -x xsettingsd 2>/dev/null || true
+exit "$status"

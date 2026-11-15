@@ -32,6 +32,7 @@ KNOWN_APPS = {
     "fosos-welcome.desktop": ("Welcome", "help-about-symbolic"),
     "org.pulseaudio.pavucontrol.desktop": ("Sound", "audio-volume-high-symbolic"),
     "xfce4-screenshooter.desktop": ("Screenshot", "camera-photo-symbolic"),
+    "fosos-screenshot.desktop": ("Screenshot", "camera-photo-symbolic"),
 }
 
 
@@ -218,7 +219,7 @@ def open_path(path: Path) -> bool:
         return Gio.AppInfo.launch_default_for_uri(path.as_uri(), context)
     except GLib.Error:
         if path.is_dir():
-            return spawn(["fosos-files", str(path)]) or spawn(["thunar", str(path)])
+            return spawn(["fosos-files", str(path)])
         return False
 
 

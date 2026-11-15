@@ -1,8 +1,9 @@
-"""Volume, network and clock: panel status and their popups."""
+"""Volume, network, battery, brightness and clock: panel status and their popups."""
 
 import re
 import shutil
 import subprocess
+from pathlib import Path
 
 import gi
 
@@ -14,6 +15,8 @@ from .popup import Popup
 from .ui import add_classes, button, clear, icon, label
 
 SINK = "@DEFAULT_AUDIO_SINK@"
+POWER_SUPPLY = Path("/sys/class/power_supply")
+BACKLIGHT = Path("/sys/class/backlight")
 
 
 def run(argv: list[str], timeout: float = 2.0) -> str | None:
@@ -316,3 +319,212 @@ class ClockPopup(Popup):
         self.date.set_text(now.format("%-d %B %Y"))
         self.calendar.select_month(now.get_month() - 1, now.get_year())
         self.calendar.select_day(now.get_day_of_month())
+
+
+# Battery
+
+
+def _read_int(path: Path) -> int | None:
+    try:
+        return int(path.read_text(encoding="utf-8").strip())
+    except (OSError, ValueError):
+        return None
+
+
+def _read_text(path: Path) -> str | None:
+    try:
+        return path.read_text(encoding="utf-8").strip()
+    except OSError:
+        return None
+
+
+def battery_present() -> bool:
+    if not POWER_SUPPLY.is_dir():
+        return False
+    for path in POWER_SUPPLY.iterdir():
+        if _read_text(path / "type") == "Battery":
+            return True
+    return False
+
+
+def battery_state() -> tuple[str, str] | None:
+    """Return (icon, tooltip) for the first battery, or None if none."""
+    if not POWER_SUPPLY.is_dir():
+        return None
+    for path in sorted(POWER_SUPPLY.iterdir()):
+        if _read_text(path / "type") != "Battery":
+            continue
+        status = (_read_text(path / "status") or "Unknown").lower()
+        capacity = _read_int(path / "capacity")
+        if capacity is None:
+            now = _read_int(path / "energy_now") or _read_int(path / "charge_now")
+            full = _read_int(path / "energy_full") or _read_int(path / "charge_full")
+            if now is not None and full:
+                capacity = max(0, min(100, round(100 * now / full)))
+        if capacity is None:
+            continue
+        charging = status in ("charging", "full")
+        if capacity >= 90:
+            icon_name = "battery-full-charging-symbolic" if charging else "battery-full-symbolic"
+        elif capacity >= 70:
+            icon_name = "battery-good-charging-symbolic" if charging else "battery-good-symbolic"
+        elif capacity >= 40:
+            icon_name = "battery-low-charging-symbolic" if charging else "battery-low-symbolic"
+        elif capacity >= 15:
+            icon_name = "battery-caution-charging-symbolic" if charging else "battery-caution-symbolic"
+        else:
+            icon_name = "battery-empty-charging-symbolic" if charging else "battery-empty-symbolic"
+        if status == "charging":
+            tip = f"Charging · {capacity}%"
+        elif status == "full":
+            tip = f"Full · {capacity}%"
+        elif status == "discharging":
+            tip = f"Battery · {capacity}%"
+        else:
+            tip = f"Battery · {capacity}%"
+        return icon_name, tip
+    return None
+
+
+class BatteryPopup(Popup):
+    def __init__(self, shell) -> None:
+        super().__init__(width=260)
+        self.shell = shell
+        frame = add_classes(Gtk.Box(orientation=Gtk.Orientation.VERTICAL), "fos-card")
+        self.add(frame)
+        frame.pack_start(popup_header("Battery"), False, False, 0)
+        body = add_classes(Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8), "fos-card-content")
+        frame.pack_start(body, True, True, 0)
+        self.status = label("", "fos-text", "fos-strong")
+        body.pack_start(self.status, False, False, 0)
+        self.detail = label("", "fos-small", "fos-muted")
+        self.detail.set_line_wrap(True)
+        body.pack_start(self.detail, False, False, 0)
+
+    def refresh(self) -> None:
+        state = battery_state()
+        if state is None:
+            self.status.set_text("No battery")
+            self.detail.set_text("This machine has no battery, or it is not reported.")
+        else:
+            _icon, tip = state
+            self.status.set_text(tip)
+            self.detail.set_text("Power settings follow the system power manager.")
+        self.shell.update_status()
+
+
+# Brightness
+
+
+def backlight_device() -> Path | None:
+    if not BACKLIGHT.is_dir():
+        return None
+    devices = sorted(p for p in BACKLIGHT.iterdir() if (p / "brightness").is_file())
+    return devices[0] if devices else None
+
+
+def brightness_available() -> bool:
+    return backlight_device() is not None or shutil.which("brightnessctl") is not None
+
+
+def read_brightness() -> int | None:
+    """Return brightness as 0–100, or None if unavailable."""
+    if shutil.which("brightnessctl"):
+        output = run(["brightnessctl", "-m", "info"])
+        if output:
+            # brightnessctl -m: device,type,class,current,percent,max
+            fields = output.strip().split(",")
+            if len(fields) >= 5:
+                percent = fields[4].rstrip("%")
+                if percent.isdigit():
+                    return max(0, min(100, int(percent)))
+    device = backlight_device()
+    if device is None:
+        return None
+    current = _read_int(device / "brightness")
+    maximum = _read_int(device / "max_brightness")
+    if current is None or not maximum:
+        return None
+    return max(0, min(100, round(100 * current / maximum)))
+
+
+def set_brightness(percent: int) -> None:
+    percent = max(1, min(100, int(percent)))
+    if shutil.which("brightnessctl"):
+        run(["brightnessctl", "set", f"{percent}%"])
+        return
+    device = backlight_device()
+    if device is None:
+        return
+    maximum = _read_int(device / "max_brightness")
+    if not maximum:
+        return
+    value = max(1, min(maximum, round(maximum * percent / 100)))
+    try:
+        (device / "brightness").write_text(str(value), encoding="utf-8")
+    except OSError:
+        pass
+
+
+def brightness_icon(_level: int) -> str:
+    return "display-brightness-symbolic"
+
+
+class BrightnessPopup(Popup):
+    def __init__(self, shell) -> None:
+        super().__init__(width=300)
+        self.shell = shell
+        self._updating = False
+        frame = add_classes(Gtk.Box(orientation=Gtk.Orientation.VERTICAL), "fos-card")
+        self.add(frame)
+        frame.pack_start(popup_header("Brightness"), False, False, 0)
+        body = add_classes(Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12), "fos-card-content")
+        frame.pack_start(body, True, True, 0)
+        row = Gtk.Box(spacing=8)
+        self.icon_button = button(icon_name="display-brightness-symbolic", size="icon-sm", tooltip="Brightness")
+        row.pack_start(self.icon_button, False, False, 0)
+        self.scale = add_classes(Gtk.Scale.new_with_range(Gtk.Orientation.HORIZONTAL, 1, 100, 1), "fos-scale")
+        self.scale.set_draw_value(False)
+        self.scale.set_hexpand(True)
+        self.scale.connect("value-changed", self._on_value)
+        row.pack_start(self.scale, True, True, 0)
+        self.percent = label("", "fos-text", "fos-muted", xalign=1.0)
+        self.percent.set_width_chars(4)
+        row.pack_start(self.percent, False, False, 0)
+        body.pack_start(row, False, False, 0)
+        self.status = label("", "fos-small", "fos-muted")
+        body.pack_start(self.status, False, False, 0)
+        footer = add_classes(Gtk.Box(), "fos-card-footer")
+        settings = button("Display settings", variant="ghost", size="sm")
+        settings.connect("clicked", lambda _b: self._open_settings())
+        footer.pack_start(settings, False, False, 0)
+        frame.pack_start(footer, False, False, 0)
+
+    def refresh(self) -> None:
+        level = read_brightness()
+        self._updating = True
+        if level is None:
+            self.scale.set_sensitive(False)
+            self.percent.set_text("")
+            self.status.set_text("Brightness control is not available.")
+        else:
+            self.scale.set_sensitive(True)
+            self.scale.set_value(level)
+            self.percent.set_text(f"{level}%")
+            self.status.set_text("Built-in display")
+            self.icon_button.get_child().set_from_icon_name(brightness_icon(level), Gtk.IconSize.MENU)
+        self._updating = False
+        self.shell.update_status()
+
+    def _on_value(self, scale: Gtk.Scale) -> None:
+        if self._updating:
+            return
+        level = int(scale.get_value())
+        self.percent.set_text(f"{level}%")
+        set_brightness(level)
+        self.icon_button.get_child().set_from_icon_name(brightness_icon(level), Gtk.IconSize.MENU)
+        self.shell.update_status()
+
+    def _open_settings(self) -> None:
+        self.dismiss()
+        appmod.spawn(["arandr"])

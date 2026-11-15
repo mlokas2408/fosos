@@ -1,0 +1,38 @@
+#!/bin/sh
+# Capture the screen (full, region or focused window) with scrot.
+set -eu
+
+mode="${1:--f}"
+pictures="${XDG_PICTURES_DIR:-$HOME/Pictures}"
+mkdir -p "$pictures"
+file="$pictures/Screenshot-$(date +%Y%m%d-%H%M%S).png"
+
+if ! command -v scrot >/dev/null 2>&1; then
+	echo "scrot is not installed." >&2
+	exit 1
+fi
+
+case "$mode" in
+-f | --full | "")
+	scrot "$file"
+	;;
+-r | --region)
+	scrot -s "$file"
+	;;
+-w | --window)
+	scrot -u "$file"
+	;;
+-h | --help)
+	echo "Usage: fosos-screenshot [-f|-r|-w]"
+	exit 0
+	;;
+*)
+	echo "Unknown option: $mode" >&2
+	exit 2
+	;;
+esac
+
+if command -v notify-send >/dev/null 2>&1; then
+	notify-send -a FosOS -i camera-photo-symbolic "Screenshot saved" "$file"
+fi
+echo "$file"
