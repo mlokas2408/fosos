@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from collections.abc import Callable
+from dataclasses import dataclass, field
 
 import gi
 
@@ -10,19 +11,49 @@ gi.require_version("Gdk", "3.0")
 gi.require_version("Gtk", "3.0")
 from gi.repository import Gdk, GLib, Gtk
 
-from .ui import BRAND, add_classes, brand_title, button, label, mark
+from .ui import BRAND, add_classes, brand_title, button, icon, label, mark
 from .wallpaper import draw_wallpaper
 
 
 @dataclass
 class AuthWidgets:
-    root: Gtk.Box
+    root: Gtk.Widget
     username: Gtk.Entry | None
     password: Gtk.Entry
     submit: Gtk.Button
     message: Gtk.Label
     session: Gtk.ComboBoxText | None
     brand_column: Gtk.Widget
+    power_button: Gtk.MenuButton
+    _power_list: Gtk.Box = field(repr=False)
+
+    def set_power_actions(
+        self,
+        actions: list[tuple[str, str, Callable[[], None]]],
+    ) -> None:
+        """Populate the bottom-right power menu. Each action is (label, icon, callback)."""
+        for child in list(self._power_list.get_children()):
+            self._power_list.remove(child)
+            child.destroy()
+        for text, icon_name, callback in actions:
+            item = button(text, icon_name=icon_name, variant="ghost", size="md")
+            item.set_halign(Gtk.Align.FILL)
+            item.set_hexpand(True)
+            add_classes(item, "fos-login-power-item")
+            item.connect("clicked", self._make_power_handler(callback))
+            self._power_list.pack_start(item, False, False, 0)
+        self._power_list.show_all()
+        self.power_button.set_sensitive(bool(actions))
+        self.power_button.set_visible(bool(actions))
+
+    def _make_power_handler(self, callback: Callable[[], None]):
+        def on_clicked(_button: Gtk.Button) -> None:
+            popover = self.power_button.get_popover()
+            if popover is not None:
+                popover.popdown()
+            callback()
+
+        return on_clicked
 
 
 def _field(name: str, entry: Gtk.Widget) -> Gtk.Box:
@@ -215,6 +246,39 @@ def build_auth_ui(
     form_shell.pack_start(form, True, True, 0)
     root.pack_start(form_shell, False, False, 0)
 
+    # Windows-style power control: bottom-right corner of the full screen.
+    overlay = Gtk.Overlay()
+    add_classes(overlay, "fos-login-overlay")
+    overlay.add(root)
+
+    power_list = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
+    power_list.set_border_width(6)
+    add_classes(power_list, "fos-login-power-list")
+
+    popover = Gtk.Popover()
+    popover.set_position(Gtk.PositionType.TOP)
+    popover.add(power_list)
+    power_list.show_all()
+
+    power_button = Gtk.MenuButton()
+    power_button.set_relief(Gtk.ReliefStyle.NONE)
+    power_button.set_can_focus(False)
+    power_button.set_direction(Gtk.ArrowType.UP)
+    power_button.set_popover(popover)
+    power_button.set_tooltip_text("Power")
+    power_button.add(icon("system-shutdown-symbolic", 20))
+    add_classes(power_button, "fos-btn", "ghost", "fos-login-power")
+
+    power_corner = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=0)
+    power_corner.set_halign(Gtk.Align.END)
+    power_corner.set_valign(Gtk.Align.END)
+    power_corner.set_margin_end(20)
+    power_corner.set_margin_bottom(20)
+    power_corner.pack_start(power_button, False, False, 0)
+    add_classes(power_corner, "fos-login-power-corner")
+    overlay.add_overlay(power_corner)
+    power_corner.show_all()
+
     wide_state = {"value": None}
 
     def on_allocate(_widget, allocation: Gdk.Rectangle) -> None:
@@ -235,13 +299,15 @@ def build_auth_ui(
     mobile_brand.set_visible(False)
 
     return AuthWidgets(
-        root=root,
+        root=overlay,
         username=username_entry,
         password=password,
         submit=submit,
         message=message,
         session=session_combo,
         brand_column=brand,
+        power_button=power_button,
+        _power_list=power_list,
     )
 
 

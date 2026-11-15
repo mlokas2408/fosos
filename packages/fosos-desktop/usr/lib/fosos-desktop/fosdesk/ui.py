@@ -6,8 +6,9 @@ from pathlib import Path
 import gi
 
 gi.require_version("Gdk", "3.0")
+gi.require_version("GdkPixbuf", "2.0")
 gi.require_version("Gtk", "3.0")
-from gi.repository import Gdk, GLib, Gtk, Pango
+from gi.repository import Gdk, GdkPixbuf, GLib, Gtk, Pango
 
 def _resolve_data_dir() -> Path:
     here = Path(__file__).resolve().parent
@@ -117,14 +118,29 @@ def button(
     return widget
 
 
-def mark(size: str = "md", inverse: bool = False) -> Gtk.Label:
-    widget = Gtk.Label(label="F")
-    widget.set_xalign(0.5)
-    widget.set_yalign(0.5)
-    widget.set_halign(Gtk.Align.CENTER)
-    widget.set_valign(Gtk.Align.CENTER)
-    add_classes(widget, "fos-mark", f"size-{size}", "inverse" if inverse else "")
-    return widget
+_MARK_PX = {"sm": 18, "md": 24, "lg": 48, "xl": 64}
+
+
+def mark(size: str = "md", inverse: bool = False) -> Gtk.Widget:
+    """Dawn Aperture logo mark (φως / light). inverse=True uses the black-tile logo."""
+    px = _MARK_PX.get(size, 24)
+    # Full tile (black + white) on light chrome; white-only mark on dark UI.
+    filename = "fosos-dawn-aperture.svg" if inverse else "fosos-dawn-aperture-mark.svg"
+    path = DATA_DIR / "logo" / filename
+    image = Gtk.Image()
+    image.set_halign(Gtk.Align.CENTER)
+    image.set_valign(Gtk.Align.CENTER)
+    if path.is_file():
+        try:
+            pixbuf = GdkPixbuf.Pixbuf.new_from_file_at_size(str(path), px, px)
+            image.set_from_pixbuf(pixbuf)
+        except GLib.Error:
+            image.set_from_icon_name("image-missing", Gtk.IconSize.BUTTON)
+    else:
+        image.set_from_icon_name("image-missing", Gtk.IconSize.BUTTON)
+    add_classes(image, "fos-mark", f"size-{size}", "inverse" if inverse else "")
+    image.set_size_request(px, px)
+    return image
 
 
 def start_icon() -> Gtk.Grid:

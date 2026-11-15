@@ -109,6 +109,7 @@ class GreeterWindow(Gtk.Window):
         if self.ui.username is not None:
             self.ui.username.connect("activate", lambda _e: self.ui.password.grab_focus())
         self.ui.submit.connect("clicked", lambda _b: self._submit())
+        self._wire_power()
 
         if PREVIEW:
             self.ui.message.set_text("Preview mode. Escape exits.")
@@ -123,6 +124,47 @@ class GreeterWindow(Gtk.Window):
 
         if not PREVIEW and self.greeter is not None:
             GLib.idle_add(self._maybe_autologin)
+
+    def _wire_power(self) -> None:
+        """Bottom-right Shut down / Restart / Suspend, like the Windows login screen."""
+
+        def can(name: str) -> bool:
+            if PREVIEW or LightDM is None:
+                return True
+            getter = getattr(LightDM, f"get_can_{name}", None)
+            if getter is None:
+                return True
+            try:
+                return bool(getter())
+            except (AttributeError, GLib.Error, TypeError):
+                return True
+
+        def run(name: str) -> None:
+            if PREVIEW:
+                self.ui.message.set_text(f"Preview: {name}")
+                return
+            if LightDM is None:
+                self.ui.message.set_text("Power actions unavailable.")
+                return
+            method = getattr(LightDM, name, None)
+            if method is None:
+                self.ui.message.set_text(f"Power action not supported: {name}")
+                return
+            try:
+                method()
+            except GLib.Error as exc:
+                self.ui.message.set_text(
+                    str(exc.message) if hasattr(exc, "message") else str(exc)
+                )
+
+        actions = []
+        if can("shutdown"):
+            actions.append(("Shut down", "system-shutdown-symbolic", lambda: run("shutdown")))
+        if can("restart"):
+            actions.append(("Restart", "system-reboot-symbolic", lambda: run("restart")))
+        if can("suspend"):
+            actions.append(("Suspend", "system-suspend-symbolic", lambda: run("suspend")))
+        self.ui.set_power_actions(actions)
 
     def _place(self) -> None:
         screen = Gdk.Screen.get_default()

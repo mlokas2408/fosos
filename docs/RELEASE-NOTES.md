@@ -1,5 +1,18 @@
 # FosOS release notes
 
+## FosOS 1.3.5 — Login power menu
+
+- Sign in and Unlock: power button bottom-right (Shut down, Restart, Suspend)
+- Greeter uses LightDM power APIs; lock uses `systemctl`
+
+## FosOS 1.3.4 / theme 0.5.0 — Dawn Aperture logo + boot menu
+
+- Official mark: **Dawn Aperture** (`fosos-dawn-aperture.svg`)
+- Used in the greeter/lock mark, Start header, Settings, desktop watermark
+- Live GRUB first screen: dark FosOS splash (logo + FosOS / phos · light),
+  neutral menu theme, entries labelled **FosOS Live**, 8s timeout
+- Theme package **0.5.0**, desktop **1.3.4**
+
 ## FosOS 1.3.3 — Single-session Sign in
 
 - Greeter always starts **FosOS Desktop** (no Session dropdown)

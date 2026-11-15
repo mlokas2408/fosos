@@ -1,0 +1,33 @@
+#!/bin/sh
+# FosOS live GRUB: ensure Dawn Aperture splash and FosOS menu labels.
+set -e
+
+mkdir -p boot/grub
+
+# Prefer the composed splash from the bootloader override; fall back to the
+# packaged logo tile if needed.
+if [ -f boot/grub/splash.png ]; then
+  :
+elif [ -f chroot/usr/share/fosos/logo/fosos-boot-splash.png ]; then
+  cp -a chroot/usr/share/fosos/logo/fosos-boot-splash.png boot/grub/splash.png
+elif [ -f chroot/usr/share/fosos/logo/fosos-dawn-aperture-512.png ]; then
+  cp -a chroot/usr/share/fosos/logo/fosos-dawn-aperture-512.png boot/grub/splash.png
+fi
+
+if [ -f boot/grub/splash.png ]; then
+  cp -a boot/grub/splash.png boot/grub/fosos-logo.png
+fi
+
+# Rename generic live-build titles to FosOS.
+for cfg in boot/grub/grub.cfg; do
+  [ -f "$cfg" ] || continue
+  sed -i \
+    -e 's/Live system (autodetect)/FosOS Live (autodetect)/g' \
+    -e 's/Live system (autodetect) (fail-safe mode)/FosOS Live (autodetect, fail-safe)/g' \
+    -e 's/Live system (/FosOS Live (/g' \
+    -e 's/Live system, kernel /FosOS Live, kernel /g' \
+    -e 's/Advanced install options/Advanced install options/g' \
+    "$cfg"
+done
+
+echo "FosOS GRUB splash and menu labels applied."

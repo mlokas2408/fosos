@@ -189,35 +189,31 @@ button.fos-btn.row {
   padding: 8px;
 }
 
-/* Brand mark: a square with an F */
+/* Brand mark: Dawn Aperture logo (image) */
 .fos-mark {
-  border: 1px solid @fos_fg;
-  color: @fos_fg;
-  font-weight: 500;
-}
-
-.fos-mark.inverse {
-  background-color: @fos_primary;
-  border-color: @fos_primary;
-  color: @fos_primary_fg;
+  background-color: transparent;
+  border: none;
+  padding: 0;
 }
 
 .fos-mark.size-sm {
   min-width: 18px;
   min-height: 18px;
-  font-size: 10px;
 }
 
 .fos-mark.size-md {
-  min-width: 22px;
-  min-height: 22px;
-  font-size: 12px;
+  min-width: 24px;
+  min-height: 24px;
 }
 
 .fos-mark.size-lg {
   min-width: 48px;
   min-height: 48px;
-  font-size: 20px;
+}
+
+.fos-mark.size-xl {
+  min-width: 64px;
+  min-height: 64px;
 }
 
 /* Workspace pager on the taskbar */
@@ -285,6 +281,42 @@ button.fos-btn.fos-login-submit {
   color: @fos_fg;
   min-height: 36px;
   padding: 0 10px;
+}
+
+/* Windows-style power control, bottom-right of Sign in / Unlock */
+.fos-login-power-corner {
+  background-color: transparent;
+}
+
+button.fos-btn.fos-login-power,
+button.fos-login-power {
+  min-width: 40px;
+  min-height: 40px;
+  padding: 8px;
+  color: @fos_fg;
+  opacity: 0.75;
+}
+
+button.fos-btn.fos-login-power:hover,
+button.fos-login-power:hover {
+  opacity: 1;
+  background-color: alpha(@fos_fg, 0.08);
+}
+
+.fos-login-power-list {
+  background-color: #151515;
+  border: 1px solid @fos_border;
+  min-width: 160px;
+}
+
+button.fos-btn.fos-login-power-item {
+  min-height: 36px;
+  padding: 0 12px;
+  color: @fos_fg;
+}
+
+button.fos-btn.fos-login-power-item:hover {
+  background-color: alpha(@fos_fg, 0.08);
 }
 
 /* Start button: four panes, like the Windows Start logo */

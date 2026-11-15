@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="title desc">
+  <title id="title">FosOS Dawn Aperture mark</title>
+  <desc id="desc">White dawn aperture light mark for dark surfaces. No background fill.</desc>
+  <!-- Upper light plane: a rising dome opened by a precise diagonal aperture. -->
+  <path fill="#ffffff" d="M256 92c-88.4 0-160 71.6-160 160 0 35.2 11.4 67.8 30.7 94.2 24.8-57.8 71.5-93.3 131.7-116.8l152.9-59.7C386.9 123.4 324.9 92 256 92Z"/>
+  <!-- Lower light plane: its curved stem and bar quietly imply the letter F. -->
+  <path fill="#ffffff" d="M192 420c0-76.8 19.5-127.1 58.2-151 31.8-19.7 70.3-22.4 121.8-22.4h44c-4 56.4-38.3 91.4-93.6 91.4h-36.8c-27.8 0-41.6 20.1-41.6 60.6v27.1Z"/>
+</svg>

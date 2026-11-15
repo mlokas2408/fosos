@@ -7,9 +7,9 @@ screen (Openbox + terminal) or use a text console (Ctrl+Alt+F2). See
 
 The look follows the FosOS Desktop design mockup: a neutral dark palette,
 square corners, the Inter font, a bottom taskbar, a Start menu and a drawn
-wallpaper with the FosOS mark. The LightDM greeter and lock screen use the
-mockup’s two-column sign-in layout. The mockup itself is a visual reference
-only and is not built or shipped.
+wallpaper. The brand mark is **Dawn Aperture** (φως / light). The LightDM
+greeter and lock screen use the mockup’s two-column sign-in layout. The
+mockup itself is a visual reference only and is not built or shipped.
 
 ## Architecture decision
 
@@ -34,9 +34,9 @@ Revisit Wayland when the shell is stable for daily use.
 | --- | --- |
 | `fosos-session` | Login session: xsettingsd, agents, xss-lock, shell, Welcome, Openbox |
 | `fosos-recovery-session` | Minimal Openbox + terminal |
-| `fosos-greeter` | LightDM greeter (two-column Sign in; always Desktop) |
+| `fosos-greeter` | LightDM greeter (two-column Sign in; always Desktop; power menu) |
 | `fosos-shell` | Taskbar, Start menu, desktop, notifications, status menus |
-| `fosos-lock` | Fullscreen lock screen (same two-column layout) |
+| `fosos-lock` | Fullscreen lock screen (same layout + power menu) |
 | `fosos-settings` | Settings shell (built-in panels + arandr / pavucontrol / nm / blueman) |
 | `fosos-screenshot` | Full / region / window capture |
 

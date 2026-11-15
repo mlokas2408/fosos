@@ -14,12 +14,15 @@ Hyper-V check before it is written to USB. See [the build guide](BUILDING.md).
    first in the boot order. Hyper-V Generation 2 enables Secure Boot by
    default, and this live image is not set up to boot with it.
 4. Start the VM and boot into the live environment.
-5. Confirm the live image autologins to **FosOS Desktop** (taskbar, Start,
+5. On the GRUB menu, confirm the Dawn Aperture splash, **FosOS** title,
+   dark menu styling, and a **FosOS Live** entry. Press Enter (or wait ~8s).
+6. Confirm the live image autologins to **FosOS Desktop** (taskbar, Start,
    drawn wallpaper). Verify Firefox, Files, Terminal, screenshot tool,
    network, audio, shutdown, and restart.
-6. Sign out once and confirm the greeter is the two-column FosOS Sign in
-   screen (not the old Greybird GTK greeter). Sign back in as `user`.
-7. Press Ctrl+Alt+F2 and confirm the recovery console accepts the live
+7. Sign out once and confirm the greeter is the two-column FosOS Sign in
+   screen (not the old Greybird GTK greeter). Confirm the bottom-right
+   power button offers Shut down, Restart, and Suspend. Sign back in as `user`.
+8. Press Ctrl+Alt+F2 and confirm the recovery console accepts the live
    account. Ctrl+Alt+F1 returns to the desktop.
 
 The live image automatically signs in Debian Live's temporary `user` account
@@ -87,6 +90,7 @@ After Phase 7, rebuild the ISO first, then record its size in
 
 - [ ] Fresh login to FosOS Desktop (live and installed)
 - [ ] FosOS greeter two-column Sign in with no session picker (always Desktop)
+- [ ] Greeter / lock bottom-right power menu (Shut down, Restart, Suspend)
 - [ ] Lock and unlock (Super+L, idle lock if practical)
 - [ ] Display settings (`arandr`) change and apply
 - [ ] Settings: keyboard, mouse, default apps, power panels

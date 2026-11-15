@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import getpass
 import os
+import subprocess
 import sys
 
 import gi
@@ -57,6 +58,7 @@ class LockScreen(Gtk.Window):
         self.add(self.ui.root)
         self.ui.password.connect("activate", lambda _e: self._try_unlock())
         self.ui.submit.connect("clicked", lambda _b: self._try_unlock())
+        self._wire_power()
         if PREVIEW:
             self.ui.message.set_text("Preview mode. Escape exits.")
 
@@ -64,6 +66,26 @@ class LockScreen(Gtk.Window):
         screen = Gdk.Screen.get_default()
         screen.connect("monitors-changed", lambda _s: self._place())
         screen.connect("size-changed", lambda _s: self._place())
+
+    def _wire_power(self) -> None:
+        """Bottom-right Shut down / Restart / Suspend on the lock screen."""
+
+        def run(unit: str) -> None:
+            if PREVIEW:
+                self.ui.message.set_text(f"Preview: {unit}")
+                return
+            try:
+                subprocess.Popen(["systemctl", unit])
+            except OSError as exc:
+                self.ui.message.set_text(str(exc))
+
+        self.ui.set_power_actions(
+            [
+                ("Shut down", "system-shutdown-symbolic", lambda: run("poweroff")),
+                ("Restart", "system-reboot-symbolic", lambda: run("reboot")),
+                ("Suspend", "system-suspend-symbolic", lambda: run("suspend")),
+            ]
+        )
 
     def _place(self) -> None:
         screen = Gdk.Screen.get_default()

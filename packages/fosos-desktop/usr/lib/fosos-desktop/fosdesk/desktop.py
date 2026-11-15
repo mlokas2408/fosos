@@ -1,15 +1,18 @@
 """The desktop: drawn wallpaper, the faint FosOS brand and desktop icons."""
 
+from functools import lru_cache
+
 import gi
 
 gi.require_version("Gdk", "3.0")
+gi.require_version("GdkPixbuf", "2.0")
 gi.require_version("Gtk", "3.0")
 gi.require_version("PangoCairo", "1.0")
-from gi.repository import Gdk, GLib, Gtk, Pango, PangoCairo
+from gi.repository import Gdk, GdkPixbuf, GLib, Gtk, Pango, PangoCairo
 
 from . import apps as appmod
 from .panel import HEIGHT as PANEL_HEIGHT
-from .ui import BRAND, add_classes, icon, label, set_class
+from .ui import BRAND, DATA_DIR, add_classes, icon, label, set_class
 
 try:
     from .wallpaper import draw_wallpaper
@@ -23,8 +26,19 @@ except ImportError:  # pragma: no cover - packaging fault; keep shell alive
 __all__ = ["Desktop", "DesktopIcon", "draw_brand", "draw_wallpaper"]
 
 
+@lru_cache(maxsize=1)
+def _brand_logo_pixbuf(size: int = 64):
+    path = DATA_DIR / "logo" / "fosos-dawn-aperture-mark.svg"
+    if not path.is_file():
+        return None
+    try:
+        return GdkPixbuf.Pixbuf.new_from_file_at_size(str(path), size, size)
+    except GLib.Error:
+        return None
+
+
 def draw_brand(cr, widget: Gtk.Widget, area: Gdk.Rectangle) -> None:
-    """The centred mark, name, tagline and motto at 14% opacity."""
+    """The centred Dawn Aperture mark, name, tagline and motto at 14% opacity."""
     usable_h = area.height - PANEL_HEIGHT
     cx = area.x + area.width / 2
     layouts = []
@@ -43,25 +57,25 @@ def draw_brand(cr, widget: Gtk.Widget, area: Gdk.Rectangle) -> None:
         layouts.append(layout)
 
     sizes = [layout.get_pixel_size() for layout in layouts]
-    mark = 48
+    mark = 64
     gap = 12
     total = mark + gap + sizes[0][1] + 4 + sizes[1][1] + 8 + sizes[2][1]
     top = area.y + (usable_h - total) / 2
 
     cr.save()
     cr.push_group()
-    cr.set_source_rgb(0.98, 0.98, 0.98)
-    cr.set_line_width(1)
-    cr.rectangle(round(cx - mark / 2) + 0.5, round(top) + 0.5, mark - 1, mark - 1)
-    cr.stroke()
-    f_layout = PangoCairo.create_layout(cr)
-    f_layout.set_font_description(Pango.FontDescription("Inter Medium 20px"))
-    f_layout.set_text("F", -1)
-    fw, fh = f_layout.get_pixel_size()
-    cr.move_to(cx - fw / 2, top + (mark - fh) / 2)
-    PangoCairo.show_layout(cr, f_layout)
+    logo = _brand_logo_pixbuf(mark)
+    if logo is not None:
+        Gdk.cairo_set_source_pixbuf(cr, logo, cx - mark / 2, top)
+        cr.paint()
+    else:
+        cr.set_source_rgb(0.98, 0.98, 0.98)
+        cr.set_line_width(1)
+        cr.rectangle(round(cx - mark / 2) + 0.5, round(top) + 0.5, mark - 1, mark - 1)
+        cr.stroke()
 
     y = top + mark + gap
+    cr.set_source_rgb(0.98, 0.98, 0.98)
     for index, (layout, (lw, lh)) in enumerate(zip(layouts, sizes)):
         if index == 2:
             cr.set_source_rgb(0.63, 0.63, 0.63)
