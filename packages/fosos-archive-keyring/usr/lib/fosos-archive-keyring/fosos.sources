@@ -1,0 +1,6 @@
+# FosOS packages. Debian itself stays in /etc/apt/sources.list.
+Types: deb
+URIs: https://mlokas2408.github.io/fosos-apt
+Suites: stable
+Components: main
+Signed-By: /usr/share/keyrings/fosos-archive-keyring.gpg

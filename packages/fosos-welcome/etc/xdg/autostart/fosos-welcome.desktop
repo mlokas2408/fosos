@@ -1,0 +1,6 @@
+[Desktop Entry]
+Type=Application
+Name=FosOS Welcome
+Exec=fosos-welcome
+NoDisplay=true
+X-GNOME-Autostart-enabled=true

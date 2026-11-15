@@ -1,0 +1,21 @@
+Origin: FosOS
+Label: FosOS
+Codename: testing
+Suite: testing
+Architectures: amd64
+Components: main
+Description: FosOS packages waiting for promotion to stable
+SignWith: @FINGERPRINT@
+DebIndices: Packages Release . .gz
+DscIndices: Sources Release . .gz
+
+Origin: FosOS
+Label: FosOS
+Codename: stable
+Suite: stable
+Architectures: amd64
+Components: main
+Description: FosOS packages promoted after testing
+SignWith: @FINGERPRINT@
+DebIndices: Packages Release . .gz
+DscIndices: Sources Release . .gz

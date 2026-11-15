@@ -1,0 +1,6 @@
+# Default pinned apps, one desktop file id per line.
+# Each user's list is kept in ~/.config/fosos-desktop/pinned once changed.
+thunar.desktop
+xfce4-terminal.desktop
+firefox-esr.desktop
+fosos-settings.desktop

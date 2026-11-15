@@ -1,0 +1,3 @@
+NAME="FosOS"
+BASE="Debian Stable"
+EDITION="Development"

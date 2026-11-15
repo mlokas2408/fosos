@@ -1,0 +1,11 @@
+Package: fosos-archive-keyring
+Version: 0.1.0
+Section: admin
+Priority: optional
+Architecture: all
+Depends: apt (>= 2.4)
+Maintainer: FosOS <dev@fosos.local>
+Description: FosOS archive signing key and APT source
+ Installs the FosOS archive public key and a signed-by source entry for
+ the stable suite. The archive signing private key is not part of this
+ package.

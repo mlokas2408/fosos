@@ -1,0 +1,26 @@
+#!/bin/sh
+# Place an Install FosOS icon on the live desktop.
+set -eu
+
+if ! grep -q 'boot=live' /proc/cmdline 2>/dev/null; then
+	exit 0
+fi
+
+desktop_dir="${XDG_DESKTOP_DIR:-$HOME/Desktop}"
+if command -v xdg-user-dir >/dev/null 2>&1; then
+	desktop_dir="$(xdg-user-dir DESKTOP)"
+fi
+mkdir -p "$desktop_dir"
+
+launcher="$desktop_dir/calamares-install-fosos.desktop"
+cp /usr/share/applications/calamares-install-fosos.desktop "$launcher"
+chmod 755 "$launcher"
+
+if [ "${XDG_CURRENT_DESKTOP:-}" = "XFCE" ] && command -v gio >/dev/null 2>&1; then
+	gio set --type=string "$launcher" metadata::trusted true || true
+	gio set --type=string "$launcher" metadata::xfce-exe-checksum \
+		"$(sha256sum "$launcher" | awk '{print $1}')" || true
+	touch "$launcher"
+fi
+
+exit 0

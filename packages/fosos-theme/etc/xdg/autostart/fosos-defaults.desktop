@@ -1,0 +1,7 @@
+[Desktop Entry]
+Type=Application
+Name=FosOS desktop defaults
+Comment=Apply the FosOS theme, wallpaper, and desktop defaults once
+Exec=/usr/libexec/fosos-apply-defaults
+NoDisplay=true
+X-GNOME-Autostart-enabled=true

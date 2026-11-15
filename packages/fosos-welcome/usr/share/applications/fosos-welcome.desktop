@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=Welcome to FosOS
+Comment=Network status, updates, and the FosOS guide
+Exec=fosos-welcome --again
+Icon=start-here
+Terminal=false
+Categories=System;
+StartupNotify=true

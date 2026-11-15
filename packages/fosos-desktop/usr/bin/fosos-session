@@ -1,0 +1,85 @@
+#!/bin/sh
+# FosOS Desktop session (experimental). XFCE stays the default session and
+# the fallback on the login screen.
+
+export XDG_CURRENT_DESKTOP=FosOS
+export XDG_SESSION_DESKTOP=fosos-desktop
+export DESKTOP_SESSION=fosos-desktop
+# Applications follow the dark FosOS look in this session only. XFCE keeps
+# its own settings.
+export GTK_THEME=Greybird-dark
+
+data=/usr/share/fosos-desktop
+config="${XDG_CONFIG_HOME:-$HOME/.config}/fosos-desktop"
+mkdir -p "$config"
+
+rc="$data/openbox/rc.xml"
+if [ -f "$config/openbox/rc.xml" ]; then
+	rc="$config/openbox/rc.xml"
+fi
+
+activation_env="DISPLAY XAUTHORITY XDG_CURRENT_DESKTOP XDG_SESSION_DESKTOP DESKTOP_SESSION GTK_THEME"
+if command -v dbus-update-activation-environment >/dev/null 2>&1; then
+	# shellcheck disable=SC2086
+	dbus-update-activation-environment --systemd $activation_env >/dev/null 2>&1 || true
+fi
+
+# Display, keyboard, mouse and font settings come from the XFCE settings
+# daemon, so the XFCE settings dialogs work in this session too.
+if command -v xfsettingsd >/dev/null 2>&1; then
+	xfsettingsd >/dev/null 2>&1 &
+fi
+
+# An authentication agent for pkexec and other password prompts.
+# lxpolkit is the one the XFCE session starts. Prefer it here too.
+for agent in \
+	/usr/bin/lxpolkit \
+	/usr/libexec/polkit-mate-authentication-agent-1 \
+	/usr/lib/policykit-1-gnome/polkit-gnome-authentication-agent-1 \
+	/usr/libexec/xfce-polkit \
+	/usr/lib/x86_64-linux-gnu/ukui-polkit/polkit-ukui-authentication-agent-1; do
+	if [ -x "$agent" ]; then
+		"$agent" >/dev/null 2>&1 &
+		break
+	fi
+done
+
+# nm-applet has no tray here, but it still asks for Wi-Fi passwords.
+if command -v nm-applet >/dev/null 2>&1; then
+	nm-applet >/dev/null 2>&1 &
+fi
+
+# Restart the shell if it crashes, but give up after repeated failures so a
+# broken package cannot loop forever. The window manager keeps running.
+(
+	failures=0
+	while [ "$failures" -lt 5 ]; do
+		started=$(date +%s)
+		fosos-shell
+		status=$?
+		if [ "$status" -eq 0 ]; then
+			break
+		fi
+		if [ $(($(date +%s) - started)) -gt 60 ]; then
+			failures=0
+		fi
+		failures=$((failures + 1))
+		sleep 1
+	done
+) &
+shell_loop=$!
+
+if command -v fosos-welcome >/dev/null 2>&1; then
+	fosos-welcome >/dev/null 2>&1 &
+fi
+
+openbox --config-file "$rc"
+status=$?
+
+kill "$shell_loop" 2>/dev/null || true
+pkill -u "$(id -u)" -x fosos-shell 2>/dev/null || true
+if command -v systemctl >/dev/null 2>&1; then
+	systemctl --user unset-environment XDG_CURRENT_DESKTOP XDG_SESSION_DESKTOP DESKTOP_SESSION GTK_THEME \
+		>/dev/null 2>&1 || true
+fi
+exit "$status"

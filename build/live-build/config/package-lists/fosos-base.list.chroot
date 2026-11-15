@@ -1,0 +1,49 @@
+# FosOS v0.x base desktop. Development tools deliberately remain optional.
+
+# Session and core desktop.
+# APT recommends are disabled, so packages that live-config and LightDM only
+# recommend have to be listed here. user-setup creates the live account at
+# boot; without it autologin has nobody to sign in and "user" / "live" is
+# rejected. Xorg is required for the desktop; fbdev drives the Hyper-V
+# framebuffer.
+lightdm
+lightdm-gtk-greeter
+user-setup
+xserver-xorg
+xserver-xorg-video-fbdev
+xfonts-base
+xfce4
+xfce4-terminal
+xfce4-power-manager
+xfce4-notifyd
+xfce4-pulseaudio-plugin
+xfce4-screenshooter
+thunar
+thunar-archive-plugin
+mousepad
+
+# Web and connectivity
+firefox-esr
+network-manager
+network-manager-gnome
+wpasupplicant
+ca-certificates
+curl
+
+# Audio, Bluetooth and common desktop integration
+pipewire-audio
+wireplumber
+pavucontrol
+blueman
+gvfs
+gvfs-backends
+polkitd
+# Debian 13 removed policykit-1-gnome. Without an agent named here, APT
+# satisfies polkit-1-auth-agent with ukui-polkit, which never starts in XFCE
+# and pulls in OpenCV. fosos-theme starts lxpolkit for the XFCE session.
+lxpolkit
+
+# Essential user and compatibility tools
+sudo
+xarchiver
+firmware-linux

@@ -1,0 +1,7 @@
+#!/bin/sh
+# The public archive is not online while the image is built. This hook
+# removes the source entry after the package adds it, so live-build's apt
+# update does not fail. Booting the image adds the entry again.
+set -eu
+rm -f /etc/apt/sources.list.d/fosos.sources
+exit 0

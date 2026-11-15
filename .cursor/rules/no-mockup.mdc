@@ -1,0 +1,19 @@
+---
+description: Never touch, edit, or use the mockup/ folder unless the user explicitly asks
+alwaysApply: true
+---
+
+# Do not touch `mockup/`
+
+The `mockup/` directory is out of scope for this repository. Do not read, edit,
+create, delete, move, build, run, test, install dependencies for, or import from
+anything under `mockup/` unless the user explicitly names it in their request.
+
+- Do not run commands inside `mockup/` (`ng serve`, `npm install`, `ng build`, etc.).
+- Do not reference `mockup/` code or assets from `build/`, `scripts/`, `docs/`,
+  or `.github/`.
+- When searching the repo, exclude `mockup/` (for example, use `--glob "!mockup/**"`
+  with ripgrep) so it does not appear in results.
+- If a task seems to require `mockup/`, stop and ask the user before proceeding.
+
+An explicit request from the user overrides this rule for that task only.

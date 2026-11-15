@@ -1,0 +1,6 @@
+# FosOS default keyboard. Change it here or in the XFCE keyboard settings.
+XKBMODEL="pc105"
+XKBLAYOUT="us"
+XKBVARIANT=""
+XKBOPTIONS=""
+BACKSPACE="guess"

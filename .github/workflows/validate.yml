@@ -1,0 +1,17 @@
+name: Validate FosOS configuration
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - name: Validate shell scripts and build layout
+        run: bash scripts/check-build-config.sh

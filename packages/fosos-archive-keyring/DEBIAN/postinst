@@ -1,0 +1,15 @@
+#!/bin/sh
+set -eu
+
+if [ "$1" = "configure" ]; then
+	if [ ! -e /etc/apt/sources.list.d/fosos.sources ]; then
+		install -d /etc/apt/sources.list.d
+		install -m 644 /usr/lib/fosos-archive-keyring/fosos.sources \
+			/etc/apt/sources.list.d/fosos.sources
+	fi
+	mkdir -p /etc/systemd/system/multi-user.target.wants
+	ln -sfn /usr/lib/systemd/system/fosos-archive-source.service \
+		/etc/systemd/system/multi-user.target.wants/fosos-archive-source.service
+fi
+
+exit 0

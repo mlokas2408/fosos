@@ -1,0 +1,12 @@
+#!/bin/sh
+set -e
+
+case "$1" in
+configure)
+	if command -v plymouth-set-default-theme >/dev/null 2>&1; then
+		plymouth-set-default-theme fosos || true
+	fi
+	;;
+esac
+
+exit 0

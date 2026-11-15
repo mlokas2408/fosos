@@ -1,0 +1,9 @@
+[Plymouth Theme]
+Name=FosOS
+Description=FosOS boot splash
+ModuleName=text
+
+[text]
+title=FosOS
+black=0x0c0e12
+white=0xe8eef2

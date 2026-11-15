@@ -1,0 +1,13 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=Install FosOS
+GenericName=Install FosOS
+Exec=calamares-install-fosos
+Comment=Install FosOS onto a disk
+Keywords=install;fosos;calamares;
+Icon=system-software-install
+Terminal=false
+Categories=System;
+StartupNotify=true
+StartupWMClass=calamares

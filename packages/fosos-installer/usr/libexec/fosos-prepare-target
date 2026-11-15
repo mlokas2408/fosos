@@ -1,0 +1,34 @@
+#!/bin/sh
+# Runs inside the installed system before the bootloader is written.
+set -eu
+
+rm -f /etc/lightdm/lightdm.conf.d/90-fosos-live.conf
+rm -f /etc/issue.d/fosos.issue
+
+if [ -f /etc/lightdm/lightdm.conf ]; then
+	sed -i \
+		-e 's/^autologin-user=.*/#autologin-user=/' \
+		-e 's/^autologin-user-timeout=.*/#autologin-user-timeout=0/' \
+		-e 's/^autologin-session=.*/#autologin-session=/' \
+		/etc/lightdm/lightdm.conf
+fi
+
+apt-mark manual \
+	cryptsetup \
+	cryptsetup-initramfs \
+	grub-efi-amd64-bin \
+	grub2-common \
+	grub-common \
+	efibootmgr \
+	os-prober
+
+if [ -s /etc/crypttab ] && grep -Eq '^[[:space:]]*[^#[:space:]]' /etc/crypttab; then
+	mkdir -p /etc/initramfs-tools/conf.d
+	printf '%s\n' 'UMASK=0077' > /etc/initramfs-tools/conf.d/initramfs-permissions
+fi
+
+if [ -f /etc/default/grub ] && grep -q '^#GRUB_DISABLE_OS_PROBER=false' /etc/default/grub; then
+	sed -i 's/^#GRUB_DISABLE_OS_PROBER=false/GRUB_DISABLE_OS_PROBER=false/' /etc/default/grub
+fi
+
+exit 0

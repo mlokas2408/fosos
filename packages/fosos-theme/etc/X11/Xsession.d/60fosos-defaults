@@ -1,0 +1,9 @@
+# FosOS defaults override the stock XFCE channel files.
+if [ -z "${XDG_CONFIG_DIRS}" ]; then
+	XDG_CONFIG_DIRS="/etc/xdg"
+fi
+case ":${XDG_CONFIG_DIRS}:" in
+*:/etc/xdg/fosos:*) ;;
+*) XDG_CONFIG_DIRS="/etc/xdg/fosos:${XDG_CONFIG_DIRS}" ;;
+esac
+export XDG_CONFIG_DIRS

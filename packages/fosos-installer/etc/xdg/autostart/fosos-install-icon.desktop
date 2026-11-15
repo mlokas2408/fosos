@@ -1,0 +1,6 @@
+[Desktop Entry]
+Type=Application
+Name=Add Install FosOS icon
+Exec=fosos-install-icon
+NoDisplay=true
+X-GNOME-Autostart-Phase=Initialization

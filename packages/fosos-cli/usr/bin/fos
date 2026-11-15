@@ -1,0 +1,75 @@
+#!/bin/sh
+# Safe shortcuts for common APT actions. APT itself stays available.
+set -eu
+
+usage() {
+	cat <<'EOF'
+Usage: fos <command> [package...]
+
+  update          Refresh package lists
+  upgrade         Install available upgrades
+  install PKG...  Install one or more packages
+  remove PKG...   Remove packages and keep their configuration
+  repair          Finish or undo a broken package install
+
+fos does not accept APT options. Use apt when you need them.
+Debian release upgrades are not handled here.
+EOF
+}
+
+valid_name() {
+	case "$1" in
+	-*) return 1 ;;
+	esac
+	printf '%s\n' "$1" | grep -Eq '^[a-z0-9][a-z0-9+.-]*$'
+}
+
+require_names() {
+	if [ "$#" -eq 0 ]; then
+		echo "fos: name at least one package." >&2
+		usage >&2
+		exit 2
+	fi
+	for name in "$@"; do
+		if ! valid_name "$name"; then
+			echo "fos: invalid package name: $name" >&2
+			exit 2
+		fi
+	done
+}
+
+if [ "$(id -u)" -ne 0 ]; then
+	exec sudo -- "$0" "$@"
+fi
+
+command_name="${1:-}"
+if [ -n "$command_name" ]; then
+	shift
+fi
+
+case "$command_name" in
+update)
+	[ "$#" -eq 0 ] || { usage >&2; exit 2; }
+	exec apt-get update
+	;;
+upgrade)
+	[ "$#" -eq 0 ] || { usage >&2; exit 2; }
+	exec apt-get upgrade
+	;;
+install)
+	require_names "$@"
+	exec apt-get install -- "$@"
+	;;
+remove)
+	require_names "$@"
+	exec apt-get remove -- "$@"
+	;;
+repair)
+	[ "$#" -eq 0 ] || { usage >&2; exit 2; }
+	exec apt-get -f install
+	;;
+*)
+	usage >&2
+	exit 2
+	;;
+esac

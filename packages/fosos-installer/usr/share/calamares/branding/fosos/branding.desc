@@ -1,0 +1,38 @@
+---
+componentName: fosos
+welcomeStyleCalamares: true
+welcomeExpandingLogo: true
+windowExpanding: normal
+windowSize: 800px,580px
+windowPlacement: center
+
+strings:
+  productName: FosOS
+  shortProductName: FosOS
+  version: "0.1"
+  shortVersion: "0.1"
+  versionedName: FosOS 0.1
+  shortVersionedName: FosOS 0.1
+  bootloaderEntryName: FosOS
+  productUrl: file:///usr/share/doc/fosos/guide.html
+  supportUrl: file:///usr/share/doc/fosos/guide.html
+  knownIssuesUrl: file:///usr/share/doc/fosos/guide.html
+  releaseNotesUrl: file:///usr/share/doc/fosos/guide.html
+  donateUrl: file:///usr/share/doc/fosos/guide.html
+
+sidebar: widget
+navigation: widget
+
+images:
+  productLogo: "welcome.png"
+  productIcon: "welcome.png"
+  productWelcome: "welcome.png"
+
+slideshow: "show.qml"
+slideshowAPI: 2
+
+style:
+  SidebarBackground: "#0c0e12"
+  SidebarText: "#e8eef2"
+  SidebarTextCurrent: "#ffffff"
+  SidebarBackgroundCurrent: "#1c2836"

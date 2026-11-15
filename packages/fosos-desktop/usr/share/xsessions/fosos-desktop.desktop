@@ -1,0 +1,7 @@
+[Desktop Entry]
+Type=Application
+Name=FosOS Desktop (experimental)
+Comment=The FosOS panel, launcher and notifications. Choose Xfce Session to go back.
+Exec=fosos-session
+TryExec=fosos-session
+DesktopNames=FosOS

@@ -1,0 +1,12 @@
+[Unit]
+Description=Enable the FosOS package archive
+ConditionPathExists=!/etc/apt/sources.list.d/fosos.sources
+Before=apt-daily.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/libexec/fosos-enable-archive
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target

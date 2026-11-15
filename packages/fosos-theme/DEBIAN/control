@@ -1,0 +1,12 @@
+Package: fosos-theme
+Version: 0.1.1
+Section: x11
+Priority: optional
+Architecture: all
+Depends: greybird-gtk-theme, elementary-xfce-icon-theme, fonts-inter, fonts-liberation, dmz-cursor-theme, plymouth, xfce4-power-manager, xfce4-settings, xfdesktop4, lxpolkit
+Maintainer: FosOS <dev@fosos.local>
+Description: FosOS desktop branding and defaults
+ Wallpaper, boot splash, login appearance, and XFCE defaults.
+ The GTK theme is Greybird, the icon theme is elementary-xfce,
+ and the cursor is DMZ-White. The XFCE session starts lxpolkit so
+ password prompts work.

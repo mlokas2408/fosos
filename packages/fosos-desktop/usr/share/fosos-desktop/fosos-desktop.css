@@ -1,0 +1,477 @@
+/* FosOS Desktop: neutral dark palette, square corners, Inter. */
+@define-color fos_background #0a0a0a;
+@define-color fos_card #171717;
+@define-color fos_muted #262626;
+@define-color fos_muted_fg #a1a1a1;
+@define-color fos_fg #fafafa;
+@define-color fos_primary #e5e5e5;
+@define-color fos_primary_fg #171717;
+@define-color fos_border rgba(255, 255, 255, 0.10);
+@define-color fos_input rgba(255, 255, 255, 0.15);
+@define-color fos_ring #737373;
+@define-color fos_destructive #ff6467;
+
+.fos-root {
+  color: @fos_fg;
+  font-family: Inter, sans-serif;
+  font-size: 12px;
+}
+
+/* Theme colours must not leak in; the classes below set their own. */
+.fos-root * {
+  color: inherit;
+  font-family: inherit;
+}
+
+/* Panel */
+.fos-panel {
+  background-color: @fos_card;
+  background-image: none;
+  border-top: 1px solid @fos_border;
+}
+
+/* Cards and popups */
+.fos-popup {
+  background-color: transparent;
+}
+
+.fos-card {
+  background-color: @fos_card;
+  background-image: none;
+  border: 1px solid alpha(@fos_fg, 0.10);
+  border-radius: 0;
+}
+
+.fos-card-header {
+  border-bottom: 1px solid @fos_border;
+  padding: 16px;
+}
+
+.fos-card-content {
+  padding: 16px;
+}
+
+.fos-card-footer {
+  border-top: 1px solid @fos_border;
+  padding: 16px;
+}
+
+.fos-title {
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.fos-text {
+  font-size: 12px;
+}
+
+.fos-small {
+  font-size: 11px;
+}
+
+.fos-label {
+  font-size: 12px;
+  font-weight: 500;
+  color: @fos_muted_fg;
+}
+
+.fos-muted,
+.fos-root .fos-muted {
+  color: @fos_muted_fg;
+}
+
+.fos-strong {
+  font-weight: 500;
+}
+
+/* Buttons */
+button.fos-btn {
+  background-color: transparent;
+  background-image: none;
+  border: 1px solid transparent;
+  border-radius: 0;
+  box-shadow: none;
+  color: @fos_fg;
+  font-size: 12px;
+  font-weight: 500;
+  min-height: 30px;
+  padding: 0 10px;
+  text-shadow: none;
+  -gtk-icon-shadow: none;
+  outline-color: alpha(@fos_ring, 0.5);
+}
+
+button.fos-btn label {
+  color: inherit;
+}
+
+button.fos-btn:hover {
+  background-color: alpha(@fos_muted, 0.5);
+}
+
+button.fos-btn:active {
+  background-color: @fos_muted;
+}
+
+button.fos-btn:disabled {
+  opacity: 0.5;
+}
+
+button.fos-btn.secondary {
+  background-color: @fos_muted;
+}
+
+button.fos-btn.secondary:hover {
+  background-color: alpha(@fos_muted, 0.8);
+}
+
+button.fos-btn.default {
+  background-color: @fos_primary;
+  color: @fos_primary_fg;
+}
+
+button.fos-btn.default:hover {
+  background-color: alpha(@fos_primary, 0.8);
+}
+
+button.fos-btn.outline {
+  background-color: alpha(@fos_fg, 0.045);
+  border-color: @fos_input;
+}
+
+button.fos-btn.outline:hover {
+  background-color: alpha(@fos_fg, 0.075);
+}
+
+button.fos-btn.destructive {
+  background-color: alpha(@fos_destructive, 0.2);
+  color: @fos_destructive;
+}
+
+button.fos-btn.destructive:hover {
+  background-color: alpha(@fos_destructive, 0.3);
+}
+
+button.fos-btn.close:hover {
+  background-color: alpha(@fos_destructive, 0.15);
+  color: @fos_destructive;
+}
+
+button.fos-btn.size-sm {
+  min-height: 26px;
+  padding: 0 10px;
+}
+
+button.fos-btn.size-icon {
+  min-width: 32px;
+  min-height: 32px;
+  padding: 0;
+}
+
+button.fos-btn.size-icon-sm {
+  min-width: 28px;
+  min-height: 28px;
+  padding: 0;
+}
+
+button.fos-btn.size-icon-xs {
+  min-width: 24px;
+  min-height: 24px;
+  padding: 0;
+}
+
+button.fos-btn.tile {
+  padding: 12px 8px;
+}
+
+button.fos-btn.row {
+  padding: 8px;
+}
+
+/* Brand mark: a square with an F */
+.fos-mark {
+  border: 1px solid @fos_fg;
+  color: @fos_fg;
+  font-weight: 500;
+}
+
+.fos-mark.inverse {
+  background-color: @fos_primary;
+  border-color: @fos_primary;
+  color: @fos_primary_fg;
+}
+
+.fos-mark.size-sm {
+  min-width: 18px;
+  min-height: 18px;
+  font-size: 10px;
+}
+
+.fos-mark.size-md {
+  min-width: 22px;
+  min-height: 22px;
+  font-size: 12px;
+}
+
+/* Icon tiles in menus and on the desktop */
+.fos-tile {
+  min-width: 36px;
+  min-height: 36px;
+}
+
+.fos-tile.primary {
+  background-color: @fos_primary;
+  color: @fos_primary_fg;
+}
+
+.fos-tile.muted {
+  background-color: @fos_muted;
+}
+
+.fos-tile.small {
+  min-width: 32px;
+  min-height: 32px;
+}
+
+.fos-tile.avatar {
+  background-color: @fos_muted;
+  min-width: 24px;
+  min-height: 24px;
+}
+
+.fos-tile image {
+  color: inherit;
+}
+
+.fos-badge {
+  border: 1px solid transparent;
+  font-size: 12px;
+  font-weight: 500;
+  padding: 1px 8px;
+}
+
+.fos-badge.outline {
+  border-color: @fos_border;
+}
+
+.fos-badge.secondary {
+  background-color: @fos_muted;
+}
+
+.fos-kbd {
+  background-color: @fos_muted;
+  color: @fos_muted_fg;
+  font-size: 12px;
+  font-weight: 500;
+  min-width: 20px;
+  min-height: 20px;
+  padding: 0 4px;
+}
+
+.fos-sep {
+  background-color: @fos_border;
+  min-width: 1px;
+  min-height: 1px;
+}
+
+/* Taskbar running indicator */
+.fos-indicator {
+  background-color: @fos_primary;
+  min-height: 2px;
+}
+
+.fos-indicator.focused {
+  background-color: @fos_fg;
+}
+
+.fos-dot {
+  background-color: @fos_fg;
+  min-width: 6px;
+  min-height: 6px;
+}
+
+/* Inputs */
+entry.fos-input {
+  background-color: alpha(@fos_fg, 0.045);
+  background-image: none;
+  border: 1px solid @fos_input;
+  border-radius: 0;
+  box-shadow: none;
+  caret-color: @fos_fg;
+  color: @fos_fg;
+  font-size: 12px;
+  min-height: 30px;
+  padding: 0 10px;
+}
+
+entry.fos-input:focus {
+  border-color: @fos_ring;
+}
+
+entry.fos-input image {
+  color: @fos_muted_fg;
+}
+
+entry.fos-input selection {
+  background-color: @fos_ring;
+  color: @fos_fg;
+}
+
+scale.fos-scale trough {
+  background-color: @fos_muted;
+  background-image: none;
+  border: none;
+  border-radius: 0;
+  min-height: 4px;
+}
+
+scale.fos-scale highlight {
+  background-color: @fos_primary;
+  background-image: none;
+  border: none;
+  border-radius: 0;
+}
+
+scale.fos-scale slider {
+  background-color: @fos_fg;
+  background-image: none;
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+  min-width: 12px;
+  min-height: 12px;
+}
+
+switch.fos-switch {
+  background-color: @fos_muted;
+  background-image: none;
+  border: 1px solid @fos_input;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+switch.fos-switch:checked {
+  background-color: @fos_primary;
+}
+
+switch.fos-switch slider {
+  background-color: @fos_fg;
+  background-image: none;
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+switch.fos-switch:checked slider {
+  background-color: @fos_primary_fg;
+}
+
+/* Scrolling and lists */
+.fos-root scrolledwindow,
+.fos-root viewport,
+.fos-root list,
+.fos-root row {
+  background-color: transparent;
+  background-image: none;
+  border: none;
+}
+
+.fos-root scrollbar {
+  background-color: transparent;
+  border: none;
+}
+
+.fos-root scrollbar slider {
+  background-color: alpha(@fos_fg, 0.15);
+  border: none;
+  border-radius: 0;
+  min-width: 6px;
+  min-height: 6px;
+}
+
+calendar.fos-calendar {
+  background-color: transparent;
+  border: none;
+  color: @fos_fg;
+  font-size: 12px;
+}
+
+calendar.fos-calendar:selected {
+  background-color: @fos_primary;
+  border-radius: 0;
+  color: @fos_primary_fg;
+}
+
+calendar.fos-calendar.header,
+calendar.fos-calendar.button {
+  background-color: transparent;
+  background-image: none;
+  border: none;
+  color: @fos_fg;
+}
+
+calendar.fos-calendar.highlight {
+  color: @fos_muted_fg;
+}
+
+/* Desktop icons */
+.fos-desktop-icon {
+  padding: 8px;
+}
+
+.fos-desktop-icon.selected {
+  background-color: alpha(@fos_fg, 0.08);
+}
+
+.fos-desktop-tile {
+  background-color: @fos_card;
+  border: 1px solid alpha(@fos_fg, 0.10);
+  color: @fos_fg;
+  min-width: 44px;
+  min-height: 44px;
+}
+
+.fos-desktop-icon:hover .fos-desktop-tile {
+  background-color: @fos_muted;
+}
+
+.fos-desktop-label {
+  color: #ffffff;
+  font-size: 11px;
+  font-weight: 500;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.75);
+}
+
+/* Notifications */
+.fos-notification {
+  padding: 12px;
+}
+
+.fos-notification.critical {
+  border-color: alpha(@fos_destructive, 0.6);
+}
+
+/* Settings window */
+.fos-window {
+  background-color: @fos_background;
+  background-image: none;
+}
+
+.fos-sidebar {
+  background-color: alpha(@fos_muted, 0.2);
+  border-right: 1px solid @fos_border;
+}
+
+tooltip,
+tooltip.background {
+  background-color: @fos_fg;
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+tooltip label {
+  color: @fos_background;
+  font-family: Inter, sans-serif;
+  font-size: 12px;
+}

@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- The FosOS desktop draws its own menus. Openbox only needs the window menu. -->
+<openbox_menu xmlns="http://openbox.org/3.4/menu">
+  <menu id="root-menu" label="FosOS">
+    <item label="Terminal">
+      <action name="Execute"><command>xfce4-terminal</command></action>
+    </item>
+    <item label="Files">
+      <action name="Execute"><command>thunar</command></action>
+    </item>
+    <item label="Settings">
+      <action name="Execute"><command>fosos-settings</command></action>
+    </item>
+  </menu>
+</openbox_menu>

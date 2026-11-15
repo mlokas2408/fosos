@@ -1,0 +1,58 @@
+#!/bin/sh
+# Make the live boot graphical, and use the framebuffer on Hyper-V.
+# Xorg has no KMS device there; real hardware keeps its normal driver.
+set -eu
+
+if [ ! -e /lib/systemd/system/lightdm.service ] && [ ! -e /usr/lib/systemd/system/lightdm.service ]; then
+  echo "lightdm.service is not installed" >&2
+  exit 1
+fi
+
+unit_dir=/usr/lib/systemd/system
+if [ ! -d "$unit_dir" ]; then
+  unit_dir=/lib/systemd/system
+fi
+
+ln -sfn "$unit_dir/graphical.target" /etc/systemd/system/default.target
+install -d /etc/systemd/system/graphical.target.wants
+ln -sfn "$unit_dir/lightdm.service" /etc/systemd/system/display-manager.service
+ln -sfn "$unit_dir/lightdm.service" /etc/systemd/system/graphical.target.wants/lightdm.service
+
+install -d /usr/local/sbin
+cat > /usr/local/sbin/fosos-hyperv-xorg <<'EOF'
+#!/bin/sh
+set -eu
+modprobe hyperv_fb 2>/dev/null || true
+i=0
+while [ ! -e /dev/fb0 ] && [ "$i" -lt 25 ]; do
+  sleep 0.2
+  i=$((i + 1))
+done
+install -d /etc/X11/xorg.conf.d
+cat > /etc/X11/xorg.conf.d/10-hyperv-fbdev.conf <<'CONF'
+Section "Device"
+    Identifier "Hyper-V framebuffer"
+    Driver "fbdev"
+    Option "fbdev" "/dev/fb0"
+EndSection
+CONF
+EOF
+chmod 755 /usr/local/sbin/fosos-hyperv-xorg
+
+cat > /etc/systemd/system/fosos-hyperv-xorg.service <<'EOF'
+[Unit]
+Description=Configure Xorg for the Hyper-V framebuffer
+Before=display-manager.service
+ConditionVirtualization=microsoft
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/fosos-hyperv-xorg
+RemainAfterExit=yes
+
+[Install]
+WantedBy=graphical.target
+EOF
+
+ln -sfn /etc/systemd/system/fosos-hyperv-xorg.service \
+  /etc/systemd/system/graphical.target.wants/fosos-hyperv-xorg.service

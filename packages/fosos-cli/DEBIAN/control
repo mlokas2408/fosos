@@ -1,0 +1,10 @@
+Package: fosos-cli
+Version: 0.1.0
+Section: admin
+Priority: optional
+Architecture: all
+Depends: apt, sudo
+Maintainer: FosOS <dev@fosos.local>
+Description: fos command for common package actions
+ Provides fos for updating, upgrading, installing, removing, and repairing
+ packages. APT remains available for every other operation.

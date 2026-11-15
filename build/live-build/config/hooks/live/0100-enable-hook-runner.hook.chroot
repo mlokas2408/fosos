@@ -1,0 +1,5 @@
+#!/bin/sh
+# Debian 13 live-build runs chroot hooks only when both
+# config/hooks/normal/*.chroot and config/hooks/live/*.chroot exist.
+# The graphical session setup is the normal hook.
+exit 0

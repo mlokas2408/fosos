@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=FosOS authentication agent
+Comment=Password prompts for administrative actions in the XFCE session
+Exec=/usr/bin/lxpolkit
+TryExec=/usr/bin/lxpolkit
+OnlyShowIn=XFCE;
+NoDisplay=true
+X-GNOME-Autostart-enabled=true
