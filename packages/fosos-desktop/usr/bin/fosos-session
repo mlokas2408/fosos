@@ -1,6 +1,6 @@
 #!/bin/sh
-# FosOS Desktop session. Fallback: FosOS Recovery on the greeter, or a
-# text console (Ctrl+Alt+F2).
+# FosOS Desktop session. Fallback: FosOS Recovery via ~/.dmrc, or a
+# text console (Ctrl+Alt+F2). See RECOVERY.md.
 
 export XDG_CURRENT_DESKTOP=FosOS
 export XDG_SESSION_DESKTOP=fosos-desktop
@@ -91,10 +91,13 @@ open_recovery_terminal() {
 # recovery terminal is opened so the user can use Recovery or restart the shell.
 (
 	failures=0
+	: >"$config/shell.log"
 	while [ "$failures" -lt 5 ]; do
 		started=$(date +%s)
-		fosos-shell
+		echo "--- $(date -u +"%Y-%m-%dT%H:%M:%SZ") starting fosos-shell ---" >>"$config/shell.log"
+		fosos-shell >>"$config/shell.log" 2>&1
 		status=$?
+		echo "--- $(date -u +"%Y-%m-%dT%H:%M:%SZ") fosos-shell exited $status ---" >>"$config/shell.log"
 		if [ "$status" -eq 0 ]; then
 			rm -f "$config/shell-failed"
 			break
@@ -110,6 +113,11 @@ open_recovery_terminal() {
 	fi
 ) &
 shell_loop=$!
+
+# Fallback root colour if the shell desktop window is slow or missing.
+if command -v xsetroot >/dev/null 2>&1; then
+	xsetroot -solid "#0a0a0a" >/dev/null 2>&1 || true
+fi
 
 if command -v fosos-welcome >/dev/null 2>&1; then
 	fosos-welcome >/dev/null 2>&1 &

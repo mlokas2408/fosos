@@ -33,6 +33,8 @@ required_files=(
   "$repo_root/packages/fosos-desktop/usr/bin/fosos-recovery-session"
   "$repo_root/packages/fosos-desktop/usr/bin/fosos-shell"
   "$repo_root/packages/fosos-desktop/usr/bin/fosos-lock"
+  "$repo_root/packages/fosos-desktop/usr/bin/fosos-greeter"
+  "$repo_root/packages/fosos-desktop/usr/share/xgreeters/fosos-greeter.desktop"
   "$repo_root/packages/fosos-desktop/usr/bin/fosos-screenshot"
   "$repo_root/packages/fosos-desktop/usr/bin/fosos-settings"
   "$repo_root/packages/fosos-desktop/usr/share/fosos-desktop/xsettingsd.conf"
@@ -45,6 +47,9 @@ required_files=(
   "$repo_root/packages/fosos-desktop/usr/lib/fosos-desktop/fosdesk/files.py"
   "$repo_root/packages/fosos-desktop/usr/lib/fosos-desktop/fosdesk/terminal.py"
   "$repo_root/packages/fosos-desktop/usr/lib/fosos-desktop/fosdesk/windowchrome.py"
+  "$repo_root/packages/fosos-desktop/usr/lib/fosos-desktop/fosdesk/wallpaper.py"
+  "$repo_root/packages/fosos-desktop/usr/lib/fosos-desktop/fosdesk/authui.py"
+  "$repo_root/packages/fosos-desktop/usr/lib/fosos-desktop/fosdesk/greeter.py"
   "$repo_root/packages/fosos-desktop/etc/xdg/fosos-desktop/mimeapps.list"
   "$repo_root/packages/fosos-desktop/usr/share/xsessions/fosos-desktop.desktop"
   "$repo_root/packages/fosos-desktop/usr/share/fosos-desktop/fosos-desktop.css"
@@ -93,9 +98,21 @@ if ! grep -q '^user-session=fosos-desktop$' "$default_session"; then
   echo "Installed default session must be fosos-desktop: $default_session" >&2
   exit 1
 fi
+if ! grep -q '^greeter-session=fosos-greeter$' "$default_session"; then
+  echo "Installed default greeter must be fosos-greeter: $default_session" >&2
+  exit 1
+fi
 if ! grep -q '^user-session=fosos-desktop$' "$live_session" \
   || ! grep -q '^autologin-session=fosos-desktop$' "$live_session"; then
   echo "Live image must autologin to fosos-desktop: $live_session" >&2
+  exit 1
+fi
+if ! grep -q '^greeter-session=fosos-greeter$' "$live_session"; then
+  echo "Live image greeter must be fosos-greeter: $live_session" >&2
+  exit 1
+fi
+if ! grep -q 'gir1.2-lightdm-1' "$repo_root/packages/fosos-desktop/DEBIAN/control"; then
+  echo "fosos-desktop must depend on gir1.2-lightdm-1 for the greeter." >&2
   exit 1
 fi
 if ! grep -q 'desktopFile: "fosos-desktop.desktop"' \
@@ -152,6 +169,7 @@ sources = [
     root / "packages/fosos-welcome/usr/bin/fosos-welcome",
     root / "packages/fosos-desktop/usr/bin/fosos-shell",
     root / "packages/fosos-desktop/usr/bin/fosos-lock",
+    root / "packages/fosos-desktop/usr/bin/fosos-greeter",
     root / "packages/fosos-desktop/usr/bin/fosos-settings",
     *sorted((root / "packages/fosos-desktop/usr/lib/fosos-desktop/fosdesk").glob("*.py")),
 ]

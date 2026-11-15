@@ -1,5 +1,6 @@
 """Widgets and styling shared by the shell and the settings window."""
 
+import sys
 from pathlib import Path
 
 import gi
@@ -8,7 +9,19 @@ gi.require_version("Gdk", "3.0")
 gi.require_version("Gtk", "3.0")
 from gi.repository import Gdk, GLib, Gtk, Pango
 
-DATA_DIR = Path(__file__).resolve().parents[3] / "share" / "fosos-desktop"
+def _resolve_data_dir() -> Path:
+    here = Path(__file__).resolve().parent
+    candidates = (
+        here.parents[2] / "share" / "fosos-desktop",  # /usr/lib/fosos-desktop/fosdesk → /usr/share/...
+        Path("/usr/share/fosos-desktop"),
+    )
+    for path in candidates:
+        if (path / "fosos-desktop.css").is_file():
+            return path
+    return candidates[0]
+
+
+DATA_DIR = _resolve_data_dir()
 
 BRAND = {
     "name": "FosOS",
@@ -25,14 +38,25 @@ def load_css() -> None:
     global _css_loaded
     if _css_loaded:
         return
-    provider = Gtk.CssProvider()
-    provider.load_from_path(str(DATA_DIR / "fosos-desktop.css"))
-    Gtk.StyleContext.add_provider_for_screen(
-        Gdk.Screen.get_default(), provider, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION
-    )
+    css_path = DATA_DIR / "fosos-desktop.css"
     settings = Gtk.Settings.get_default()
     if settings is not None:
         settings.set_property("gtk-application-prefer-dark-theme", True)
+    if not css_path.is_file():
+        print(f"fosos-desktop: CSS missing at {css_path}", file=sys.stderr)
+        _css_loaded = True
+        return
+    try:
+        provider = Gtk.CssProvider()
+        provider.load_from_path(str(css_path))
+        screen = Gdk.Screen.get_default()
+        if screen is not None:
+            Gtk.StyleContext.add_provider_for_screen(
+                screen, provider, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION
+            )
+    except GLib.Error as exc:
+        # Never kill the shell over a stylesheet problem.
+        print(f"fosos-desktop: CSS load failed: {exc}", file=sys.stderr)
     _css_loaded = True
 
 

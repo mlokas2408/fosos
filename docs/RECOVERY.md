@@ -6,15 +6,29 @@ console. XFCE is not shipped.
 
 ## Switch to FosOS Recovery at the next login
 
-1. Sign out (Start → Sign out), or press Ctrl+Alt+F2 and reboot if the
-   graphical session is stuck.
-2. On the LightDM greeter, open the session menu.
-3. Choose **FosOS Recovery**.
-4. Sign in. A terminal opens with restart hints. Run `fosos-shell` to try
-   the panel again, or `openbox --exit` to return to the greeter.
+The FosOS greeter has no session picker; LightDM defaults to **FosOS Desktop**.
+To use Recovery once:
 
-LightDM remembers the last session per account in `~/.dmrc`. Choose
-**FosOS Desktop** again when you want the full shell.
+1. Sign out, or press Ctrl+Alt+F2 if the graphical session is stuck.
+2. From a text console (Ctrl+Alt+F2), as your account:
+
+```bash
+mkdir -p "$HOME"
+printf '%s\n' '[Desktop]' 'Session=fosos-recovery' > "$HOME/.dmrc"
+sudo systemctl restart lightdm
+```
+
+3. Sign in on the greeter. A terminal opens with restart hints. Run
+   `fosos-shell` to try the panel again, or `openbox --exit` to return
+   to the greeter.
+
+To return to the full desktop afterward:
+
+```bash
+printf '%s\n' '[Desktop]' 'Session=fosos-desktop' > "$HOME/.dmrc"
+```
+
+Or use the text console alone without Recovery (next section).
 
 ## Text console
 
@@ -32,6 +46,19 @@ sudo systemctl restart lightdm
 ```
 
 On the live image the account is `user` / password `live`.
+
+## Black screen after Welcome / Install (live)
+
+Openbox may be running without the FosOS shell. On Ctrl+Alt+F2 (`user` / `live`):
+
+```bash
+cat ~/.config/fosos-desktop/shell.log
+cat ~/.config/fosos-desktop/shell-crash.log
+fosos-shell &
+```
+
+Switch back with Ctrl+Alt+F1. If the taskbar returns, rebuild the ISO with
+`fosos-desktop` **1.3.2+**.
 
 ## Shell crashed (no taskbar)
 

@@ -17,7 +17,9 @@ Hyper-V check before it is written to USB. See [the build guide](BUILDING.md).
 5. Confirm the live image autologins to **FosOS Desktop** (taskbar, Start,
    drawn wallpaper). Verify Firefox, Files, Terminal, screenshot tool,
    network, audio, shutdown, and restart.
-6. Press Ctrl+Alt+F2 and confirm the recovery console accepts the live
+6. Sign out once and confirm the greeter is the two-column FosOS Sign in
+   screen (not the old Greybird GTK greeter). Sign back in as `user`.
+7. Press Ctrl+Alt+F2 and confirm the recovery console accepts the live
    account. Ctrl+Alt+F1 returns to the desktop.
 
 The live image automatically signs in Debian Live's temporary `user` account
@@ -33,7 +35,8 @@ locked; the new account can use `sudo`.
 2. Choose **Install FosOS**. Pick a language, keyboard, disk, and account.
    Erase the disk for a first install. Encryption is optional.
 3. When the installer finishes, restart, detach the ISO, and boot the disk.
-4. Sign in as the account you created. The greeter default must be
+4. Sign in as the account you created. The FosOS greeter must show the
+   two-column Sign in layout, and the session default must be
    **FosOS Desktop**. Welcome should show the network status. Install updates
    if the network is up, open the guide, then finish setup.
 5. To reinstall, boot the ISO again and erase the disk.
@@ -83,6 +86,7 @@ After Phase 7, rebuild the ISO first, then record its size in
 [ISO-SIZE.md](ISO-SIZE.md).
 
 - [ ] Fresh login to FosOS Desktop (live and installed)
+- [ ] FosOS greeter two-column Sign in with no session picker (always Desktop)
 - [ ] Lock and unlock (Super+L, idle lock if practical)
 - [ ] Display settings (`arandr`) change and apply
 - [ ] Settings: keyboard, mouse, default apps, power panels
@@ -95,7 +99,7 @@ After Phase 7, rebuild the ISO first, then record its size in
 - [ ] `fos update` / `fos upgrade` (or `apt`) of FosOS packages
 - [ ] Failed-session recovery: kill `fosos-shell` until the recovery terminal
       appears, run `fosos-shell`, then verify **FosOS Recovery** and a TTY
-- [ ] Greeter has no Xfce Session entry
+- [ ] Greeter is fosos-greeter (not gtk-greeter) and has no Xfce Session entry
 - [ ] Post–Phase 7 ISO size recorded in [ISO-SIZE.md](ISO-SIZE.md)
 - [ ] Rollback path in [RECOVERY.md](RECOVERY.md) reviewed
 

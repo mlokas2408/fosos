@@ -1,5 +1,37 @@
 # FosOS release notes
 
+## FosOS 1.3.3 — Single-session Sign in
+
+- Greeter always starts **FosOS Desktop** (no Session dropdown)
+- FosOS Recovery remains installed; select it via `~/.dmrc` or use a TTY
+
+## FosOS 1.3.2 — Shell survives CSS/data faults
+
+- `fosos-shell` crash log: `~/.config/fosos-desktop/shell-crash.log` and `shell.log`
+- CSS load failures no longer abort the shell
+- Desktop keeps a solid background if wallpaper module is missing
+- Session sets a fallback root colour via `xsetroot`
+
+## FosOS 1.3.1 — Greeter black-screen fix
+
+- Greeter no longer imports the Wnck/panel shell stack (caused LightDM seat failure / black screen on live)
+- Wallpaper drawing lives in `fosdesk.wallpaper` for greeter + lock + desktop
+- Crash log at `/var/log/lightdm/fosos-greeter-crash.log` (or `/tmp`)
+- Live greeter defaults to username `user` and completes LightDM autologin hints
+- Live and installed systems both use `fosos-greeter` (GTK greeter remains installed as fallback)
+
+### Packages to ship
+
+- `fosos-desktop` **1.3.1**
+
+## FosOS 1.3.0 — FosOS greeter
+
+- `fosos-greeter` replaces `lightdm-gtk-greeter` as the default LightDM greeter
+- Two-column Sign in layout (brand panel + form), matching the desktop mockup
+- Lock screen uses the same layout (Unlock)
+- Session picker removed in **1.3.3** (always FosOS Desktop)
+- `lightdm-gtk-greeter` remains installed as a fallback
+
 ## FosOS 1.2.x — Phase 7 complete (packaging)
 
 Phase 7a–7c packaging is ready for a rebuilt ISO:

@@ -6,6 +6,7 @@ Architecture: all
 Depends: greybird-gtk-theme, elementary-xfce-icon-theme, fonts-inter, fonts-liberation, dmz-cursor-theme, plymouth, lxpolkit
 Maintainer: FosOS <dev@fosos.local>
 Description: FosOS desktop branding and defaults
- Wallpaper, boot splash, login appearance, and greeter defaults.
- The greeter uses Greybird and elementary-xfce. FosOS Desktop uses its own
- GTK and icon themes. lxpolkit provides password prompts.
+ Wallpaper, boot splash, and session defaults. The FosOS LightDM greeter
+ ships in fosos-desktop; Greybird and elementary-xfce remain available as
+ a fallback. FosOS Desktop uses its own GTK and icon themes. lxpolkit
+ provides password prompts.

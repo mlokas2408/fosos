@@ -7,7 +7,7 @@ FosOS Desktop shell stopped after repeated crashes.
   fosos-shell          restart the panel and Start menu
   openbox --exit       sign out to the login screen
 
-On the login screen, choose FosOS Recovery for a minimal terminal session,
+Set Session=fosos-recovery in ~/.dmrc (see RECOVERY.md) for a minimal session,
 or use Ctrl+Alt+F2 for a text console. See
 /usr/share/doc/fosos-desktop/RECOVERY.md if installed.
 EOF

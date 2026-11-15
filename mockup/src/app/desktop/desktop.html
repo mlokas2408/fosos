@@ -1,0 +1,74 @@
+<div class="desktop-shell relative h-dvh w-dvw overflow-hidden select-none" (click)="onDesktopClick()">
+  <div class="desktop-wallpaper absolute inset-0" aria-hidden="true"></div>
+  <div class="desktop-wallpaper-grid absolute inset-0" aria-hidden="true"></div>
+  <div class="desktop-wallpaper-vignette absolute inset-0" aria-hidden="true"></div>
+  <div class="fos-watermark absolute inset-0" aria-hidden="true"></div>
+
+  @if (!desktop.hasOpenWindows() && !desktop.startOpen()) {
+    <div
+      class="pointer-events-none absolute inset-0 z-[5] flex items-center justify-center pb-12"
+      aria-hidden="true"
+    >
+      <div class="fos-empty-brand flex flex-col items-center gap-3 opacity-[0.14]">
+        <app-fos-mark size="xl" />
+        <div class="text-center">
+          <div class="text-2xl tracking-tight">
+            <span class="font-medium">Fos</span><span class="font-normal">OS</span>
+          </div>
+          <div class="mt-1 text-xs tracking-[0.18em] uppercase">{{ brand.tagline }}</div>
+          <div class="text-muted-foreground mt-2 text-[11px] tracking-wide">{{ brand.motto }}</div>
+        </div>
+      </div>
+    </div>
+  }
+
+  <div class="absolute top-4 left-4 z-10 flex flex-col gap-2">
+    @for (app of desktop.apps; track app.id) {
+      <button
+        type="button"
+        class="desktop-icon group flex w-[4.75rem] flex-col items-center gap-1.5 p-2 text-white"
+        [class.is-selected]="desktop.selectedDesktopIcon() === app.id"
+        (click)="onIconClick(app.id, $event)"
+        (dblclick)="onIconDblClick(app.id, $event)"
+      >
+        <span
+          class="bg-card text-card-foreground ring-foreground/10 flex size-11 items-center justify-center shadow-lg ring-1 transition group-hover:bg-accent"
+        >
+          <ng-icon [name]="app.icon" class="text-lg" />
+        </span>
+        <span
+          class="line-clamp-2 w-full px-0.5 text-center text-[11px] leading-tight font-medium"
+          style="text-shadow: 0 1px 2px rgb(0 0 0 / 0.75)"
+        >
+          {{ app.title }}
+        </span>
+      </button>
+    }
+  </div>
+
+  <div class="pointer-events-none absolute inset-0 z-20 pb-12">
+    @for (win of desktop.visibleWindows(); track win.id) {
+      @if (win.id === 'file-explorer') {
+        <div
+          class="window-enter pointer-events-auto absolute top-[9%] left-[14%] h-[74%] w-[72%] min-h-[380px] min-w-[560px] max-w-[1040px]"
+          [style.z-index]="win.zIndex"
+          (click)="$event.stopPropagation()"
+        >
+          <app-file-explorer
+            [title]="win.title"
+            [focused]="desktop.isFocused(win.id)"
+            (close)="desktop.closeWindow(win.id)"
+            (minimize)="desktop.minimizeWindow(win.id)"
+            (focus)="desktop.focusWindow(win.id)"
+          />
+        </div>
+      }
+    }
+  </div>
+
+  @if (desktop.startOpen()) {
+    <div class="absolute inset-0 z-[90]" (click)="desktop.closeStart()" aria-hidden="true"></div>
+  }
+
+  <app-taskbar (click)="$event.stopPropagation()" />
+</div>

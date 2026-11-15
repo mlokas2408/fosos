@@ -79,8 +79,8 @@ output/FosOS-trixie-amd64.iso
 
 - FosOS Desktop as the only full login session (Openbox + FosOS shell), with
   FosOS Recovery (Openbox + terminal) as the greeter fallback
-- A FosOS boot splash and a matching LightDM login screen (Greybird /
-  elementary-xfce on the greeter; FosOS GTK/icons in the desktop session)
+- A FosOS boot splash and the FosOS LightDM greeter (`fosos-greeter`,
+  two-column Sign in; Greybird / elementary-xfce kept as fallback)
 - Install FosOS, a Calamares installer for language, keyboard, disk,
   optional encryption, and the account that owns the installed system
 - A first-login welcome screen for network status, the FosOS guide, and updates

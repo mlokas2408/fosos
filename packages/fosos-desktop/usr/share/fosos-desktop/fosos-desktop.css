@@ -12,6 +12,7 @@
 @define-color fos_destructive #ff6467;
 
 .fos-root {
+  background-color: @fos_background;
   color: @fos_fg;
   font-family: Inter, sans-serif;
   font-size: 12px;
@@ -227,8 +228,63 @@ button.fos-btn.fos-workspace {
   font-size: 11px;
 }
 
-.fos-lock entry.fos-input {
+.fos-lock entry.fos-input,
+.fos-login entry.fos-input {
   min-height: 36px;
+}
+
+/* Two-column greeter / lock (matches mockup login) */
+.fos-login {
+  background-color: @fos_background;
+}
+
+.fos-login-brand {
+  background-color: @fos_background;
+}
+
+.fos-login-brand-content {
+  color: @fos_fg;
+}
+
+.fos-login-kicker {
+  letter-spacing: 2px;
+  color: alpha(@fos_fg, 0.7);
+}
+
+.fos-login-tagline {
+  font-size: 14px;
+  letter-spacing: 2px;
+}
+
+.fos-login-form {
+  background-color: #151515;
+  border-left: 1px solid @fos_border;
+  color: @fos_fg;
+}
+
+.fos-login-heading {
+  font-size: 22px;
+  font-weight: 500;
+}
+
+button.fos-btn.size-lg,
+button.fos-btn.fos-login-submit {
+  min-height: 38px;
+  padding: 0 14px;
+}
+
+.fos-login-session {
+  min-height: 36px;
+}
+
+.fos-login-session button {
+  background-color: transparent;
+  background-image: none;
+  border: 1px solid @fos_input;
+  border-radius: 0;
+  color: @fos_fg;
+  min-height: 36px;
+  padding: 0 10px;
 }
 
 /* Start button: four panes, like the Windows Start logo */

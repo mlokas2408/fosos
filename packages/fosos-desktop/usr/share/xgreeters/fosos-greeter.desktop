@@ -1,0 +1,7 @@
+[Desktop Entry]
+Name=FosOS Greeter
+Comment=FosOS two-column sign-in screen
+Exec=fosos-greeter
+TryExec=fosos-greeter
+Type=Application
+X-Ubuntu-Gettext-Domain=lightdm

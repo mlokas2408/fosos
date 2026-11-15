@@ -1,6 +1,8 @@
 """fosos-shell: panel, Start menu, desktop and notifications in one process."""
 
 import sys
+import traceback
+from pathlib import Path
 
 import gi
 
@@ -34,6 +36,19 @@ APP_ID = "org.fosos.Shell"
 CLOSE_WAIT_SECONDS = 4
 
 
+def _crash_log(exc: BaseException | None = None) -> None:
+    text = traceback.format_exc() if exc is None else "".join(
+        traceback.format_exception(type(exc), exc, exc.__traceback__)
+    )
+    sys.stderr.write(text)
+    try:
+        path = Path(GLib.get_user_config_dir()) / "fosos-desktop" / "shell-crash.log"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(text, encoding="utf-8")
+    except OSError:
+        pass
+
+
 class Shell(Gtk.Application):
     def __init__(self) -> None:
         super().__init__(application_id=APP_ID, flags=Gio.ApplicationFlags.HANDLES_COMMAND_LINE)
@@ -48,6 +63,13 @@ class Shell(Gtk.Application):
     # Lifecycle
 
     def do_startup(self) -> None:
+        try:
+            self._startup()
+        except Exception as exc:  # noqa: BLE001 - always capture shell boot failures
+            _crash_log(exc)
+            raise
+
+    def _startup(self) -> None:
         Gtk.Application.do_startup(self)
         GLib.set_prgname("fosos-shell")
         load_css()

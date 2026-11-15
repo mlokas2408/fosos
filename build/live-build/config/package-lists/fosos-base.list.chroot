@@ -9,6 +9,7 @@
 # framebuffer.
 lightdm
 lightdm-gtk-greeter
+gir1.2-lightdm-1
 user-setup
 xserver-xorg
 xserver-xorg-video-fbdev

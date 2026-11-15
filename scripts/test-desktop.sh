@@ -187,6 +187,14 @@ sleep 1
 pkill -f fosos-lock || true
 sleep 0.5
 
+fosos-greeter --preview >/tmp/greeter.log 2>&1 &
+sleep 2
+shot 07d-greeter
+xdotool key Escape
+sleep 1
+pkill -f fosos-greeter || true
+sleep 0.5
+
 fosos-settings >/tmp/settings.log 2>&1 &
 sleep 3
 shot 08-settings
@@ -219,7 +227,7 @@ echo "--- settings log"
 cat /tmp/settings.log
 echo "--- openbox log"
 cat /tmp/openbox.log
-pkill -f fosos-settings; pkill -f fosos-files; pkill -f fosos-terminal; pkill -f fosos-notepad; pkill -f fosos-lock; pkill -f fosos-shell; pkill mousepad; pkill openbox
+pkill -f fosos-settings; pkill -f fosos-files; pkill -f fosos-terminal; pkill -f fosos-notepad; pkill -f fosos-lock; pkill -f fosos-greeter; pkill -f fosos-shell; pkill mousepad; pkill openbox
 sleep 1
 
 # The real session script: it must start the shell and end cleanly on sign-out.
