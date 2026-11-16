@@ -61,12 +61,25 @@ Squashfs savings on the ISO are smaller than the sum of Installed-Size, but
 dropping the full XFCE session stack is still a clear reduction. The 2026-11-16
 rebuild is **~24 MiB** smaller than the recorded pre–Phase 7 baseline.
 
+## Remote Desktop packages (1.5.0)
+
+Added to the live package list (host off until Settings enables sharing):
+
+| Package | Role |
+| --- | --- |
+| `freerdp3-shadow-x11` | Console RDP share for mstsc (no xrdp/xorgxrdp) |
+| `freerdp3-x11` | Outbound client for `fosos-remote` |
+
+Expect a modest ISO growth versus the Phase 7c baseline. Record the next
+rebuild size in the table above after measuring on the Debian builder VM.
+
 ## Expected direction
 
 The post–Phase 7 ISO should be **clearly smaller** than a Phase 6 image that
 shipped the full XFCE session. Exact MiB saved depends on mirror package
 versions and squashfs compression; always compare two ISOs built with the
-same `scripts/build-iso.sh` on the same builder.
+same `scripts/build-iso.sh` on the same builder. Remote Desktop packages
+will offset some of that reduction — compare before/after 1.5.0 explicitly.
 
 ## Soak
 

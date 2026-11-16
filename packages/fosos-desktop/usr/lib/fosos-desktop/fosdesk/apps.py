@@ -27,6 +27,7 @@ KNOWN_APPS = {
     "xfce4-terminal.desktop": ("XFCE Terminal", "utilities-terminal-symbolic"),
     "firefox-esr.desktop": ("Firefox", "web-browser-symbolic"),
     "fosos-settings.desktop": ("Settings", "preferences-system-symbolic"),
+    "fosos-remote.desktop": ("Remote Desktop", "network-server-symbolic"),
     "org.xfce.mousepad.desktop": ("Mousepad", "accessories-text-editor-symbolic"),
     "calamares-install-fosos.desktop": ("Install FosOS", "system-software-install-symbolic"),
     "fosos-welcome.desktop": ("Welcome", "help-about-symbolic"),

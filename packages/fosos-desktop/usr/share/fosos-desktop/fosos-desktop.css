@@ -10,6 +10,8 @@
 @define-color fos_input rgba(255, 255, 255, 0.15);
 @define-color fos_ring #737373;
 @define-color fos_destructive #ff6467;
+@define-color fos_titlebar #1f1f1f;
+@define-color fos_titlebar_inactive #141414;
 
 .fos-root {
   background-color: @fos_background;
@@ -34,6 +36,20 @@
 /* Cards and popups */
 .fos-popup {
   background-color: transparent;
+}
+
+.fos-dialog {
+  background-color: transparent;
+}
+
+.fos-file-chooser {
+  background-color: transparent;
+  color: @fos_fg;
+  min-height: 280px;
+}
+
+.fos-file-chooser * {
+  color: inherit;
 }
 
 .fos-card {
@@ -216,12 +232,14 @@ button.fos-btn.row {
   min-height: 64px;
 }
 
-/* Workspace pager on the taskbar */
-button.fos-btn.fos-workspace {
-  min-width: 22px;
-  min-height: 22px;
-  padding: 0;
-  font-size: 11px;
+/* Far-right Show Desktop strip on the taskbar */
+.fos-show-desktop {
+  min-width: 6px;
+  background-color: transparent;
+  border-left: 1px solid @fos_border;
+}
+.fos-show-desktop:hover {
+  background-color: alpha(@fos_fg, 0.12);
 }
 
 .fos-lock entry.fos-input,
@@ -253,7 +271,7 @@ button.fos-btn.fos-workspace {
 }
 
 .fos-login-form {
-  background-color: #151515;
+  background-color: @fos_card;
   border-left: 1px solid @fos_border;
   color: @fos_fg;
 }
@@ -304,7 +322,7 @@ button.fos-login-power:hover {
 }
 
 .fos-login-power-list {
-  background-color: #151515;
+  background-color: @fos_card;
   border: 1px solid @fos_border;
   min-width: 160px;
 }
@@ -627,7 +645,7 @@ calendar.fos-calendar.highlight {
 }
 
 .fos-desktop-label {
-  color: #ffffff;
+  color: @fos_fg;
   font-size: 11px;
   font-weight: 500;
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.75);
@@ -678,7 +696,7 @@ tooltip label {
 }
 
 .fos-app-header {
-  background-color: alpha(@fos_muted, 0.4);
+  background-color: @fos_titlebar;
   border-bottom: 1px solid @fos_border;
   padding: 4px 8px;
   min-height: 40px;
@@ -695,6 +713,10 @@ tooltip label {
   border-top: 1px solid @fos_border;
   padding: 6px 12px;
   min-height: 28px;
+}
+
+.fos-files-hit {
+  background-color: transparent;
 }
 
 .fos-files-sidebar {
@@ -734,7 +756,7 @@ tooltip label {
 }
 
 .fos-term-body {
-  background-color: #171717;
+  background-color: @fos_card;
 }
 
 .fos-editor-view {

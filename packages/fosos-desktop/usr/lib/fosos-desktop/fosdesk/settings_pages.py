@@ -472,11 +472,11 @@ def build_taskbar(status_cb) -> Gtk.Box:
         False,
         0,
     )
-    prefs = load_kv("taskbar", {"workspaces": "1", "clock_date": "1", "bell": "1"})
+    prefs = load_kv("taskbar", {"task_view": "1", "clock_date": "1", "bell": "1"})
 
-    workspaces = Gtk.CheckButton(label="Show desktop switcher (1–4)")
-    workspaces.set_active(truthy(prefs.get("workspaces"), True))
-    root.pack_start(workspaces, False, False, 0)
+    task_view = Gtk.CheckButton(label="Show Task View button")
+    task_view.set_active(truthy(prefs.get("task_view"), True))
+    root.pack_start(task_view, False, False, 0)
 
     clock_date = Gtk.CheckButton(label="Show date under the clock")
     clock_date.set_active(truthy(prefs.get("clock_date"), True))
@@ -490,7 +490,7 @@ def build_taskbar(status_cb) -> Gtk.Box:
         save_kv(
             "taskbar",
             {
-                "workspaces": "1" if workspaces.get_active() else "0",
+                "task_view": "1" if task_view.get_active() else "0",
                 "clock_date": "1" if clock_date.get_active() else "0",
                 "bell": "1" if bell.get_active() else "0",
             },
@@ -691,8 +691,7 @@ def build_updates(status_cb) -> Gtk.Box:
         0,
     )
 
-    card = add_classes(Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8), "fos-card")
-    card.set_border_width(12)
+    card = add_classes(Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8), "fos-card", "fos-card-content")
     last_label = label(f"Last package list refresh: {last_update_text()}", "fos-text")
     card.pack_start(last_label, False, False, 0)
     reboot_label = label(
@@ -838,6 +837,288 @@ def build_storage(status_cb) -> Gtk.Box:
     return root
 
 
+REMOTE_HOST = Path("/usr/libexec/fosos-remote-host")
+REMOTE_PORT = 3389
+REMOTE_INFO = Path("/run/fosos/rdp-shadow-info")
+
+
+def remote_host_active() -> bool:
+    """True when console RDP shadow is running."""
+    try:
+        result = subprocess.run(
+            ["systemctl", "is-active", "fosos-rdp-shadow.service"],
+            capture_output=True,
+            text=True,
+            timeout=5,
+            check=False,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return False
+    return result.returncode == 0 and (result.stdout or "").strip() == "active"
+
+
+def remote_host_installed() -> bool:
+    return any(
+        Path(path).is_file()
+        for path in (
+            "/usr/bin/freerdp-shadow-cli3",
+            "/usr/bin/freerdp-shadow-cli",
+            "/usr/libexec/fosos-rdp-shadow-run",
+        )
+    )
+
+
+def remote_host_addresses() -> list[str]:
+    addrs: list[str] = []
+    try:
+        result = subprocess.run(
+            ["hostname", "-I"],
+            capture_output=True,
+            text=True,
+            timeout=5,
+            check=False,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        result = None
+    if result is not None and result.returncode == 0:
+        for token in (result.stdout or "").split():
+            if token and token not in addrs:
+                addrs.append(token)
+    try:
+        host = subprocess.check_output(["hostname", "-f"], text=True, timeout=5).strip()
+    except (OSError, subprocess.CalledProcessError, subprocess.TimeoutExpired):
+        host = ""
+    if host and host not in addrs:
+        addrs.insert(0, host)
+    return addrs
+
+
+def remote_host_info() -> dict[str, str]:
+    data: dict[str, str] = {}
+    if not REMOTE_INFO.is_file():
+        return data
+    try:
+        for line in REMOTE_INFO.read_text(encoding="utf-8", errors="replace").splitlines():
+            if "=" not in line:
+                continue
+            key, value = line.split("=", 1)
+            data[key.strip()] = value.strip()
+    except OSError:
+        return {}
+    return data
+
+
+def remote_display_geometry() -> str:
+    info = remote_host_info()
+    if info.get("geometry"):
+        return info["geometry"]
+    try:
+        result = subprocess.run(
+            ["xrandr", "--current"],
+            capture_output=True,
+            text=True,
+            timeout=5,
+            check=False,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return ""
+    if result.returncode != 0:
+        return ""
+    for line in (result.stdout or "").splitlines():
+        if " connected" not in line:
+            continue
+        for token in line.split():
+            if "x" in token and token[0].isdigit():
+                return token.split("+")[0]
+    return ""
+
+
+def set_remote_host_enabled_async(enabled: bool, done_cb) -> None:
+    """Toggle console RDP sharing via pkexec without blocking the GTK main loop.
+
+    A synchronous pkexec + capture_output freezes Settings (mouse still moves).
+    """
+    if not REMOTE_HOST.is_file():
+        done_cb(False, "Remote Desktop host helper is missing.")
+        return
+    action = "enable" if enabled else "disable"
+    argv = ["pkexec", str(REMOTE_HOST), action]
+    try:
+        # Do not capture stdio: polkit agent dialogs need a live TTY/display path.
+        proc = Gio.Subprocess.new(argv, Gio.SubprocessFlags.NONE)
+    except GLib.Error as exc:
+        done_cb(False, exc.message)
+        return
+
+    def finished(process, result) -> None:
+        try:
+            process.wait_finish(result)
+        except GLib.Error as error:
+            done_cb(False, error.message)
+            return
+        if process.get_exit_status() != 0:
+            done_cb(False, "Request cancelled or failed.")
+            return
+        done_cb(True, "enabled" if enabled else "disabled")
+
+    proc.wait_async(None, finished)
+
+
+def build_remote_desktop(status_cb) -> Gtk.Box:
+    from . import apps as appmod
+
+    root = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=16)
+    root.pack_start(
+        pack_header(
+            "Remote Desktop",
+            "Let Windows Remote Desktop (mstsc) control this PC, or connect out to other PCs.",
+        ),
+        False,
+        False,
+        0,
+    )
+
+    if not remote_host_installed():
+        tip = label(
+            "Install freerdp3-shadow-x11 to host Remote Desktop. "
+            "The FosOS Remote Desktop app still connects out with FreeRDP.",
+            "fos-text",
+            "fos-muted",
+        )
+        tip.set_line_wrap(True)
+        root.pack_start(tip, False, False, 0)
+    else:
+        card = add_classes(Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12), "fos-card", "fos-card-content")
+        row = Gtk.Box(spacing=12)
+        row.pack_start(label("Enable Remote Desktop", "fos-text", "fos-strong"), True, True, 0)
+        switch = add_classes(Gtk.Switch(), "fos-switch")
+        switch.set_active(remote_host_active())
+        switch.set_valign(Gtk.Align.CENTER)
+        row.pack_end(switch, False, False, 0)
+        card.pack_start(row, False, False, 0)
+
+        status_line = label("", "fos-text")
+        status_line.set_selectable(True)
+        status_line.set_line_wrap(True)
+        card.pack_start(status_line, False, False, 0)
+
+        how_line = label("", "fos-small", "fos-muted")
+        how_line.set_line_wrap(True)
+        how_line.set_selectable(True)
+        card.pack_start(how_line, False, False, 0)
+
+        help_line = label(
+            "Shows the desktop already on this screen (like Ubuntu Desktop Sharing). "
+            "mstsc will ask you to accept the certificate, then sign in with this account. "
+            "Live image: user / live. Use Full Screen or the .rdp file on the Desktop. "
+            "Turn off when finished — no firewall on the live image by default.",
+            "fos-small",
+            "fos-muted",
+        )
+        help_line.set_line_wrap(True)
+        card.pack_start(help_line, False, False, 0)
+        root.pack_start(card, False, False, 0)
+
+        toggling = {"busy": False}
+
+        def refresh_status() -> None:
+            active = remote_host_active()
+            toggling["busy"] = True
+            switch.set_active(active)
+            toggling["busy"] = False
+            info = remote_host_info()
+            user = info.get("user") or GLib.get_user_name()
+            geom = info.get("geometry") or remote_display_geometry() or "unknown"
+            if active:
+                targets = remote_host_addresses() or ["(no address yet)"]
+                primary = targets[0]
+                lines = [
+                    f"Listening on port {REMOTE_PORT} · display {geom}",
+                    f"Sign in as: {user}",
+                ]
+                for item in targets:
+                    lines.append(f"{item}:{REMOTE_PORT}")
+                status_line.set_text("\n".join(lines))
+                how_line.set_text(
+                    f"On Windows: open mstsc → Computer “{primary}:{REMOTE_PORT}” "
+                    f"→ User name “{user}” → accept the certificate → enter the password. "
+                    f"Or copy Desktop/FosOS-Remote-Desktop.rdp to Windows and open it "
+                    f"(Full Screen + smart sizing for {geom})."
+                )
+            else:
+                status_line.set_text("Remote Desktop is off.")
+                how_line.set_text(
+                    "Turn on to listen for Windows Remote Desktop (mstsc) on port 3389."
+                )
+
+        def on_toggle(widget: Gtk.Switch, _gparam) -> None:
+            if toggling["busy"]:
+                return
+            want = widget.get_active()
+            if want == remote_host_active():
+                return
+            toggling["busy"] = True
+            widget.set_sensitive(False)
+            status_cb("Authenticating to change Remote Desktop…")
+
+            def done(ok: bool, message: str) -> None:
+                toggling["busy"] = False
+                widget.set_sensitive(True)
+                if not ok:
+                    toggling["busy"] = True
+                    widget.set_active(not want)
+                    toggling["busy"] = False
+                    status_cb(message)
+                    refresh_status()
+                    return
+                status_cb(f"Remote Desktop {message}.")
+
+                def refresh_later() -> bool:
+                    refresh_status()
+                    return False
+
+                # Geometry / .rdp file appear shortly after the unit starts.
+                GLib.timeout_add(600, refresh_later)
+                refresh_status()
+
+            set_remote_host_enabled_async(want, done)
+
+        switch.connect("notify::active", on_toggle)
+        refresh_status()
+
+        actions = Gtk.Box(spacing=8)
+        open_btn = button("Open Remote Desktop", variant="default")
+        open_btn.connect(
+            "clicked",
+            lambda _b: status_cb("Opened Remote Desktop.")
+            if appmod.spawn(["fosos-remote"])
+            else status_cb("Remote Desktop app is not available."),
+        )
+        actions.pack_start(open_btn, False, False, 0)
+        refresh = button("Refresh status", variant="outline", size="sm")
+        refresh.connect(
+            "clicked",
+            lambda _b: (refresh_status(), status_cb("Status refreshed.")),
+        )
+        actions.pack_start(refresh, False, False, 0)
+        root.pack_start(actions, False, False, 0)
+        status_cb("Remote Desktop settings.")
+        return root
+
+    tip_actions = Gtk.Box(spacing=8)
+    open_btn = button("Open Remote Desktop", variant="default")
+    open_btn.connect(
+        "clicked",
+        lambda _b: status_cb("Opened Remote Desktop.")
+        if appmod.spawn(["fosos-remote"])
+        else status_cb("Remote Desktop app is not available."),
+    )
+    tip_actions.pack_start(open_btn, False, False, 0)
+    root.pack_start(tip_actions, False, False, 0)
+    status_cb("Remote Desktop settings.")
+    return root
+
+
 def build_power(status_cb) -> Gtk.Box:
     root = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=16)
     root.pack_start(
@@ -902,6 +1183,7 @@ PAGES = {
     "sound": ("Sound", build_sound),
     "network": ("Network", build_network),
     "bluetooth": ("Bluetooth", build_bluetooth),
+    "remote": ("Remote Desktop", build_remote_desktop),
     "updates": ("Updates", build_updates),
     "storage": ("Storage", build_storage),
 }

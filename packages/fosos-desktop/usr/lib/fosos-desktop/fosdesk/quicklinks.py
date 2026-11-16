@@ -15,10 +15,14 @@ class QuickLinks(Popup):
     def __init__(self, shell) -> None:
         super().__init__(width=240)
         self.shell = shell
-        frame = add_classes(Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2), "fos-card")
-        frame.set_border_width(8)
+        frame = add_classes(Gtk.Box(orientation=Gtk.Orientation.VERTICAL), "fos-card")
         self.add(frame)
-        frame.pack_start(label("Quick links", "fos-small", "fos-muted"), False, False, 4)
+        header = add_classes(Gtk.Box(), "fos-card-header")
+        header.pack_start(label("Quick links", "fos-title"), False, False, 0)
+        frame.pack_start(header, False, False, 0)
+
+        body = add_classes(Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2), "fos-card-content")
+        frame.pack_start(body, False, False, 0)
 
         for text, icon_name, action in (
             ("Terminal", "utilities-terminal-symbolic", "terminal"),
@@ -29,9 +33,9 @@ class QuickLinks(Popup):
             item = button(text, icon_name=icon_name, variant="ghost")
             item.get_child().set_halign(Gtk.Align.START)
             item.connect("clicked", lambda _b, a=action: self._run(a))
-            frame.pack_start(item, False, False, 0)
+            body.pack_start(item, False, False, 0)
 
-        frame.pack_start(separator(vertical=False), False, False, 4)
+        body.pack_start(separator(vertical=False), False, False, 4)
 
         for text, icon_name, action in (
             ("Lock", "system-lock-screen-symbolic", "lock"),
@@ -41,7 +45,7 @@ class QuickLinks(Popup):
             item = button(text, icon_name=icon_name, variant="ghost")
             item.get_child().set_halign(Gtk.Align.START)
             item.connect("clicked", lambda _b, a=action: self._run(a))
-            frame.pack_start(item, False, False, 0)
+            body.pack_start(item, False, False, 0)
 
     def open_near_start(self, panel) -> None:
         self.shell.close_popups(keep="quicklinks")

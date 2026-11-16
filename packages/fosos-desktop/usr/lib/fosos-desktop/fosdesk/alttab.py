@@ -42,14 +42,15 @@ class AltTabSwitcher(Gtk.Window):
         self.connect("key-press-event", self._on_key_press)
         self.connect("key-release-event", self._on_key_release)
 
-        self.frame = add_classes(Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10), "fos-card", "fos-alttab")
-        self.frame.set_border_width(16)
+        self.frame = add_classes(Gtk.Box(orientation=Gtk.Orientation.VERTICAL), "fos-card", "fos-alttab")
         self.add(self.frame)
+        body = add_classes(Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10), "fos-card-content")
+        self.frame.pack_start(body, False, False, 0)
         self.row = Gtk.Box(spacing=8)
         self.row.set_halign(Gtk.Align.CENTER)
-        self.frame.pack_start(self.row, False, False, 0)
+        body.pack_start(self.row, False, False, 0)
         self.caption = label("", "fos-text", xalign=0.5, ellipsize=True)
-        self.frame.pack_start(self.caption, False, False, 0)
+        body.pack_start(self.caption, False, False, 0)
 
         self.windows: list[Wnck.Window] = []
         self.index = 0

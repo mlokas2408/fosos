@@ -1,11 +1,12 @@
 Package: fosos-welcome
-Version: 0.1.1
+Version: 0.1.2
 Section: x11
 Priority: optional
 Architecture: all
-Depends: python3, python3-gi, gir1.2-gtk-3.0, firefox-esr, network-manager
+Depends: python3, python3-gi, gir1.2-gtk-3.0, firefox-esr, network-manager, fosos-desktop
 Maintainer: FosOS <dev@fosos.local>
 Description: FosOS first-login welcome
  Shows network status, opens the FosOS guide, and on an installed system
  offers to install updates. The live session can start the installer from here.
- Firefox is the only browser this screen offers.
+ Uses the same FosOS card chrome as Settings and Files. Firefox is the only
+ browser this screen offers.

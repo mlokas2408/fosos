@@ -1,5 +1,15 @@
 # FosOS release notes
 
+## FosOS 1.4.0 — UI improvements (taskbar, desktop grid, Files)
+
+- Taskbar: remove numbered desktop pager; Task View button after Start;
+  far-right Show Desktop strip; Ctrl+Win+Left/Right switches desktops;
+  right-click empty taskbar → Taskbar settings
+- Desktop icons snap to a grid and never overlap; Auto arrange on
+  right-click; saved positions migrate onto the grid
+- Files: Search keeps focus while typing (Esc clears, Ctrl+F / F3 focus);
+  empty-folder vs item context menus; Paste / New folder from background menu
+
 ## FosOS 1.3.14 — Phase 14 Settings depth
 
 - Built-in Wallpaper (Dawn / Steel / Graphite / Ink), Taskbar, Notifications

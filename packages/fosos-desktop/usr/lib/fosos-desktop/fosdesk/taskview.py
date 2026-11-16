@@ -260,7 +260,8 @@ class TaskView(Gtk.Window):
 
     def _on_draw(self, _widget, cr) -> bool:
         alloc = self.get_allocation()
-        cr.set_source_rgba(0.04, 0.04, 0.04, 0.88)
+        # Match fos_background (#0a0a0a) with slight transparency.
+        cr.set_source_rgba(0.039, 0.039, 0.039, 0.92)
         cr.rectangle(0, 0, alloc.width, alloc.height)
         cr.fill()
         return False

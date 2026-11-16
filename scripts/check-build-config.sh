@@ -55,13 +55,19 @@ required_files=(
   "$repo_root/packages/fosos-desktop/usr/share/xgreeters/fosos-greeter.desktop"
   "$repo_root/packages/fosos-desktop/usr/bin/fosos-screenshot"
   "$repo_root/packages/fosos-desktop/usr/bin/fosos-settings"
+  "$repo_root/packages/fosos-desktop/usr/bin/fosos-remote"
   "$repo_root/packages/fosos-desktop/usr/share/fosos-desktop/xsettingsd.conf"
+  "$repo_root/packages/fosos-desktop/usr/libexec/fosos-remote-host"
+  "$repo_root/packages/fosos-desktop/usr/libexec/fosos-rdp-shadow-run"
+  "$repo_root/packages/fosos-desktop/usr/lib/systemd/system/fosos-rdp-shadow.service"
+  "$repo_root/packages/fosos-desktop/usr/share/polkit-1/actions/org.fosos.remote-host.policy"
   "$repo_root/packages/fosos-desktop/usr/bin/fosos-files"
   "$repo_root/packages/fosos-desktop/usr/bin/fosos-terminal"
   "$repo_root/packages/fosos-desktop/usr/bin/fosos-notepad"
   "$repo_root/packages/fosos-desktop/usr/share/applications/fosos-files.desktop"
   "$repo_root/packages/fosos-desktop/usr/share/applications/fosos-terminal.desktop"
   "$repo_root/packages/fosos-desktop/usr/share/applications/fosos-notepad.desktop"
+  "$repo_root/packages/fosos-desktop/usr/share/applications/fosos-remote.desktop"
   "$repo_root/packages/fosos-desktop/usr/lib/fosos-desktop/fosdesk/files.py"
   "$repo_root/packages/fosos-desktop/usr/lib/fosos-desktop/fosdesk/terminal.py"
   "$repo_root/packages/fosos-desktop/usr/lib/fosos-desktop/fosdesk/windowchrome.py"
@@ -199,6 +205,21 @@ if ! grep -qx 'console-setup' "$repo_root/build/live-build/config/package-lists/
   echo "The image package list must install console-setup so the text console uses the chosen keyboard layout." >&2
   exit 1
 fi
+# Hyper-V: avoid hyperv_fb input freeze; need DRM path + libinput + guest daemons.
+if ! grep -q 'module_blacklist=hyperv_fb' "$repo_root/build/live-build/config/binary"; then
+  echo "LB_BOOTAPPEND_LIVE must include module_blacklist=hyperv_fb for Hyper-V Gen2." >&2
+  exit 1
+fi
+if ! grep -q 'blacklist hyperv_fb' \
+  "$repo_root/build/live-build/config/hooks/normal/0100-graphical-session.hook.chroot"; then
+  echo "Hyper-V graphical hook must blacklist hyperv_fb and prefer hyperv_drm." >&2
+  exit 1
+fi
+if ! grep -qx 'xserver-xorg-input-libinput' "$repo_root/build/live-build/config/package-lists/fosos-base.list.chroot" \
+  || ! grep -qx 'hyperv-daemons' "$repo_root/build/live-build/config/package-lists/fosos-base.list.chroot"; then
+  echo "Image list must include xserver-xorg-input-libinput and hyperv-daemons." >&2
+  exit 1
+fi
 if ! grep -q 'dosfstools' "$repo_root/packages/fosos-installer/DEBIAN/control"; then
   echo "fosos-installer must depend on dosfstools (mkfs.fat for the EFI partition)." >&2
   exit 1
@@ -227,6 +248,8 @@ sh -n "$repo_root/packages/fosos-cli/usr/bin/fos"
 sh -n "$repo_root/packages/fosos-desktop/usr/bin/fosos-session"
 sh -n "$repo_root/packages/fosos-desktop/usr/bin/fosos-recovery-session"
 sh -n "$repo_root/packages/fosos-desktop/usr/libexec/fosos-shell-recovery"
+sh -n "$repo_root/packages/fosos-desktop/usr/libexec/fosos-remote-host"
+sh -n "$repo_root/packages/fosos-desktop/usr/libexec/fosos-rdp-shadow-run"
 
 # Parse the Python sources without writing bytecode into the package tree.
 python3 - "$repo_root" <<'PY'
@@ -241,6 +264,7 @@ sources = [
     root / "packages/fosos-desktop/usr/bin/fosos-lock",
     root / "packages/fosos-desktop/usr/bin/fosos-greeter",
     root / "packages/fosos-desktop/usr/bin/fosos-settings",
+    root / "packages/fosos-desktop/usr/bin/fosos-remote",
     *sorted((root / "packages/fosos-desktop/usr/lib/fosos-desktop/fosdesk").glob("*.py")),
 ]
 for source in sources:

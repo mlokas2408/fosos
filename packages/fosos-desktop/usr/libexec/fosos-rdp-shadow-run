@@ -1,0 +1,119 @@
+#!/bin/sh
+# Launch FreeRDP shadow for the active FosOS console — mstsc-friendly defaults.
+set -e
+
+INFO=/run/fosos/rdp-shadow-info
+CERT_DIR="${HOME:-/tmp}/.config/freerdp/shadow"
+
+shadow_bin() {
+	for name in freerdp-shadow-cli3 freerdp-shadow-cli; do
+		if command -v "$name" >/dev/null 2>&1; then
+			command -v "$name"
+			return 0
+		fi
+	done
+	for path in /usr/bin/freerdp-shadow-cli3 /usr/bin/freerdp-shadow-cli; do
+		if [ -x "$path" ]; then
+			echo "$path"
+			return 0
+		fi
+	done
+	return 1
+}
+
+ensure_tls() {
+	mkdir -p "$CERT_DIR"
+	chmod 700 "$CERT_DIR" 2>/dev/null || true
+	if [ -f "$CERT_DIR/shadow.crt" ] && [ -f "$CERT_DIR/shadow.key" ]; then
+		return 0
+	fi
+	cn=$(hostname -f 2>/dev/null || hostname 2>/dev/null || echo fosos)
+	if command -v winpr-makecert3 >/dev/null 2>&1; then
+		winpr-makecert3 -rdp -silent -y 5 -n "$cn" -path "$CERT_DIR" shadow >/dev/null 2>&1 || true
+	elif command -v winpr-makecert >/dev/null 2>&1; then
+		winpr-makecert -rdp -silent -y 5 -n "$cn" -path "$CERT_DIR" shadow >/dev/null 2>&1 || true
+	fi
+	if [ -f "$CERT_DIR/shadow.crt" ] && [ -f "$CERT_DIR/shadow.key" ]; then
+		chmod 600 "$CERT_DIR/shadow.key" 2>/dev/null || true
+		chmod 644 "$CERT_DIR/shadow.crt" 2>/dev/null || true
+		return 0
+	fi
+	# OpenSSL fallback (FreeRDP still auto-creates if missing, but be explicit).
+	if command -v openssl >/dev/null 2>&1; then
+		openssl req -x509 -newkey rsa:2048 -sha256 -nodes -days 1825 \
+			-subj "/CN=$cn" \
+			-keyout "$CERT_DIR/shadow.key" \
+			-out "$CERT_DIR/shadow.crt" >/dev/null 2>&1 || true
+		chmod 600 "$CERT_DIR/shadow.key" 2>/dev/null || true
+		chmod 644 "$CERT_DIR/shadow.crt" 2>/dev/null || true
+	fi
+}
+
+# Pick a mode mstsc Full Screen can show without cropping.
+fit_display() {
+	command -v xrandr >/dev/null 2>&1 || return 0
+	[ -n "${DISPLAY:-}" ] || return 0
+
+	line=$(xrandr --current 2>/dev/null | awk '/ connected/{print; exit}')
+	[ -n "$line" ] || return 0
+	output=$(printf '%s\n' "$line" | awk '{print $1}')
+	cur=$(printf '%s\n' "$line" | grep -oE '[0-9]+x[0-9]+\+[0-9]+\+[0-9]+' | head -1 | cut -d+ -f1)
+	[ -n "$output" ] || return 0
+	[ -n "$cur" ] || cur=$(printf '%s\n' "$line" | grep -oE '[0-9]+x[0-9]+' | head -1)
+
+	# Prefer these in order (common for Windows clients).
+	for mode in 1920x1080 1600x900 1366x768 1280x800 1280x720 1024x768; do
+		if [ "$cur" = "$mode" ]; then
+			echo "$mode"
+			return 0
+		fi
+		if xrandr --current 2>/dev/null | grep -qE "^[[:space:]]+${mode}([[:space:]]|$)"; then
+			if xrandr --output "$output" --mode "$mode" >/dev/null 2>&1; then
+				echo "$mode"
+				return 0
+			fi
+		fi
+	done
+	echo "${cur:-unknown}"
+}
+
+write_info() {
+	geom=$1
+	user=${USER:-unknown}
+	umask 022
+	mkdir -p /run/fosos 2>/dev/null || true
+	{
+		echo "user=$user"
+		echo "display=${DISPLAY:-}"
+		echo "geometry=$geom"
+		echo "port=3389"
+		echo "auth=pam"
+		echo "security=tls"
+	} >"$INFO" 2>/dev/null || true
+}
+
+BIN=$(shadow_bin) || {
+	echo "freerdp-shadow is not installed (package freerdp3-shadow-x11)" >&2
+	exit 1
+}
+
+if [ -z "${DISPLAY:-}" ]; then
+	echo "DISPLAY is not set" >&2
+	exit 1
+fi
+
+ensure_tls
+GEOM=$(fit_display)
+write_info "$GEOM"
+
+# TLS + PAM (auth on) so mstsc shows a certificate warning then a login prompt.
+# -sec-nla -sec-ext: Unix password over TLS (no NLA/CredSSP — shadow is not Windows AD).
+# +may-interact: mouse/keyboard without a local accept click (FreeRDP#9028).
+exec "$BIN" \
+	/port:3389 \
+	/monitors:0 \
+	/sec:tls \
+	-sec-nla \
+	-sec-ext \
+	+may-view \
+	+may-interact

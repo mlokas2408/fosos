@@ -1,0 +1,271 @@
+#!/bin/sh
+# Enable, disable, or report FosOS console RDP sharing (FreeRDP shadow).
+# Intended for pkexec. Does not use xrdp/xorgxrdp.
+
+MARKER=/var/lib/fosos/remote-desktop-enabled
+ENVFILE=/run/fosos/rdp-shadow.env
+INFOFILE=/run/fosos/rdp-shadow-info
+RDPFILE_NAME=FosOS-Remote-Desktop.rdp
+UNIT=fosos-rdp-shadow.service
+ACTION="${1:-}"
+
+is_active() {
+	systemctl is-active --quiet "$UNIT" 2>/dev/null
+}
+
+listening() {
+	if command -v ss >/dev/null 2>&1; then
+		ss -ltn 2>/dev/null | grep -Eq '[:.]3389\s'
+		return $?
+	fi
+	return 0
+}
+
+wait_ready() {
+	i=0
+	while [ "$i" -lt 40 ]; do
+		if is_active && listening; then
+			return 0
+		fi
+		if [ "$i" -ge 24 ] && is_active; then
+			return 0
+		fi
+		sleep 0.25
+		i=$((i + 1))
+	done
+	return 1
+}
+
+find_console() {
+	user=""
+	display=""
+	xauth=""
+
+	if command -v loginctl >/dev/null 2>&1; then
+		for sid in $(loginctl list-sessions --no-legend 2>/dev/null | awk '{print $1}'); do
+			[ -n "$sid" ] || continue
+			class=$(loginctl show-session "$sid" -p Class --value 2>/dev/null || true)
+			[ "$class" = "user" ] || continue
+			remote=$(loginctl show-session "$sid" -p Remote --value 2>/dev/null || true)
+			[ "$remote" = "yes" ] && continue
+			type=$(loginctl show-session "$sid" -p Type --value 2>/dev/null || true)
+			case "$type" in
+			x11|wayland|mir|tty) ;;
+			*) continue ;;
+			esac
+			name=$(loginctl show-session "$sid" -p Name --value 2>/dev/null || true)
+			disp=$(loginctl show-session "$sid" -p Display --value 2>/dev/null || true)
+			[ -n "$name" ] || continue
+			user=$name
+			display=${disp:-:0}
+			break
+		done
+	fi
+
+	if [ -z "$user" ]; then
+		if [ -S /tmp/.X11-unix/X0 ]; then
+			user=$(stat -c '%U' /tmp/.X11-unix/X0 2>/dev/null || true)
+			display=:0
+		fi
+	fi
+
+	[ -n "$user" ] || return 1
+	[ -n "$display" ] || display=:0
+
+	home=$(getent passwd "$user" | cut -d: -f6)
+	[ -n "$home" ] || return 1
+
+	if [ -f "$home/.Xauthority" ]; then
+		xauth="$home/.Xauthority"
+	elif [ -f "/run/user/$(id -u "$user")/gdm/Xauthority" ]; then
+		xauth="/run/user/$(id -u "$user")/gdm/Xauthority"
+	elif [ -f "/var/run/lightdm/${user}/xauthority" ]; then
+		xauth="/var/run/lightdm/${user}/xauthority"
+	else
+		for cand in /var/run/lightdm/root/:0 /var/run/lightdm/root/"$display"; do
+			if [ -f "$cand" ]; then
+				xauth=$cand
+				break
+			fi
+		done
+	fi
+
+	printf '%s\t%s\t%s\n' "$user" "$display" "$xauth"
+}
+
+primary_ip() {
+	hostname -I 2>/dev/null | awk '{print $1; exit}'
+}
+
+write_rdp_file() {
+	user=$1
+	home=$2
+	geom=$3
+	ip=$(primary_ip)
+	[ -n "$ip" ] || ip=$(hostname -f 2>/dev/null || hostname)
+	w=1920
+	h=1080
+	case "$geom" in
+	*x*)
+		w=${geom%x*}
+		h=${geom#*x}
+		h=${h%%[^0-9]*}
+		;;
+	esac
+	[ -n "$w" ] || w=1920
+	[ -n "$h" ] || h=1080
+
+	desktop="$home/Desktop"
+	mkdir -p "$desktop" 2>/dev/null || true
+	path="$desktop/$RDPFILE_NAME"
+	# Classic .rdp so double-click in Windows uses matching size + smart sizing.
+	cat >"$path" <<EOF
+screen mode id:i:2
+use multimon:i:0
+desktopwidth:i:$w
+desktopheight:i:$h
+session bpp:i:32
+winposstr:s:0,1,0,0,${w},${h}
+compression:i:1
+keyboardhook:i:2
+audiocapturemode:i:0
+videoplaybackmode:i:1
+connection type:i:7
+networkautodetect:i:1
+bandwidthautodetect:i:1
+displayconnectionbar:i:1
+username:s:$user
+full address:s:${ip}:3389
+audiomode:i:0
+redirectprinters:i:0
+redirectcomports:i:0
+redirectsmartcards:i:0
+redirectclipboard:i:1
+redirectposdevices:i:0
+autoreconnection enabled:i:1
+authentication level:i:2
+prompt for credentials:i:1
+negotiate security layer:i:1
+remoteapplicationmode:i:0
+smart sizing:i:1
+dynamic resolution:i:0
+allow font smoothing:i:1
+allow desktop composition:i:1
+EOF
+	chown "$user": "$(id -gn "$user")" "$path" 2>/dev/null || true
+	chmod 644 "$path" 2>/dev/null || true
+}
+
+write_env() {
+	user=$1
+	display=$2
+	xauth=$3
+	uid=$(id -u "$user")
+	home=$(getent passwd "$user" | cut -d: -f6)
+	group=$(id -gn "$user")
+	mkdir -p /run/fosos
+	# Shadow process (user) writes geometry here for Settings.
+	chown "$user:$group" /run/fosos 2>/dev/null || true
+	chmod 755 /run/fosos 2>/dev/null || true
+	umask 077
+	{
+		echo "USER=$user"
+		echo "LOGNAME=$user"
+		echo "HOME=$home"
+		echo "XDG_RUNTIME_DIR=/run/user/$uid"
+		echo "DISPLAY=$display"
+		if [ -n "$xauth" ]; then
+			echo "XAUTHORITY=$xauth"
+		fi
+	} >"$ENVFILE"
+	chmod 600 "$ENVFILE" 2>/dev/null || true
+	mkdir -p /etc/systemd/system/fosos-rdp-shadow.service.d
+	cat > /etc/systemd/system/fosos-rdp-shadow.service.d/override.conf <<EOF
+[Service]
+User=$user
+Group=$group
+EOF
+	systemctl daemon-reload >/dev/null 2>&1 || true
+}
+
+# Live images often have a password; empty passwords break PAM RDP login.
+ensure_password_hint() {
+	user=$1
+	# Do not change passwords; only record whether the account looks usable.
+	if passwd -S "$user" 2>/dev/null | awk '{print $2}' | grep -q '^P$'; then
+		return 0
+	fi
+	# L = locked, NP = no password — mstsc auth will fail.
+	return 1
+}
+
+shadow_installed() {
+	command -v freerdp-shadow-cli3 >/dev/null 2>&1 \
+		|| command -v freerdp-shadow-cli >/dev/null 2>&1 \
+		|| [ -x /usr/bin/freerdp-shadow-cli3 ] \
+		|| [ -x /usr/bin/freerdp-shadow-cli ]
+}
+
+case "$ACTION" in
+enable)
+	if ! shadow_installed; then
+		echo "freerdp-shadow is not installed (package freerdp3-shadow-x11)" >&2
+		exit 1
+	fi
+	if ! command -v systemctl >/dev/null 2>&1; then
+		echo "systemd is required" >&2
+		exit 1
+	fi
+	info=$(find_console) || {
+		echo "No local graphical session to share (sign in on the console first)" >&2
+		exit 1
+	}
+	user=$(printf '%s\n' "$info" | cut -f1)
+	display=$(printf '%s\n' "$info" | cut -f2)
+	xauth=$(printf '%s\n' "$info" | cut -f3)
+	home=$(getent passwd "$user" | cut -d: -f6)
+	mkdir -p /var/lib/fosos
+	write_env "$user" "$display" "$xauth"
+	touch "$MARKER"
+	systemctl enable "$UNIT" >/dev/null 2>&1 || true
+	systemctl restart "$UNIT" >/dev/null 2>&1 \
+		|| systemctl start "$UNIT" >/dev/null 2>&1 || true
+	if wait_ready; then
+		geom=1920x1080
+		if [ -f "$INFOFILE" ]; then
+			geom=$(awk -F= '/^geometry=/{print $2; exit}' "$INFOFILE")
+		fi
+		write_rdp_file "$user" "$home" "$geom"
+		if ! ensure_password_hint "$user"; then
+			echo "enabled (warning: account '$user' may have no password — mstsc login will fail)" >&2
+		fi
+		echo "enabled"
+		exit 0
+	fi
+	rm -f "$MARKER"
+	echo "Remote Desktop shadow did not become ready (check journalctl -u $UNIT)" >&2
+	exit 1
+	;;
+disable)
+	rm -f "$MARKER"
+	systemctl stop "$UNIT" >/dev/null 2>&1 || true
+	systemctl disable "$UNIT" >/dev/null 2>&1 || true
+	rm -f "$ENVFILE" "$INFOFILE"
+	rm -f /etc/systemd/system/fosos-rdp-shadow.service.d/override.conf
+	rmdir /etc/systemd/system/fosos-rdp-shadow.service.d 2>/dev/null || true
+	systemctl daemon-reload >/dev/null 2>&1 || true
+	echo "disabled"
+	;;
+status)
+	if is_active; then
+		echo "active"
+		exit 0
+	fi
+	echo "inactive"
+	exit 1
+	;;
+*)
+	echo "usage: fosos-remote-host enable|disable|status" >&2
+	exit 2
+	;;
+esac

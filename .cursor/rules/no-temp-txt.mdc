@@ -1,0 +1,16 @@
+---
+description: Never edit or touch temp.txt
+alwaysApply: true
+---
+
+# Do not touch `temp.txt`
+
+`temp.txt` at the repository root is out of scope. Do not read, edit, create,
+delete, move, or overwrite it unless the user explicitly names it in their
+request.
+
+- Do not use it as scratch space, notes, or a dump for command output.
+- Do not reference or import from `temp.txt` in code, scripts, docs, or configs.
+- If a task seems to require `temp.txt`, stop and ask the user before proceeding.
+
+An explicit request from the user overrides this rule for that task only.

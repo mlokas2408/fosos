@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Name=Remote Desktop
+GenericName=Remote Desktop
+Comment=Connect to Windows, Ubuntu and other RDP hosts
+Exec=fosos-remote
+Icon=network-server
+Terminal=false
+Categories=Network;RemoteAccess;
+Keywords=rdp;remote;desktop;xfreerdp;windows;
+StartupWMClass=fosos-remote
+OnlyShowIn=FosOS;

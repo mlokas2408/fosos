@@ -1,14 +1,27 @@
 #!/usr/bin/env python3
 """First-login welcome for the FosOS live session and installed system."""
 
+import os
 import pathlib
 import subprocess
 import sys
 
 import gi
 
+gi.require_version("Gdk", "3.0")
 gi.require_version("Gtk", "3.0")
-from gi.repository import Gtk
+from gi.repository import Gdk, Gtk
+
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.realpath(__file__)), "..", "lib", "fosos-desktop"))
+from fosdesk.ui import (  # noqa: E402
+    add_classes,
+    brand_title,
+    button,
+    fos_confirm,
+    label,
+    load_css,
+    mark,
+)
 
 MARKER = pathlib.Path.home() / ".config" / "fosos" / "welcome-done"
 GUIDE = "file:///usr/share/doc/fosos/guide.html"
@@ -51,18 +64,31 @@ def finish_setup() -> None:
 
 class Welcome(Gtk.Window):
     def __init__(self) -> None:
-        super().__init__(title="Welcome to FosOS")
-        self.set_default_size(520, 320)
-        self.set_border_width(24)
+        super().__init__(type=Gtk.WindowType.TOPLEVEL)
+        self.set_title("Welcome to FosOS")
+        self.set_default_size(520, -1)
+        self.set_decorated(False)
+        self.set_type_hint(Gdk.WindowTypeHint.DIALOG)
+        add_classes(self, "fos-root", "fos-popup", "fos-dialog")
         live = is_live()
 
-        box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12)
-        self.add(box)
+        frame = add_classes(Gtk.Box(orientation=Gtk.Orientation.VERTICAL), "fos-card")
+        self.add(frame)
 
-        title = Gtk.Label()
-        title.set_markup("<span size='x-large' weight='bold'>Welcome to FosOS</span>")
-        title.set_halign(Gtk.Align.START)
-        box.pack_start(title, False, False, 0)
+        header = add_classes(Gtk.Box(spacing=10), "fos-card-header")
+        header.pack_start(mark("md"), False, False, 0)
+        titles = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
+        titles.pack_start(brand_title(16), False, False, 0)
+        titles.pack_start(label("Welcome", "fos-title"), False, False, 0)
+        header.pack_start(titles, True, True, 0)
+        close_btn = button(icon_name="window-close-symbolic", size="icon-xs", tooltip="Close", icon_size=14)
+        add_classes(close_btn, "close")
+        close_btn.connect("clicked", lambda _b: self.destroy())
+        header.pack_end(close_btn, False, False, 0)
+        frame.pack_start(header, False, False, 0)
+
+        content = add_classes(Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12), "fos-card-content")
+        frame.pack_start(content, True, True, 0)
 
         if live:
             intro = (
@@ -74,40 +100,59 @@ class Welcome(Gtk.Window):
                 "This account is ready to use. Firefox is the browser, "
                 "and Chrome is not included. Optional software comes from APT."
             )
-        body = Gtk.Label(label=intro)
+        body = label(intro, "fos-text")
         body.set_line_wrap(True)
-        body.set_halign(Gtk.Align.START)
-        body.set_xalign(0)
-        box.pack_start(body, False, False, 0)
+        body.set_max_width_chars(56)
+        content.pack_start(body, False, False, 0)
 
-        self.status = Gtk.Label(label=network_status())
-        self.status.set_halign(Gtk.Align.START)
-        self.status.set_xalign(0)
-        box.pack_start(self.status, False, False, 0)
+        self.status = label(network_status(), "fos-text", "fos-muted")
+        self.status.set_line_wrap(True)
+        content.pack_start(self.status, False, False, 0)
 
-        buttons = Gtk.Box(spacing=8)
-        box.pack_end(buttons, False, False, 0)
+        footer = add_classes(Gtk.Box(spacing=8), "fos-card-footer")
+        frame.pack_start(footer, False, False, 0)
 
-        guide = Gtk.Button(label="Open the guide")
+        guide = button("Open the guide", variant="outline", size="sm")
         guide.connect("clicked", lambda _button: open_guide())
-        buttons.pack_start(guide, False, False, 0)
+        footer.pack_start(guide, False, False, 0)
+
+        actions = Gtk.Box(spacing=8)
+        actions.set_halign(Gtk.Align.END)
+        actions.set_hexpand(True)
+        footer.pack_end(actions, True, True, 0)
 
         if live:
-            install = Gtk.Button(label="Install FosOS")
-            install.get_style_context().add_class("suggested-action")
-            install.connect("clicked", self.on_install)
-            buttons.pack_end(install, False, False, 0)
-            later = Gtk.Button(label="Continue")
+            later = button("Continue", variant="ghost", size="sm")
             later.connect("clicked", lambda _button: self.destroy())
-            buttons.pack_end(later, False, False, 0)
+            actions.pack_start(later, False, False, 0)
+            install = button("Install FosOS", variant="default", size="sm")
+            install.connect("clicked", self.on_install)
+            actions.pack_start(install, False, False, 0)
         else:
-            updates = Gtk.Button(label="Install updates")
+            updates = button("Install updates", variant="outline", size="sm")
             updates.connect("clicked", self.on_updates)
-            buttons.pack_start(updates, False, False, 0)
-            done = Gtk.Button(label="Finish setup")
-            done.get_style_context().add_class("suggested-action")
+            actions.pack_start(updates, False, False, 0)
+            done = button("Finish setup", variant="default", size="sm")
             done.connect("clicked", self.on_finish)
-            buttons.pack_end(done, False, False, 0)
+            actions.pack_start(done, False, False, 0)
+
+        header.add_events(Gdk.EventMask.BUTTON_PRESS_MASK)
+        header.connect("button-press-event", self._on_header_press)
+
+    def _on_header_press(self, _widget, event: Gdk.EventButton) -> bool:
+        if event.button != 1:
+            return False
+        window = self.get_window()
+        if window is not None:
+            Gdk.Window.begin_move_drag(
+                window,
+                int(event.button),
+                int(event.x_root),
+                int(event.y_root),
+                int(event.time),
+            )
+            return True
+        return False
 
     def on_install(self, _button: Gtk.Button) -> None:
         subprocess.Popen(["calamares-install-fosos"])
@@ -118,20 +163,13 @@ class Welcome(Gtk.Window):
         self.destroy()
 
     def on_updates(self, _button: Gtk.Button) -> None:
-        dialog = Gtk.MessageDialog(
-            transient_for=self,
-            modal=True,
-            message_type=Gtk.MessageType.QUESTION,
-            buttons=Gtk.ButtonsType.OK_CANCEL,
-            text="Install updates now?",
-        )
-        dialog.format_secondary_text(
+        if not fos_confirm(
+            self,
+            "Install updates now?",
             "FosOS will refresh package lists and install available upgrades. "
-            "This needs a network connection and your password."
-        )
-        response = dialog.run()
-        dialog.destroy()
-        if response != Gtk.ResponseType.OK:
+            "This needs a network connection and your password.",
+            ok="Install",
+        ):
             return
         self.status.set_text("Installing updates…")
         while Gtk.events_pending():
@@ -149,6 +187,7 @@ def main() -> None:
     again = "--again" in sys.argv[1:]
     if MARKER.exists() and not again:
         return
+    load_css()
     window = Welcome()
     window.connect("destroy", Gtk.main_quit)
     window.show_all()

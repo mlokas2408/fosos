@@ -1,6 +1,7 @@
 #!/bin/sh
-# Make the live boot graphical, and use the framebuffer on Hyper-V.
-# Xorg has no KMS device there; real hardware keeps its normal driver.
+# Make the live boot graphical. On Hyper-V prefer hyperv_drm (not hyperv_fb):
+# hyperv_fb + fbdev often paints the desktop then freezes mouse/keyboard.
+# Real hardware keeps normal X drivers; this oneshot only runs under Hyper-V.
 set -eu
 
 if [ ! -e /lib/systemd/system/lightdm.service ] && [ ! -e /usr/lib/systemd/system/lightdm.service ]; then
@@ -18,30 +19,93 @@ install -d /etc/systemd/system/graphical.target.wants
 ln -sfn "$unit_dir/lightdm.service" /etc/systemd/system/display-manager.service
 ln -sfn "$unit_dir/lightdm.service" /etc/systemd/system/graphical.target.wants/lightdm.service
 
+# Persist across live and installed systems (harmless on bare metal).
+install -d /etc/modprobe.d
+cat > /etc/modprobe.d/fosos-blacklist-hyperv-fb.conf <<'EOF'
+# FosOS: hyperv_fb freezes input after login on Hyper-V Gen2. Use hyperv_drm.
+blacklist hyperv_fb
+EOF
+
+install -d /etc/default/grub.d
+cat > /etc/default/grub.d/fosos-hyperv.cfg <<'EOF'
+# Early blacklist so hyperv_fb never loads before userspace modprobe.d.
+GRUB_CMDLINE_LINUX_DEFAULT="${GRUB_CMDLINE_LINUX_DEFAULT:+$GRUB_CMDLINE_LINUX_DEFAULT }module_blacklist=hyperv_fb"
+EOF
+
 install -d /usr/local/sbin
 cat > /usr/local/sbin/fosos-hyperv-xorg <<'EOF'
 #!/bin/sh
+# Configure X for Hyper-V using hyperv_drm (DRM FB / modesetting).
 set -eu
-modprobe hyperv_fb 2>/dev/null || true
+
+# Never load the legacy framebuffer that freezes pointer/keyboard.
+modprobe -r hyperv_fb 2>/dev/null || true
+modprobe hyperv_drm 2>/dev/null || true
+
 i=0
-while [ ! -e /dev/fb0 ] && [ "$i" -lt 25 ]; do
-  sleep 0.2
+while [ ! -e /dev/dri/card0 ] && [ ! -e /dev/fb0 ] && [ "$i" -lt 40 ]; do
+  sleep 0.25
   i=$((i + 1))
+  modprobe hyperv_drm 2>/dev/null || true
 done
+
 install -d /etc/X11/xorg.conf.d
-cat > /etc/X11/xorg.conf.d/10-hyperv-fbdev.conf <<'CONF'
+rm -f /etc/X11/xorg.conf.d/10-hyperv-fbdev.conf
+
+if [ -e /dev/dri/card0 ]; then
+  cat > /etc/X11/xorg.conf.d/10-hyperv-modesetting.conf <<'CONF'
+Section "Device"
+    Identifier "Hyper-V DRM"
+    Driver "modesetting"
+    Option "AccelMethod" "none"
+EndSection
+
+Section "InputClass"
+    Identifier "Hyper-V tablet"
+    MatchIsTablet "on"
+    Driver "libinput"
+EndSection
+
+Section "InputClass"
+    Identifier "libinput pointers"
+    MatchIsPointer "on"
+    Driver "libinput"
+EndSection
+
+Section "InputClass"
+    Identifier "libinput keyboards"
+    MatchIsKeyboard "on"
+    Driver "libinput"
+EndSection
+CONF
+elif [ -e /dev/fb0 ]; then
+  # DRM may expose only FB; still avoid the old hyperv_fb module.
+  cat > /etc/X11/xorg.conf.d/10-hyperv-modesetting.conf <<'CONF'
 Section "Device"
     Identifier "Hyper-V framebuffer"
     Driver "fbdev"
     Option "fbdev" "/dev/fb0"
 EndSection
+
+Section "InputClass"
+    Identifier "libinput pointers"
+    MatchIsPointer "on"
+    Driver "libinput"
+EndSection
+
+Section "InputClass"
+    Identifier "libinput keyboards"
+    MatchIsKeyboard "on"
+    Driver "libinput"
+EndSection
 CONF
+fi
 EOF
 chmod 755 /usr/local/sbin/fosos-hyperv-xorg
 
 cat > /etc/systemd/system/fosos-hyperv-xorg.service <<'EOF'
 [Unit]
-Description=Configure Xorg for the Hyper-V framebuffer
+Description=Configure Xorg for Hyper-V (hyperv_drm)
 Before=display-manager.service
 ConditionVirtualization=microsoft
 

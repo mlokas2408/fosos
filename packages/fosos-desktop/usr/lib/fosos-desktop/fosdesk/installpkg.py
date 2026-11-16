@@ -11,7 +11,7 @@ import gi
 gi.require_version("Gtk", "3.0")
 from gi.repository import Gio, GLib, Gtk
 
-from .ui import load_css
+from .ui import FosDialog, fos_alert, fos_confirm, load_css
 
 APP_ID = "org.fosos.InstallPackage"
 DEB_MAGIC = b"!<arch>\n"
@@ -54,17 +54,8 @@ def format_size(size: int) -> str:
     return f"{size / 1024**3:.1f} GB"
 
 
-def message(parent: Gtk.Window | None, kind: Gtk.MessageType, title: str, body: str) -> None:
-    dialog = Gtk.MessageDialog(
-        transient_for=parent,
-        modal=True,
-        message_type=kind,
-        buttons=Gtk.ButtonsType.OK,
-        text=title,
-    )
-    dialog.format_secondary_text(body)
-    dialog.run()
-    dialog.destroy()
+def message(_parent: Gtk.Window | None, _kind: Gtk.MessageType, title: str, body: str) -> None:
+    fos_alert(None, title, body)
 
 
 class InstallApp(Gtk.Application):
@@ -121,36 +112,21 @@ class InstallApp(Gtk.Application):
         except OSError:
             size = "unknown"
 
-        dialog = Gtk.MessageDialog(
-            transient_for=None,
-            modal=True,
-            message_type=Gtk.MessageType.QUESTION,
-            buttons=Gtk.ButtonsType.CANCEL,
-            text=f"Install {name}?",
-        )
-        dialog.format_secondary_text(
-            f"Version {version} · {size}\n\n"
-            f"{path.name}\n\n"
-            "Administrator permission is required."
-        )
-        dialog.add_button("Install", Gtk.ResponseType.OK)
-        dialog.set_default_response(Gtk.ResponseType.OK)
-        response = dialog.run()
-        dialog.destroy()
-        if response != Gtk.ResponseType.OK:
+        if not fos_confirm(
+            None,
+            f"Install {name}?",
+            f"Version {version} · {size}\n\n{path.name}\n\nAdministrator permission is required.",
+            ok="Install",
+        ):
             self.quit()
             return
 
         self._busy = True
         self.hold()
-        progress = Gtk.MessageDialog(
-            transient_for=None,
-            modal=True,
-            message_type=Gtk.MessageType.INFO,
-            buttons=Gtk.ButtonsType.NONE,
-            text=f"Installing {name}…",
-        )
-        progress.format_secondary_text("Approve the password prompt if asked, then wait.")
+        progress = FosDialog(None, title=f"Installing {name}…")
+        progress.add_body_text("Approve the password prompt if asked, then wait.")
+        progress.footer.set_no_show_all(True)
+        progress.footer.hide()
         progress.show_all()
 
         argv = [

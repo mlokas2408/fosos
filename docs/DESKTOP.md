@@ -24,7 +24,19 @@ Wayland compositor, and FosOS does not build one at this stage.
   built into `fosos-settings`.
 - Screenshots use `fosos-screenshot` (`scrot`).
 - `fosos-files`, `fosos-terminal` and `fosos-notepad` are first-party apps.
+- `fosos-settings` and `fosos-welcome` use the same undecorated card chrome
+  (`CardWindow` / `fos-card`) as Files, Terminal and Notepad.
+- First-party dialogs (alerts, confirms, prompts, file chooser, install
+  package) use shared `fosdesk.ui` helpers instead of stock GTK dialog chrome.
+- `fosos-remote` is the outbound RDP client (FreeRDP). Inbound hosting uses
+  FreeRDP **shadow** (`freerdp3-shadow-x11`) to share the **console** desktop
+  with mstsc (TLS + PAM login, fitted resolution, Desktop `.rdp` helper) — no
+  xrdp, no second Xorg. Off until enabled in Settings → Remote Desktop.
 - `fosos-lock` is the screen locker (`xss-lock` on idle / before suspend).
+
+On Hyper-V Gen2 the image blacklists `hyperv_fb` and uses `hyperv_drm`
+(modesetting / DRM FB) so the desktop does not paint then freeze mouse and
+keyboard. See [RECOVERY.md](RECOVERY.md) if an older ISO still freezes input.
 
 Revisit Wayland when the shell is stable for daily use.
 
@@ -37,8 +49,11 @@ Revisit Wayland when the shell is stable for daily use.
 | `fosos-greeter` | LightDM greeter (two-column Sign in; always Desktop; power menu) |
 | `fosos-shell` | Taskbar, Start menu, desktop, notifications, status menus |
 | `fosos-lock` | Fullscreen lock screen (same layout + power menu) |
-| `fosos-settings` | Settings shell (Wallpaper, Taskbar, Notifications, Updates, Storage, chromed system tools) |
+| `fosos-settings` | Settings shell (card chrome; Wallpaper, Taskbar, Notifications, Remote Desktop, Updates, Storage, chromed system tools) |
+| `fosos-remote` | RDP client (card chrome; FreeRDP to Windows / Ubuntu / other hosts) |
+| `fosos-welcome` | First-login / `--again` welcome (card chrome; guide, install, updates) |
 | `fosos-screenshot` | Full / region / window capture |
+| `fosos-rdp-shadow` (optional host) | Shares the console over RDP via FreeRDP shadow; off until Settings enables it |
 
 ## Keyboard shortcuts
 
@@ -53,12 +68,13 @@ Revisit Wayland when the shell is stable for daily use.
 | Ctrl+Alt+T | Terminal |
 | Super+I | Settings |
 | Super+L | Lock |
-| Super+D | Show desktop |
+| Super+D | Show desktop (also far-right taskbar strip) |
 | Super+↑ / ↓ / ← / → | Maximize / restore or minimize / tile left / right |
 | Super+Z | Snap layouts (right-click maximize also) |
-| Super+Tab | Task View (desktops + windows) |
+| Super+Tab | Task View (desktops + windows; taskbar button) |
+| Ctrl+Super+← / → | Previous / next virtual desktop |
 | Alt+Tab / Alt+Shift+Tab | Window switcher |
-| Super+1 … Super+4 | Workspaces |
+| Super+1 … Super+4 | Jump to workspace 1–4 |
 | Print / Shift+Print / Super+Shift+S | Screenshot full / region |
 
 ## Testing
@@ -81,4 +97,7 @@ draggable icons with remembered positions, and Personalize (single/double
 click). **Phase 13** adds snap layouts (Win+Z), Task View (Win+Tab),
 move-to-desktop, and edge/corner snaps. **Phase 14** deepens Settings
 (Wallpaper, Taskbar, Notifications, Storage, Updates, chromed system tools,
-richer About) in `fosos-desktop` 1.3.14.
+richer About). **UI improvements 1.4.0** replace the taskbar desktop pager
+with a Task View button and Show Desktop strip, snap desktop icons to a
+grid, and polish Files search / folder background menus. **1.5.0** adds
+bidirectional RDP (FreeRDP shadow host + `fosos-remote` client).

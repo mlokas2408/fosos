@@ -16,7 +16,20 @@ gi.require_version("Gtk", "3.0")
 from gi.repository import Gdk, Gio, GLib, Gtk
 
 from . import apps as appmod
-from .ui import add_classes, button, clear, icon, label, load_css, separator, set_class
+from .ui import (
+    FosDialog,
+    add_classes,
+    button,
+    clear,
+    fos_alert,
+    fos_confirm,
+    fos_prompt,
+    icon,
+    label,
+    load_css,
+    separator,
+    set_class,
+)
 from .windowchrome import CardWindow
 
 APP_ID = "org.fosos.Files"
@@ -186,7 +199,8 @@ class FilesWindow(CardWindow):
         self.search.set_placeholder_text("Search")
         self.search.set_icon_from_icon_name(Gtk.EntryIconPosition.PRIMARY, "system-search-symbolic")
         self.search.set_width_chars(16)
-        self.search.connect("changed", lambda _e: self.refresh())
+        self.search.connect("changed", self._on_search_changed)
+        self.search.connect("icon-press", self._on_search_icon)
         toolbar.pack_start(self.search, False, False, 0)
         toolbar.pack_start(separator(length=22), False, False, 4)
 
@@ -226,11 +240,19 @@ class FilesWindow(CardWindow):
         scroller.set_policy(Gtk.PolicyType.AUTOMATIC, Gtk.PolicyType.AUTOMATIC)
         scroller.set_hexpand(True)
         scroller.set_vexpand(True)
+        # EventBox catches empty-area clicks (clear selection / background menu).
+        self.list_hit = Gtk.EventBox()
+        self.list_hit.set_visible_window(True)
+        add_classes(self.list_hit, "fos-files-hit")
+        self.list_hit.add_events(Gdk.EventMask.BUTTON_PRESS_MASK)
+        self.list_hit.connect("button-press-event", self._on_list_bg_press)
         self.listing = add_classes(Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0), "fos-files-listing")
         self.listing.set_border_width(12)
+        self.listing.set_valign(Gtk.Align.START)
         self.listing.drag_dest_set(Gtk.DestDefaults.ALL, URI_TARGET, Gdk.DragAction.COPY | Gdk.DragAction.MOVE)
         self.listing.connect("drag-data-received", self._on_drag_data_received)
-        scroller.add(self.listing)
+        self.list_hit.add(self.listing)
+        scroller.add(self.list_hit)
         main.pack_start(scroller, True, True, 0)
 
         self.footer = add_classes(Gtk.Box(spacing=12), "fos-app-footer")
@@ -316,10 +338,34 @@ class FilesWindow(CardWindow):
         if parent != current:
             self.navigate(parent, push=True)
 
-    def refresh(self) -> None:
+    def _on_search_changed(self, _entry: Gtk.Entry) -> None:
+        text = self.search.get_text()
+        if text:
+            self.search.set_icon_from_icon_name(Gtk.EntryIconPosition.SECONDARY, "edit-clear-symbolic")
+        else:
+            self.search.set_icon_from_icon_name(Gtk.EntryIconPosition.SECONDARY, None)
+        self.refresh(keep_search_focus=True)
+
+    def _on_search_icon(self, _entry: Gtk.Entry, position: Gtk.EntryIconPosition, _event) -> None:
+        if position == Gtk.EntryIconPosition.SECONDARY:
+            self.clear_search()
+
+    def clear_search(self) -> None:
+        if self.search.get_text():
+            self.search.set_text("")
+        else:
+            self.refresh(keep_search_focus=True)
+
+    def focus_search(self) -> None:
+        self.search.grab_focus()
+        self.search.select_region(0, -1)
+
+    def refresh(self, keep_search_focus: bool = False) -> None:
         path = self.current()
         if path is None:
             return
+        had_focus = keep_search_focus or self.search.has_focus()
+        cursor = self.search.get_position() if had_focus else None
         badge = "Recycle Bin" if is_trash_path(path) and path.resolve() == trash_dir().resolve() else (path.name if path != Path("/") else "FosOS")
         self.set_badge(badge)
         if not self._address_mode:
@@ -335,6 +381,10 @@ class FilesWindow(CardWindow):
         self.status_left.set_text(f"{count} items{selected}")
         self.status_right.set_text(path_display(path))
         self.show_all()
+        if had_focus:
+            self.search.grab_focus()
+            if cursor is not None:
+                self.search.set_position(cursor)
 
     def _entries(self, path: Path) -> list[Path]:
         query = self.search.get_text().strip().lower()
@@ -527,6 +577,21 @@ class FilesWindow(CardWindow):
             widget.drag_dest_set(Gtk.DestDefaults.ALL, URI_TARGET, Gdk.DragAction.COPY | Gdk.DragAction.MOVE)
             widget.connect("drag-data-received", self._on_drag_data_received_folder, path)
 
+    def _on_list_bg_press(self, _widget, event: Gdk.EventButton) -> bool:
+        """Empty listing / folder background: clear selection or show folder menu."""
+        if event.button == 1:
+            if self.selected:
+                self.selected = set()
+                self._anchor = None
+                self.refresh()
+            return False
+        if event.button == 3:
+            self.selected = set()
+            self._anchor = None
+            self._popup_background_menu(event)
+            return True
+        return False
+
     def _on_item_press(self, _widget, event: Gdk.EventButton, path: Path) -> bool:
         ctrl = bool(event.state & Gdk.ModifierType.CONTROL_MASK)
         shift = bool(event.state & Gdk.ModifierType.SHIFT_MASK)
@@ -534,7 +599,9 @@ class FilesWindow(CardWindow):
             if path not in self.selected:
                 self.selected = {path}
                 self._anchor = path
-            GLib.idle_add(self._select_and_menu, path, event)
+            # Open the item menu without a full refresh (avoids clearing selection
+            # / stealing focus before the popup appears).
+            GLib.idle_add(self._popup_menu, path, event)
             return True
         if event.button != 1:
             return False
@@ -562,11 +629,6 @@ class FilesWindow(CardWindow):
             self._anchor = path
         GLib.idle_add(self.refresh)
         return True
-
-    def _select_and_menu(self, path: Path, event: Gdk.EventButton) -> bool:
-        self.refresh()
-        self._popup_menu(path, event)
-        return False
 
     def open_path(self, path: Path) -> None:
         if path.is_dir():
@@ -645,6 +707,42 @@ class FilesWindow(CardWindow):
             terminal = Gtk.MenuItem(label="Open Terminal here")
             terminal.connect("activate", lambda _i: self._open_terminal(path if path.is_dir() else current))
             menu.append(terminal)
+
+        # Item menus own New folder / Paste for the selection; keep those on the
+        # background menu as the folder-level actions.
+        menu.show_all()
+        menu.popup_at_pointer(event)
+
+    def _popup_background_menu(self, event: Gdk.EventButton) -> None:
+        """Windows-style empty-folder menu (not an item menu)."""
+        menu = Gtk.Menu()
+        current = self.current()
+        in_trash = current is not None and is_trash_path(current)
+
+        paste = Gtk.MenuItem(label="Paste")
+        paste.set_sensitive(bool(self._clipboard) and current is not None and not in_trash)
+        paste.connect("activate", lambda _i: self._paste())
+        menu.append(paste)
+
+        menu.append(Gtk.SeparatorMenuItem())
+
+        if current is not None and not in_trash:
+            new_folder = Gtk.MenuItem(label="New folder")
+            new_folder.connect("activate", lambda _i: self._new_folder())
+            menu.append(new_folder)
+            terminal = Gtk.MenuItem(label="Open Terminal here")
+            terminal.connect("activate", lambda _i: self._open_terminal(current))
+            menu.append(terminal)
+            menu.append(Gtk.SeparatorMenuItem())
+
+        refresh = Gtk.MenuItem(label="Refresh")
+        refresh.connect("activate", lambda _i: self.refresh())
+        menu.append(refresh)
+
+        if current is not None:
+            props = Gtk.MenuItem(label="Properties")
+            props.connect("activate", lambda _i: self._properties(current))
+            menu.append(props)
 
         menu.show_all()
         menu.popup_at_pointer(event)
@@ -739,13 +837,13 @@ class FilesWindow(CardWindow):
         dialog = None
         bar = None
         if large:
-            dialog = Gtk.Dialog(title="Copying…" if not move else "Moving…", transient_for=self, modal=True)
-            box = dialog.get_content_area()
-            box.set_border_width(16)
-            box.pack_start(label("Working with files…", "fos-text"), False, False, 0)
+            dialog = FosDialog(self, title="Copying…" if not move else "Moving…")
+            dialog.add_body_text("Working with files…", "fos-text")
             bar = Gtk.ProgressBar()
             bar.set_show_text(True)
-            box.pack_start(bar, False, False, 8)
+            dialog.content.pack_start(bar, False, False, 0)
+            dialog.footer.set_no_show_all(True)
+            dialog.footer.hide()
             dialog.show_all()
             while Gtk.events_pending():
                 Gtk.main_iteration_do(False)
@@ -848,13 +946,8 @@ class FilesWindow(CardWindow):
         if not apps:
             self._alert("No apps available", f"Nothing is registered for {mime or 'this file'}.")
             return
-        dialog = Gtk.Dialog(title="Open with", transient_for=self, modal=True)
-        dialog.add_button("Cancel", Gtk.ResponseType.CANCEL)
-        dialog.add_button("Open", Gtk.ResponseType.OK)
-        dialog.set_default_response(Gtk.ResponseType.OK)
-        box = dialog.get_content_area()
-        box.set_border_width(12)
-        box.pack_start(label(f"Open “{path.name}” with:", "fos-text"), False, False, 0)
+        dialog = FosDialog(self, title="Open with")
+        dialog.add_body_text(f"Open “{path.name}” with:", "fos-text")
         store = Gtk.ListStore(str, object)
         for app in apps:
             store.append([app.get_display_name(), app])
@@ -863,16 +956,23 @@ class FilesWindow(CardWindow):
         combo.pack_start(renderer, True)
         combo.add_attribute(renderer, "text", 0)
         combo.set_active(0)
-        box.pack_start(combo, False, False, 8)
-        dialog.show_all()
-        response = dialog.run()
-        active = combo.get_active_iter()
-        dialog.destroy()
-        if response != Gtk.ResponseType.OK or active is None:
+        dialog.content.pack_start(combo, False, False, 0)
+        chosen: dict[str, object | None] = {"app": None}
+
+        def accept(_btn=None) -> None:
+            active = combo.get_active_iter()
+            if active is not None:
+                chosen["app"] = store[active][1]
+            dialog.respond(True)
+
+        dialog.add_action("Cancel", None, variant="ghost")
+        ok_btn = button("Open", variant="default", size="sm")
+        ok_btn.connect("clicked", accept)
+        dialog.footer.pack_start(ok_btn, False, False, 0)
+        if dialog.run() is not True or chosen["app"] is None:
             return
-        app = store[active][1]
         try:
-            app.launch([Gio.File.new_for_path(str(path))], None)
+            chosen["app"].launch([Gio.File.new_for_path(str(path))], None)
         except GLib.Error as exc:
             self._alert("Could not open", exc.message)
 
@@ -900,10 +1000,7 @@ class FilesWindow(CardWindow):
             ("Permissions", mode),
             ("Location", str(path.parent)),
         ]
-        dialog = Gtk.Dialog(title="Properties", transient_for=self, modal=True)
-        dialog.add_button("Close", Gtk.ResponseType.CLOSE)
-        box = dialog.get_content_area()
-        box.set_border_width(16)
+        dialog = FosDialog(self, title="Properties", width=480)
         grid = Gtk.Grid(column_spacing=16, row_spacing=8)
         for index, (key, value) in enumerate(rows):
             grid.attach(label(key, "fos-text", "fos-muted"), 0, index, 1, 1)
@@ -911,10 +1008,9 @@ class FilesWindow(CardWindow):
             val.set_selectable(True)
             val.set_max_width_chars(48)
             grid.attach(val, 1, index, 1, 1)
-        box.pack_start(grid, False, False, 0)
-        dialog.show_all()
+        dialog.content.pack_start(grid, False, False, 0)
+        dialog.add_action("Close", True, variant="default", default=True)
         dialog.run()
-        dialog.destroy()
 
     def _open_terminal(self, path: Path) -> None:
         cwd = path if path.is_dir() else path.parent
@@ -922,48 +1018,13 @@ class FilesWindow(CardWindow):
             appmod.spawn(["fosos-terminal"])
 
     def _ask_text(self, title: str, label_text: str, initial: str) -> str | None:
-        dialog = Gtk.Dialog(title=title, transient_for=self, modal=True)
-        dialog.add_button("Cancel", Gtk.ResponseType.CANCEL)
-        dialog.add_button("OK", Gtk.ResponseType.OK)
-        dialog.set_default_response(Gtk.ResponseType.OK)
-        box = dialog.get_content_area()
-        box.set_border_width(12)
-        box.pack_start(label(label_text, "fos-text"), False, False, 0)
-        entry = add_classes(Gtk.Entry(), "fos-input")
-        entry.set_text(initial)
-        entry.set_activates_default(True)
-        box.pack_start(entry, False, False, 8)
-        dialog.show_all()
-        response = dialog.run()
-        text = entry.get_text().strip()
-        dialog.destroy()
-        if response != Gtk.ResponseType.OK or not text:
-            return None
-        return text
+        return fos_prompt(self, title, label_text, initial)
 
     def _confirm(self, text: str) -> bool:
-        dialog = Gtk.MessageDialog(
-            transient_for=self,
-            modal=True,
-            message_type=Gtk.MessageType.QUESTION,
-            buttons=Gtk.ButtonsType.OK_CANCEL,
-            text=text,
-        )
-        response = dialog.run()
-        dialog.destroy()
-        return response == Gtk.ResponseType.OK
+        return fos_confirm(self, text)
 
     def _alert(self, title: str, body: str) -> None:
-        dialog = Gtk.MessageDialog(
-            transient_for=self,
-            modal=True,
-            message_type=Gtk.MessageType.ERROR,
-            buttons=Gtk.ButtonsType.OK,
-            text=title,
-        )
-        dialog.format_secondary_text(body)
-        dialog.run()
-        dialog.destroy()
+        fos_alert(self, title, body)
 
     def _on_key(self, _widget, event: Gdk.EventKey) -> bool:
         key = Gdk.keyval_name(event.keyval) or ""
@@ -971,6 +1032,19 @@ class FilesWindow(CardWindow):
         shift = bool(event.state & Gdk.ModifierType.SHIFT_MASK)
         current = self.current()
 
+        if key == "Escape":
+            if self.search.get_text():
+                self.search.set_text("")
+                return True
+            if self.selected:
+                self.selected = set()
+                self._anchor = None
+                self.refresh()
+                return True
+            return False
+        if key == "F3" or (ctrl and key.lower() == "f"):
+            self.focus_search()
+            return True
         if key == "F5":
             self.refresh()
             return True

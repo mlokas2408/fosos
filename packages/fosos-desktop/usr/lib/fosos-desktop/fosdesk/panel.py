@@ -280,13 +280,18 @@ class Panel(Gtk.Window):
         self.start_button.add(self.start_icon)
         self.start_button.connect("clicked", lambda _b: self.shell.toggle_start(self))
         row.pack_start(self.start_button, False, False, 0)
-        row.pack_start(separator(), False, False, 4)
 
-        self.workspace_box = Gtk.Box(spacing=2)
-        self.workspace_box.set_valign(Gtk.Align.CENTER)
-        row.pack_start(self.workspace_box, False, False, 0)
+        # Task View (Win+Tab) — replaces the numbered 1–4 workspace pager.
+        self.task_view_button = button(
+            variant="ghost",
+            size="icon",
+            tooltip="Task View",
+            icon_name="view-grid-symbolic",
+        )
+        self.task_view_button.set_no_show_all(True)
+        self.task_view_button.connect("clicked", lambda _b: self.shell.toggle_task_view())
+        row.pack_start(self.task_view_button, False, False, 0)
         row.pack_start(separator(), False, False, 4)
-        self.workspace_buttons: list[Gtk.Button] = []
 
         self.tasks = Gtk.Box(spacing=2)
         row.pack_start(self.tasks, False, False, 0)
@@ -370,12 +375,22 @@ class Panel(Gtk.Window):
         self.clock_button.connect("clicked", lambda b: self.shell.toggle_popup("clock", b))
         row.pack_start(self.clock_button, False, False, 0)
 
+        # Far-right Show Desktop strip (same action as Win+D).
+        self.show_desktop_strip = Gtk.EventBox()
+        self.show_desktop_strip.set_size_request(6, HEIGHT - 8)
+        self.show_desktop_strip.set_valign(Gtk.Align.FILL)
+        self.show_desktop_strip.set_tooltip_text("Show desktop")
+        add_classes(self.show_desktop_strip, "fos-show-desktop")
+        self.show_desktop_strip.add_events(Gdk.EventMask.BUTTON_PRESS_MASK)
+        self.show_desktop_strip.connect("button-press-event", self._on_show_desktop)
+        row.pack_start(self.show_desktop_strip, False, False, 0)
+
         self.task_buttons: list[TaskButton] = []
 
         self.connect("realize", lambda _w: self.place())
+        self.connect("button-press-event", self._on_panel_press)
         self.update_clock()
         GLib.timeout_add_seconds(5, self.update_clock)
-        self.rebuild_workspaces()
         self.rebuild_tasks()
         self.apply_prefs()
 
@@ -383,13 +398,11 @@ class Panel(Gtk.Window):
         """Apply taskbar visibility prefs from Settings."""
         from .settings_pages import load_kv, truthy
 
-        prefs = load_kv("taskbar", {"workspaces": "1", "clock_date": "1", "bell": "1"})
-        show_workspaces = truthy(prefs.get("workspaces"), True)
-        if show_workspaces:
-            if self.screen.get_workspace_count() > 1:
-                self.workspace_box.show()
+        prefs = load_kv("taskbar", {"task_view": "1", "clock_date": "1", "bell": "1"})
+        if truthy(prefs.get("task_view"), True):
+            self.task_view_button.show()
         else:
-            self.workspace_box.hide()
+            self.task_view_button.hide()
         if truthy(prefs.get("clock_date"), True):
             self.clock_date.show()
         else:
@@ -439,37 +452,48 @@ class Panel(Gtk.Window):
         alloc = widget.get_allocation()
         return origin_x + alloc.x
 
-    # Workspaces
+    # Workspaces (pager removed; Task View + shortcuts handle switching)
 
     def rebuild_workspaces(self) -> None:
-        for child in self.workspace_box.get_children():
-            self.workspace_box.remove(child)
-            child.destroy()
-        self.workspace_buttons = []
-        count = self.screen.get_workspace_count()
-        if count <= 1:
-            self.workspace_box.hide()
-            self.refresh_workspaces()
-            return
-        for index in range(count):
-            workspace = self.screen.get_workspace(index)
-            name = workspace.get_name() if workspace is not None else f"Desktop {index + 1}"
-            btn = button(str(index + 1), variant="ghost", size="icon-xs", tooltip=name)
-            add_classes(btn, "fos-workspace")
-            btn.connect("clicked", lambda _b, i=index: self.shell.switch_workspace(i))
-            self.workspace_buttons.append(btn)
-            self.workspace_box.pack_start(btn, False, False, 0)
-        self.workspace_box.show_all()
+        """Kept for shell hooks; numbered pager UI is gone."""
         self.refresh_workspaces()
-        self.apply_prefs()
 
     def refresh_workspaces(self) -> None:
-        active = self.screen.get_active_workspace()
-        active_number = active.get_number() if active is not None else 0
-        for index, btn in enumerate(self.workspace_buttons):
-            selected = index == active_number
-            set_class(btn, "default", selected)
-            set_class(btn, "ghost", not selected)
+        """Highlight Task View while the overview is open."""
+        open_ = False
+        task_view = getattr(self.shell, "task_view", None)
+        if task_view is not None:
+            open_ = bool(task_view.get_visible())
+        set_class(self.task_view_button, "default", open_)
+        set_class(self.task_view_button, "ghost", not open_)
+
+    def _on_show_desktop(self, _widget, event: Gdk.EventButton) -> bool:
+        if event.button != 1:
+            return False
+        self.shell.close_popups()
+        self.shell.toggle_show_desktop()
+        return True
+
+    def _on_panel_press(self, _widget, event: Gdk.EventButton) -> bool:
+        if event.button != 3:
+            return False
+        self._popup_taskbar_menu(event)
+        return True
+
+    def _popup_taskbar_menu(self, event: Gdk.EventButton) -> None:
+        self.shell.close_popups()
+        menu = Gtk.Menu()
+        settings = Gtk.MenuItem(label="Taskbar settings")
+        settings.connect(
+            "activate",
+            lambda _i: appmod.spawn(["fosos-settings", "--builtin", "taskbar"]),
+        )
+        menu.append(settings)
+        show = Gtk.MenuItem(label="Show desktop")
+        show.connect("activate", lambda _i: self.shell.toggle_show_desktop())
+        menu.append(show)
+        menu.show_all()
+        menu.popup_at_pointer(event)
 
     # Windows and tasks
 

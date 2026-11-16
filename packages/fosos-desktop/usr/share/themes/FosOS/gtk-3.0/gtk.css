@@ -13,6 +13,8 @@
 @define-color fos_input rgba(255, 255, 255, 0.15);
 @define-color fos_ring #737373;
 @define-color fos_destructive #ff6467;
+@define-color fos_titlebar #1f1f1f;
+@define-color fos_titlebar_inactive #141414;
 
 @define-color theme_bg_color @fos_card;
 @define-color theme_fg_color @fos_fg;
@@ -49,7 +51,7 @@ decoration {
 headerbar,
 .titlebar,
 .titlebar .titlebutton {
-  background-color: #1f1f1f;
+  background-color: @fos_titlebar;
   background-image: none;
   border-color: @fos_border;
   border-radius: 0;
@@ -61,7 +63,7 @@ headerbar,
 
 headerbar:backdrop,
 .titlebar:backdrop {
-  background-color: #141414;
+  background-color: @fos_titlebar_inactive;
   color: @fos_muted_fg;
 }
 

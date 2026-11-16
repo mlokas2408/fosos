@@ -22,8 +22,12 @@ Hyper-V check before it is written to USB. See [the build guide](BUILDING.md).
    dark menu styling, and a **FosOS Live** entry. Press Enter (or wait ~8s).
 6. Confirm the live image autologins to **FosOS Desktop** (taskbar, Start,
 
-   drawn wallpaper). Verify Firefox, Files, Terminal, screenshot tool,
-     network, audio, shutdown, and restart.
+   drawn wallpaper) and that **mouse and keyboard work** (Hyper-V must use
+     `hyperv_drm`, not a frozen `hyperv_fb` session). Verify Firefox, Files,
+     Terminal, screenshot tool, network, audio, shutdown, and restart.
+   If input is dead but the desktop paints, rebuild with the Hyper-V DRM
+     hook (`module_blacklist=hyperv_fb`); from a TTY check `cat /proc/fb`
+     for `hyperv_drm`.
 7. Sign out once and confirm the greeter is the two-column FosOS Sign in
 
    screen (not the old Greybird GTK greeter). Confirm the bottom-right
@@ -74,9 +78,10 @@ Review the screenshots in `output/desktop/`. Then, in Hyper-V:
 
    Files, Terminal, Firefox and Settings pins.
 3. Open and minimize windows from the taskbar. Use Alt+Tab and Super+Left.
-4. Switch workspaces with Super+1…4 or the pager. Move a window with
-
-   Super+Shift+2 and confirm it leaves the taskbar on Desktop 1.
+4. Switch workspaces with Super+1…4, Ctrl+Win+Left/Right, or Task View
+   (Win+Tab / taskbar button). Move a window with Super+Shift+2 and
+   confirm it leaves the taskbar on Desktop 1. There must be no numbered
+   1–4 pager buttons on the taskbar.
 5. Press Super+L. Unlock with the account password (`live` on the live
 
    image). Confirm Start > Lock and the Power menu Lock entry also lock
@@ -164,16 +169,33 @@ After Phase 7, rebuild the ISO first, then record its size in
 - [ ] Context menu: Open with, Properties, Copy path, Open Terminal here
 - [ ] Drag files onto a folder or into another Files window / listing
 
+## Improvements Phase 6 Files search & menus
+
+- [ ] Typing in Search filters the current folder without losing the caret
+- [ ] Esc clears Search; Ctrl+F / F3 focuses Search; clear (×) icon works
+- [ ] Right-click empty folder area: Paste, New folder, Open Terminal here,
+      Refresh, Properties (not an item menu)
+- [ ] Right-click a selected file/folder opens the item menu for that
+      selection without navigating away
+- [ ] Click empty listing space clears the selection
+
 ## Phase 12 desktop checklist
 
-- [ ] Right-click empty desktop: Refresh, Display settings, Personalize,
-      New folder, Open Files here, Open Terminal here
+- [ ] Right-click empty desktop: Refresh, Auto arrange icons, Display
+      settings, Personalize, New folder, Open Files here, Open Terminal here
 - [ ] New folder creates under `~/Desktop` and opens Files there
 - [ ] Icons: Home, Computer, Files, Recycle Bin; drag and restart keeps place
 - [ ] Personalize → single-click opens icons with one click; double-click mode
       still needs two clicks
 - [ ] Reset icon positions + Refresh / F5 re-stacks the default column
 - [ ] Win+D Show Desktop and Dawn Aperture watermark still work
+
+## Improvements Phase 5 desktop icon grid
+
+- [ ] Dragging an icon snaps to the nearest free grid cell on release
+- [ ] Dropping onto another icon moves to the nearest empty cell (no overlap)
+- [ ] Restart keeps snapped positions; Auto arrange packs the default column
+- [ ] Reset icon positions still produces a clean grid column
 
 ## Phase 13 multitasking checklist
 
@@ -183,19 +205,47 @@ After Phase 7, rebuild the ISO first, then record its size in
 - [ ] Win+Tab shows Task View with all four desktops and their windows
 - [ ] Click a window in Task View to switch; Escape closes
 - [ ] Right-click a Task View window → Move to Desktop N
-- [ ] Taskbar right-click → Move to → Desktop N (single-window groups)
+- [ ] Taskbar app right-click → Move to → Desktop N (single-window groups)
 - [ ] Drag window to left/right edge → half; to a corner → quarter; top → max
+
+## Improvements Phase 1 taskbar desktops
+
+- [ ] No numbered 1–4 desktop buttons on the taskbar
+- [ ] Task View button after Start toggles Win+Tab overview (Settings can hide it)
+- [ ] Ctrl+Win+Left / Right switches previous / next desktop; Super+1…4 still jump
+- [ ] Far-right Show Desktop strip toggles the same action as Win+D
+- [ ] Right-click empty taskbar opens Taskbar settings
 
 ## Phase 14 Settings checklist
 
 - [ ] Settings → Wallpaper changes the drawn desktop theme; Apply refreshes
-- [ ] Taskbar toggles hide/show desktop switcher, clock date, notification bell
+- [ ] Taskbar toggles hide/show Task View button, clock date, notification bell
 - [ ] Notifications → Do not disturb hides toasts; history still in Win+N
 - [ ] Display / Sound / Network / Bluetooth pages open the system tools
 - [ ] Updates shows last refresh, upgradable estimate, reboot required when set
 - [ ] Check for updates / Install updates open a Terminal with `fos …`
 - [ ] About lists storage mounts; Storage page matches
 - [ ] Default apps includes PDF, Archives, Images
+
+## Theme alignment checklist
+
+- [ ] Settings uses the same flat card title bar (min / max / close) as Files
+- [ ] Files: Properties, Open with, rename, confirm, and alerts use fos-card dialogs
+- [ ] Notepad: Open / Save as / unsaved-changes dialogs use fos-card chrome
+- [ ] Double-click a `.deb` → Install Package confirm / progress / result are themed
+- [ ] `fosos-welcome --again` shows Dawn mark, card header/footer, fos-btn actions
+- [ ] Start, Quick links, Run, Alt+Tab, Snap layouts, Quick Settings share 16px card padding
+- [ ] Greeter / lock form pane matches `@fos_card` (no off-token grey)
+
+## Remote Desktop checklist
+
+- [ ] Settings → Remote Desktop shows enable toggle (off by default)
+- [ ] Enable → pkexec → status shows IP, port 3389, username, display size
+- [ ] Desktop gets `FosOS-Remote-Desktop.rdp` with matching width/height + smart sizing
+- [ ] From Windows `mstsc`: certificate warning → login as console user (live: `user` / `live`)
+- [ ] After login: same console desktop; mouse/keyboard work; Full Screen shows whole desktop
+- [ ] Disable → new connections refused; `systemctl is-active fosos-rdp-shadow` is inactive
+- [ ] `fosos-remote`: Connect out to Windows / Ubuntu RDP hosts
 
 ## Package upgrade
 

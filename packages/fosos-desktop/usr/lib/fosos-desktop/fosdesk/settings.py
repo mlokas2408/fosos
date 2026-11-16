@@ -15,6 +15,7 @@ from . import VERSION
 from . import apps as appmod
 from . import settings_pages as pages
 from .ui import add_classes, brand_title, button, clear, label, load_css, mark, tile
+from .windowchrome import CardWindow
 
 APP_ID = "org.fosos.Settings"
 
@@ -31,6 +32,13 @@ PANELS = [
         {"page": "network"},
     ),
     ("System", "Bluetooth", "Pair and manage devices", "bluetooth-active-symbolic", {"page": "bluetooth"}),
+    (
+        "System",
+        "Remote Desktop",
+        "Host RDP sessions and connect to other PCs",
+        "network-server-symbolic",
+        {"page": "remote"},
+    ),
     ("System", "Power", "Idle blanking and suspend", "battery-good-symbolic", {"page": "power"}),
     ("System", "Storage", "Free space on disks", "drive-harddisk-symbolic", {"page": "storage"}),
     (
@@ -138,15 +146,19 @@ def panel_available(action: dict) -> bool:
     return bool(command) and shutil.which(command[0]) is not None
 
 
-class SettingsWindow(Gtk.ApplicationWindow):
+class SettingsWindow(CardWindow):
     def __init__(self, app: Gtk.Application) -> None:
-        super().__init__(application=app, title="Settings")
-        self.set_default_size(860, 580)
+        super().__init__(
+            app,
+            title="Settings",
+            icon_name="preferences-system-symbolic",
+            default_width=860,
+            default_height=580,
+        )
         self.set_icon_name("preferences-system")
-        add_classes(self, "fos-root", "fos-window")
 
         root = Gtk.Box()
-        self.add(root)
+        self.body.pack_start(root, True, True, 0)
 
         sidebar = add_classes(Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2), "fos-sidebar")
         sidebar.set_size_request(200, -1)
@@ -155,7 +167,7 @@ class SettingsWindow(Gtk.ApplicationWindow):
         brand.set_margin_start(8)
         brand.set_margin_top(8)
         brand.set_margin_bottom(16)
-        brand.pack_start(mark("md", inverse=True), False, False, 0)
+        brand.pack_start(mark("md"), False, False, 0)
         brand.pack_start(brand_title(14), False, False, 0)
         sidebar.pack_start(brand, False, False, 0)
         sidebar.pack_start(label("SETTINGS", "fos-small", "fos-muted"), False, False, 4)
@@ -172,7 +184,7 @@ class SettingsWindow(Gtk.ApplicationWindow):
         main = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
         root.pack_start(main, True, True, 0)
 
-        top = add_classes(Gtk.Box(spacing=12), "fos-card-header")
+        top = add_classes(Gtk.Box(spacing=12), "fos-app-toolbar")
         self.heading = label("All settings", "fos-title")
         top.pack_start(self.heading, True, True, 0)
         self.search = add_classes(Gtk.Entry(), "fos-input")
@@ -189,7 +201,7 @@ class SettingsWindow(Gtk.ApplicationWindow):
         scroller.add(self.content)
         main.pack_start(scroller, True, True, 0)
 
-        self.status = add_classes(Gtk.Box(spacing=8), "fos-card-footer")
+        self.status = add_classes(Gtk.Box(spacing=8), "fos-app-footer")
         self.status_text = label(f"FosOS Desktop {VERSION}", "fos-small", "fos-muted")
         self.status.pack_start(self.status_text, True, True, 0)
         main.pack_start(self.status, False, False, 0)
@@ -206,6 +218,7 @@ class SettingsWindow(Gtk.ApplicationWindow):
                 ctx.add_class("ghost")
                 ctx.remove_class("secondary")
         self.heading.set_text(name)
+        self.set_header_title("Settings")
         clear(self.content)
         if name == "About":
             self._about()
@@ -224,6 +237,7 @@ class SettingsWindow(Gtk.ApplicationWindow):
             ctx.add_class("ghost")
             ctx.remove_class("secondary")
         self.heading.set_text(title)
+        self.set_header_title(f"{title} · Settings")
         clear(self.content)
         back = button("Back to all settings", variant="ghost", size="sm")
         back.connect("clicked", lambda _b: self.show_page("All settings"))
@@ -284,7 +298,7 @@ class SettingsWindow(Gtk.ApplicationWindow):
     def _about(self) -> None:
         release = read_release()
         header = Gtk.Box(spacing=12)
-        header.pack_start(mark("md", inverse=True), False, False, 0)
+        header.pack_start(mark("md"), False, False, 0)
         names = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
         names.pack_start(brand_title(14), False, False, 0)
         based_on = release.get("PRETTY_NAME") or release.get("BASE", "Debian Stable")

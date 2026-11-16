@@ -36,6 +36,69 @@ POSITIONS_FILE = "desktop-icons"
 PREFS_FILE = "desktop"
 
 
+def cell_metrics() -> tuple[int, int]:
+    return ICON_W + ICON_GAP, ICON_H + ICON_GAP
+
+
+def grid_bounds(primary: Gdk.Rectangle) -> tuple[int, int, int, int]:
+    """Return origin_x, origin_y, columns, rows for the usable desktop grid."""
+    cell_w, cell_h = cell_metrics()
+    ox = primary.x + DEFAULT_MARGIN
+    oy = primary.y + DEFAULT_MARGIN
+    usable_w = max(cell_w, primary.width - 2 * DEFAULT_MARGIN)
+    usable_h = max(cell_h, primary.height - PANEL_HEIGHT - 2 * DEFAULT_MARGIN)
+    cols = max(1, usable_w // cell_w)
+    rows = max(1, usable_h // cell_h)
+    return ox, oy, cols, rows
+
+
+def pixel_to_cell(x: int, y: int, primary: Gdk.Rectangle) -> tuple[int, int]:
+    ox, oy, cols, rows = grid_bounds(primary)
+    cell_w, cell_h = cell_metrics()
+    col = int(round((x - ox) / cell_w))
+    row = int(round((y - oy) / cell_h))
+    return max(0, min(col, cols - 1)), max(0, min(row, rows - 1))
+
+
+def cell_to_pixel(col: int, row: int, primary: Gdk.Rectangle) -> tuple[int, int]:
+    ox, oy, _, _ = grid_bounds(primary)
+    cell_w, cell_h = cell_metrics()
+    return ox + col * cell_w, oy + row * cell_h
+
+
+def nearest_free_cell(
+    col: int,
+    row: int,
+    occupied: set[tuple[int, int]],
+    cols: int,
+    rows: int,
+) -> tuple[int, int]:
+    if (col, row) not in occupied:
+        return col, row
+    best: tuple[int, int] | None = None
+    best_dist: int | None = None
+    for r in range(rows):
+        for c in range(cols):
+            if (c, r) in occupied:
+                continue
+            dist = abs(c - col) + abs(r - row)
+            if best_dist is None or dist < best_dist:
+                best_dist = dist
+                best = (c, r)
+    if best is not None:
+        return best
+    # Grid full — keep the requested cell rather than stacking off-grid.
+    return col, row
+
+
+def default_cell(index: int, primary: Gdk.Rectangle) -> tuple[int, int]:
+    """Column-major packing: fill top-to-bottom, then next column (Windows-like)."""
+    _, _, cols, rows = grid_bounds(primary)
+    row = index % rows
+    col = min(index // rows, cols - 1)
+    return col, row
+
+
 def desktop_dir() -> Path:
     path = appmod.user_dir(GLib.UserDirectory.DIRECTORY_DESKTOP, "Desktop")
     path.mkdir(parents=True, exist_ok=True)
@@ -331,10 +394,7 @@ class Desktop(Gtk.Window):
             return self.positions[icon_id]
         index = list(self.icon_by_id).index(icon_id) if icon_id in self.icon_by_id else 0
         primary = self._primary()
-        return (
-            primary.x + DEFAULT_MARGIN,
-            primary.y + DEFAULT_MARGIN + index * (ICON_H + ICON_GAP),
-        )
+        return cell_to_pixel(*default_cell(index, primary), primary)
 
     def move_icon(self, item: DesktopIcon, x: int, y: int, persist: bool = True) -> None:
         primary = self._primary()
@@ -342,10 +402,51 @@ class Desktop(Gtk.Window):
         max_y = primary.y + max(0, primary.height - PANEL_HEIGHT - ICON_H)
         x = max(primary.x, min(x, max_x))
         y = max(primary.y, min(y, max_y))
+        if persist:
+            col, row = pixel_to_cell(x, y, primary)
+            _, _, cols, rows = grid_bounds(primary)
+            occupied = self._occupied_cells(exclude=item.icon_id)
+            col, row = nearest_free_cell(col, row, occupied, cols, rows)
+            x, y = cell_to_pixel(col, row, primary)
         self.fixed.move(item, x, y)
         self.positions[item.icon_id] = (x, y)
         if persist:
             save_icon_positions(self.positions)
+
+    def _occupied_cells(self, exclude: str | None = None) -> set[tuple[int, int]]:
+        primary = self._primary()
+        occupied: set[tuple[int, int]] = set()
+        for icon_id, (px, py) in self.positions.items():
+            if icon_id == exclude:
+                continue
+            occupied.add(pixel_to_cell(px, py, primary))
+        return occupied
+
+    def _snap_all_to_grid(self, persist: bool = True) -> None:
+        """Snap saved/free positions onto the grid and resolve collisions."""
+        primary = self._primary()
+        _, _, cols, rows = grid_bounds(primary)
+        occupied: set[tuple[int, int]] = set()
+        for index, item in enumerate(self.icons):
+            x, y = self.positions.get(item.icon_id, self.icon_pos(item.icon_id))
+            col, row = pixel_to_cell(x, y, primary)
+            col, row = nearest_free_cell(col, row, occupied, cols, rows)
+            occupied.add((col, row))
+            px, py = cell_to_pixel(col, row, primary)
+            self.positions[item.icon_id] = (px, py)
+            self.fixed.move(item, px, py)
+        if persist:
+            save_icon_positions(self.positions)
+
+    def auto_arrange(self) -> None:
+        """Pack icons into the default column/flow and persist."""
+        primary = self._primary()
+        for index, item in enumerate(self.icons):
+            px, py = cell_to_pixel(*default_cell(index, primary), primary)
+            self.positions[item.icon_id] = (px, py)
+            self.fixed.move(item, px, py)
+        save_icon_positions(self.positions)
+        self.queue_draw()
 
     def _launch(self, app_id: str) -> None:
         app = appmod.load_app(app_id)
@@ -367,9 +468,12 @@ class Desktop(Gtk.Window):
         self.set_size_request(width, height)
         self.resize(width, height)
         for item in self.icons:
-            x, y = self.icon_pos(item.icon_id)
-            self.fixed.move(item, x, y)
-            self.positions.setdefault(item.icon_id, (x, y))
+            if item.icon_id not in self.positions:
+                index = list(self.icon_by_id).index(item.icon_id)
+                self.positions[item.icon_id] = cell_to_pixel(
+                    *default_cell(index, self._primary()), self._primary()
+                )
+        self._snap_all_to_grid(persist=True)
         self.queue_draw()
 
     def refresh(self) -> None:
@@ -379,10 +483,8 @@ class Desktop(Gtk.Window):
         for item in self.icons:
             if item.icon_id not in self.positions:
                 index = list(self.icon_by_id).index(item.icon_id)
-                primary = self._primary()
-                self.positions[item.icon_id] = (
-                    primary.x + DEFAULT_MARGIN,
-                    primary.y + DEFAULT_MARGIN + index * (ICON_H + ICON_GAP),
+                self.positions[item.icon_id] = cell_to_pixel(
+                    *default_cell(index, self._primary()), self._primary()
                 )
         self.place()
         self.queue_draw()
@@ -424,6 +526,10 @@ class Desktop(Gtk.Window):
         refresh = Gtk.MenuItem(label="Refresh")
         refresh.connect("activate", lambda _i: self.refresh())
         menu.append(refresh)
+
+        arrange = Gtk.MenuItem(label="Auto arrange icons")
+        arrange.connect("activate", lambda _i: self.auto_arrange())
+        menu.append(arrange)
 
         menu.append(Gtk.SeparatorMenuItem())
 

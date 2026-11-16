@@ -1,0 +1,19 @@
+[Unit]
+Description=FosOS Remote Desktop (share the console over RDP)
+Documentation=man:freerdp-shadow-cli3(1)
+After=display-manager.service network.target
+ConditionPathExists=/var/lib/fosos/remote-desktop-enabled
+
+[Service]
+Type=simple
+# User / DISPLAY / XAUTHORITY are written by fosos-remote-host enable.
+EnvironmentFile=-/run/fosos/rdp-shadow.env
+ExecStart=/usr/libexec/fosos-rdp-shadow-run
+Restart=on-failure
+RestartSec=2
+# Non-root bind to 3389.
+AmbientCapabilities=CAP_NET_BIND_SERVICE
+CapabilityBoundingSet=CAP_NET_BIND_SERVICE
+
+[Install]
+WantedBy=multi-user.target

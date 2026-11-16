@@ -5,4 +5,16 @@ if command -v gtk-update-icon-cache >/dev/null 2>&1; then
 	gtk-update-icon-cache -f -t /usr/share/icons/FosOS >/dev/null 2>&1 || true
 fi
 
+# Console RDP sharing stays off until Settings enables it.
+if command -v systemctl >/dev/null 2>&1 \
+	&& { [ -d /lib/systemd/system ] || [ -d /usr/lib/systemd/system ]; }; then
+	systemctl daemon-reload >/dev/null 2>&1 || true
+	if [ ! -f /var/lib/fosos/remote-desktop-enabled ]; then
+		systemctl disable --now fosos-rdp-shadow.service >/dev/null 2>&1 || true
+		# Legacy xrdp path from earlier builds — keep it off if present.
+		systemctl disable --now xrdp.service >/dev/null 2>&1 || true
+		systemctl disable --now xrdp-sesman.service >/dev/null 2>&1 || true
+	fi
+fi
+
 exit 0

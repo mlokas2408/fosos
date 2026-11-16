@@ -34,11 +34,14 @@ class RunDialog(Gtk.Window):
         self.connect("delete-event", lambda *_a: self.hide() or True)
         self.connect("focus-out-event", self._on_focus_out)
 
-        frame = add_classes(Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12), "fos-card")
-        frame.set_border_width(16)
+        frame = add_classes(Gtk.Box(orientation=Gtk.Orientation.VERTICAL), "fos-card")
         self.add(frame)
-        frame.pack_start(label("Run", "fos-title"), False, False, 0)
-        frame.pack_start(
+        header = add_classes(Gtk.Box(), "fos-card-header")
+        header.pack_start(label("Run", "fos-title"), False, False, 0)
+        frame.pack_start(header, False, False, 0)
+        body = add_classes(Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12), "fos-card-content")
+        frame.pack_start(body, True, True, 0)
+        body.pack_start(
             label("Type a command, app name, or path, then press Enter.", "fos-text", "fos-muted"),
             False,
             False,
@@ -47,18 +50,18 @@ class RunDialog(Gtk.Window):
         self.entry = add_classes(Gtk.Entry(), "fos-input")
         self.entry.set_activates_default(True)
         self.entry.connect("activate", lambda _e: self._run())
-        frame.pack_start(self.entry, False, False, 0)
+        body.pack_start(self.entry, False, False, 0)
         self.error = label("", "fos-small", "fos-muted")
-        frame.pack_start(self.error, False, False, 0)
-        row = Gtk.Box(spacing=8)
-        row.set_halign(Gtk.Align.END)
+        body.pack_start(self.error, False, False, 0)
+        footer = add_classes(Gtk.Box(spacing=8), "fos-card-footer")
+        footer.set_halign(Gtk.Align.END)
         cancel = button("Cancel", variant="ghost", size="sm")
         cancel.connect("clicked", lambda _b: self.hide())
         ok = button("OK", variant="default", size="sm")
         ok.connect("clicked", lambda _b: self._run())
-        row.pack_start(cancel, False, False, 0)
-        row.pack_start(ok, False, False, 0)
-        frame.pack_start(row, False, False, 0)
+        footer.pack_start(cancel, False, False, 0)
+        footer.pack_start(ok, False, False, 0)
+        frame.pack_start(footer, False, False, 0)
 
     def open_dialog(self) -> None:
         self.shell.close_popups()

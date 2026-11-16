@@ -218,15 +218,18 @@ class SnapLayouts(Gtk.Window):
         self.connect("button-press-event", self._on_button)
         self.connect("grab-broken-event", lambda *_a: self.hide_picker())
 
-        self.frame = add_classes(Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12), "fos-card", "fos-snap-layouts")
-        self.frame.set_border_width(16)
+        self.frame = add_classes(Gtk.Box(orientation=Gtk.Orientation.VERTICAL), "fos-card", "fos-snap-layouts")
         self.add(self.frame)
-        self.frame.pack_start(label("Snap layouts", "fos-title"), False, False, 0)
+        header = add_classes(Gtk.Box(), "fos-card-header")
+        header.pack_start(label("Snap layouts", "fos-title"), False, False, 0)
+        self.frame.pack_start(header, False, False, 0)
+        body = add_classes(Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12), "fos-card-content")
+        self.frame.pack_start(body, False, False, 0)
         tip = label("Pick a region for the focused window. Remaining regions fill next.", "fos-small", "fos-muted")
         tip.set_line_wrap(True)
-        self.frame.pack_start(tip, False, False, 0)
+        body.pack_start(tip, False, False, 0)
         self.grid = Gtk.Box(spacing=12)
-        self.frame.pack_start(self.grid, False, False, 0)
+        body.pack_start(self.grid, False, False, 0)
         self._grabbed = False
         self._build()
 

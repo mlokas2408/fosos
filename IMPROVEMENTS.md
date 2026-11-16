@@ -117,7 +117,9 @@ Ordered by how much they close the Windows gap for daily use:
 Default preference after this phase: no numbered pager; Task View button
 visible unless the user turns it off.
 
-**Status:** planned (not implemented).
+**Status:** implemented in `fosos-desktop` **1.4.0** (Task View button, Show
+Desktop strip, Ctrl+Win+Left/Right, Taskbar settings context menu; numbered
+pager removed).
 
 ---
 
@@ -223,7 +225,8 @@ on the grid.
 | Context menu | desktop right-click in `desktop.py` if Auto arrange ships |
 | Verify | `docs/TESTING.md` Phase 12 / new Phase 5 checklist |
 
-**Status:** planned (not implemented).
+**Status:** implemented in `fosos-desktop` **1.4.0** (grid snap on drop, no
+overlap, migrate on load, Auto arrange on desktop right-click).
 
 ---
 
@@ -325,7 +328,8 @@ the background menu.
 | Shortcuts | `_on_key` (Ctrl+F, F3, Esc) |
 | Verify | `docs/TESTING.md` Files checklist |
 
-**Status:** planned (not implemented).
+**Status:** implemented in `fosos-desktop` **1.4.0** (search keeps focus;
+Esc / Ctrl+F / F3; empty-folder background menu vs item menu).
 
 ---
 

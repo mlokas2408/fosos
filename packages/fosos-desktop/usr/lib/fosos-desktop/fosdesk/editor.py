@@ -12,7 +12,7 @@ gi.require_version("Gtk", "3.0")
 gi.require_version("Pango", "1.0")
 from gi.repository import Gdk, Gio, GLib, Gtk, Pango
 
-from .ui import add_classes, button, label, load_css, separator
+from .ui import add_classes, button, fos_choice, fos_file_chooser, label, load_css, separator
 from .windowchrome import CardWindow
 
 APP_ID = "org.fosos.Notepad"
@@ -116,13 +116,6 @@ class EditorWindow(CardWindow):
     def open_file(self) -> None:
         if not self._confirm_discard():
             return
-        dialog = Gtk.FileChooserDialog(
-            title="Open",
-            transient_for=self,
-            action=Gtk.FileChooserAction.OPEN,
-        )
-        dialog.add_button("Cancel", Gtk.ResponseType.CANCEL)
-        dialog.add_button("Open", Gtk.ResponseType.OK)
         filt = Gtk.FileFilter()
         filt.set_name("Text files")
         filt.add_mime_type("text/plain")
@@ -130,15 +123,17 @@ class EditorWindow(CardWindow):
         filt.add_pattern("*.md")
         filt.add_pattern("*.log")
         filt.add_pattern("*.csv")
-        dialog.add_filter(filt)
         all_filt = Gtk.FileFilter()
         all_filt.set_name("All files")
         all_filt.add_pattern("*")
-        dialog.add_filter(all_filt)
-        response = dialog.run()
-        filename = dialog.get_filename()
-        dialog.destroy()
-        if response == Gtk.ResponseType.OK and filename:
+        filename = fos_file_chooser(
+            self,
+            title="Open",
+            action=Gtk.FileChooserAction.OPEN,
+            ok_label="Open",
+            filters=[filt, all_filt],
+        )
+        if filename:
             self.load_path(Path(filename))
 
     def load_path(self, path: Path) -> None:
@@ -167,22 +162,16 @@ class EditorWindow(CardWindow):
         return self._write(self.path)
 
     def save_file_as(self) -> bool:
-        dialog = Gtk.FileChooserDialog(
+        filename = fos_file_chooser(
+            self,
             title="Save as",
-            transient_for=self,
             action=Gtk.FileChooserAction.SAVE,
+            ok_label="Save",
+            filename=str(self.path) if self.path is not None else None,
+            current_name="Untitled.txt" if self.path is None else None,
+            overwrite_confirmation=True,
         )
-        dialog.add_button("Cancel", Gtk.ResponseType.CANCEL)
-        dialog.add_button("Save", Gtk.ResponseType.OK)
-        dialog.set_do_overwrite_confirmation(True)
-        if self.path is not None:
-            dialog.set_filename(str(self.path))
-        else:
-            dialog.set_current_name("Untitled.txt")
-        response = dialog.run()
-        filename = dialog.get_filename()
-        dialog.destroy()
-        if response != Gtk.ResponseType.OK or not filename:
+        if not filename:
             return False
         return self._write(Path(filename))
 
@@ -203,22 +192,19 @@ class EditorWindow(CardWindow):
     def _confirm_discard(self) -> bool:
         if not self._dirty:
             return True
-        dialog = Gtk.MessageDialog(
-            transient_for=self,
-            modal=True,
-            message_type=Gtk.MessageType.QUESTION,
-            buttons=Gtk.ButtonsType.NONE,
-            text="Save changes?",
+        response = fos_choice(
+            self,
+            "Save changes?",
+            "Your document has unsaved changes.",
+            [
+                ("Cancel", "cancel", "ghost"),
+                ("Don't save", "discard", "ghost"),
+                ("Save", "save", "default"),
+            ],
         )
-        dialog.format_secondary_text("Your document has unsaved changes.")
-        dialog.add_button("Cancel", Gtk.ResponseType.CANCEL)
-        dialog.add_button("Don't save", Gtk.ResponseType.REJECT)
-        dialog.add_button("Save", Gtk.ResponseType.ACCEPT)
-        response = dialog.run()
-        dialog.destroy()
-        if response == Gtk.ResponseType.CANCEL:
+        if response == "cancel" or response is None:
             return False
-        if response == Gtk.ResponseType.ACCEPT:
+        if response == "save":
             return self.save_file()
         return True
 

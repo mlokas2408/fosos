@@ -331,6 +331,20 @@ class Shell(Gtk.Application):
         if self.snap_layouts.get_visible():
             self.snap_layouts.hide_picker()
         self.task_view.toggle()
+        for panel in self.panels:
+            panel.refresh_workspaces()
+
+    def toggle_show_desktop(self) -> None:
+        """Minimize / restore all windows (Win+D / taskbar Show Desktop)."""
+        self.close_popups()
+        if self.task_view.get_visible():
+            self.task_view.hide_view()
+        screen = Wnck.Screen.get_default()
+        screen.force_update()
+        showing = screen.get_showing_desktop()
+        screen.toggle_showing_desktop(not showing)
+        for panel in self.panels:
+            panel.refresh_workspaces()
 
     def move_window_to_workspace(self, window: Wnck.Window, index: int) -> None:
         move_window_to_workspace(window, index)
