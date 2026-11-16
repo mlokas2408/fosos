@@ -16,6 +16,7 @@ from .ui import BRAND, add_classes, badge, button, icon, label, separator, set_c
 
 HEIGHT = 48
 SKIP_TYPES = (Wnck.WindowType.DESKTOP, Wnck.WindowType.DOCK, Wnck.WindowType.SPLASHSCREEN)
+PIN_DRAG_TARGET = [Gtk.TargetEntry.new("application/x-fosos-pin", Gtk.TargetFlags.SAME_APP, 0)]
 
 
 def primary_monitor() -> Gdk.Rectangle:
@@ -83,6 +84,7 @@ class TaskButton(Gtk.Box):
         else:
             self.button.add(icon("application-x-executable-symbolic", 16))
         self.button.connect("clicked", self._on_clicked)
+        self.button.connect("button-press-event", self._on_press)
         self.button.connect("button-release-event", self._on_release)
         self.indicator = Gtk.Box()
         self.indicator.set_halign(Gtk.Align.CENTER)
@@ -90,10 +92,29 @@ class TaskButton(Gtk.Box):
         self.pack_start(self.button, False, False, 0)
         self.pack_start(self.indicator, False, False, 0)
         self.set_valign(Gtk.Align.CENTER)
+        self._setup_pin_drag()
+
+    def _setup_pin_drag(self) -> None:
+        if self.app is None or not self.panel.shell.pinned.contains(self.app.id):
+            return
+        self.button.drag_source_set(
+            Gdk.ModifierType.BUTTON1_MASK,
+            PIN_DRAG_TARGET,
+            Gdk.DragAction.MOVE,
+        )
+        self.button.drag_source_set_icon_name(self.app.icon_name())
+        self.button.connect("drag-data-get", self._on_drag_data_get)
+        self.button.drag_dest_set(
+            Gtk.DestDefaults.ALL,
+            PIN_DRAG_TARGET,
+            Gdk.DragAction.MOVE,
+        )
+        self.button.connect("drag-data-received", self._on_drag_data_received)
+        self.button.connect("drag-motion", self._on_drag_motion)
 
     def windows(self) -> list[Wnck.Window]:
         if self.app is None:
-            return [self.lone_window]
+            return [self.lone_window] if self.lone_window is not None else []
         return self.panel.windows_for(self.app)
 
     def refresh(self) -> None:
@@ -118,18 +139,115 @@ class TaskButton(Gtk.Box):
                 self.app.launch()
             return
         active = self.panel.active_window()
-        if active is not None and active in windows and not active.is_minimized():
-            active.minimize()
-            return
         stacked = [w for w in self.panel.screen.get_windows_stacked() if w in windows]
+        if active is not None and active in windows and not active.is_minimized():
+            # One focused window → minimize. Several → cycle like Win taskbar groups.
+            if len(windows) == 1:
+                active.minimize()
+                return
+            try:
+                index = stacked.index(active)
+            except ValueError:
+                index = len(stacked) - 1
+            target = stacked[(index + 1) % len(stacked)]
+            target.activate(stamp)
+            return
         target = stacked[-1] if stacked else windows[0]
         target.activate(stamp)
+
+    def _on_press(self, _button, event: Gdk.EventButton) -> bool:
+        if event.button == 3:
+            self._popup_menu(event)
+            return True
+        return False
 
     def _on_release(self, _button, event: Gdk.EventButton) -> bool:
         if event.button == 2 and self.app is not None:
             self.app.launch()
             return True
         return False
+
+    def _popup_menu(self, event: Gdk.EventButton) -> None:
+        self.panel.shell.close_popups()
+        menu = Gtk.Menu()
+        windows = self.windows()
+
+        if self.app is not None:
+            pinned = self.panel.shell.pinned.contains(self.app.id)
+            pin_item = Gtk.MenuItem(label="Unpin from taskbar" if pinned else "Pin to taskbar")
+            pin_item.connect("activate", lambda _i: self._toggle_pin())
+            menu.append(pin_item)
+            new_item = Gtk.MenuItem(label="Open new window")
+            new_item.connect("activate", lambda _i: self.app.launch())
+            menu.append(new_item)
+
+        if windows:
+            if self.app is not None or len(windows) > 1:
+                menu.append(Gtk.SeparatorMenuItem())
+            move_target = windows[0] if len(windows) == 1 else None
+            if move_target is not None:
+                move_menu = Gtk.Menu()
+                screen = self.panel.screen
+                active_ws = move_target.get_workspace()
+                for index in range(screen.get_workspace_count()):
+                    workspace = screen.get_workspace(index)
+                    name = workspace.get_name() if workspace is not None else f"Desktop {index + 1}"
+                    item = Gtk.MenuItem(label=name)
+                    if active_ws is not None and workspace is not None and active_ws == workspace:
+                        item.set_sensitive(False)
+                    item.connect(
+                        "activate",
+                        lambda _i, w=move_target, idx=index: self.panel.shell.move_window_to_workspace(w, idx),
+                    )
+                    move_menu.append(item)
+                move_item = Gtk.MenuItem(label="Move to")
+                move_item.set_submenu(move_menu)
+                menu.append(move_item)
+                menu.append(Gtk.SeparatorMenuItem())
+            if len(windows) == 1:
+                close_item = Gtk.MenuItem(label="Close window")
+                close_item.connect("activate", lambda _i: self._close_windows(windows))
+                menu.append(close_item)
+            else:
+                close_item = Gtk.MenuItem(label=f"Close all windows ({len(windows)})")
+                close_item.connect("activate", lambda _i: self._close_windows(windows))
+                menu.append(close_item)
+
+        if not menu.get_children():
+            return
+        menu.show_all()
+        menu.popup_at_pointer(event)
+
+    def _toggle_pin(self) -> None:
+        if self.app is None:
+            return
+        self.panel.shell.pinned.toggle(self.app.id)
+
+    def _close_windows(self, windows: list[Wnck.Window]) -> None:
+        stamp = x_timestamp(self)
+        for window in list(windows):
+            window.close(stamp)
+
+    def _on_drag_data_get(self, _widget, _context, data, _info, _time) -> None:
+        if self.app is not None:
+            data.set_text(self.app.id, -1)
+
+    def _on_drag_motion(self, _widget, context, _x, _y, time) -> bool:
+        Gdk.drag_status(context, Gdk.DragAction.MOVE, time)
+        return True
+
+    def _on_drag_data_received(self, _widget, context, _x, _y, data, _info, time) -> None:
+        source_id = data.get_text()
+        if not source_id or self.app is None:
+            context.finish(False, False, time)
+            return
+        pinned = self.panel.shell.pinned
+        if source_id not in pinned.ids or self.app.id not in pinned.ids:
+            context.finish(False, False, time)
+            return
+        target_index = pinned.ids.index(self.app.id)
+        pinned.move(source_id, target_index)
+        context.finish(True, False, time)
 
 
 class Panel(Gtk.Window):
@@ -188,34 +306,44 @@ class Panel(Gtk.Window):
         self.unread_dot = None
 
         if is_primary:
+            # Status cluster → one Quick Settings hub (Win+A).
+            open_qs = lambda b: self.shell.toggle_popup("quicksettings", b)
             if battery_present():
                 self.battery_button = button(
-                    icon_name="battery-good-symbolic", size="icon-sm", tooltip="Battery"
+                    icon_name="battery-good-symbolic", size="icon-sm", tooltip="Quick settings"
                 )
-                self.battery_button.connect("clicked", lambda b: self.shell.toggle_popup("battery", b))
+                self.battery_button.connect("clicked", open_qs)
                 row.pack_start(self.battery_button, False, False, 0)
 
             if brightness_available():
                 self.brightness_button = button(
-                    icon_name="display-brightness-symbolic", size="icon-sm", tooltip="Brightness"
+                    icon_name="display-brightness-symbolic", size="icon-sm", tooltip="Quick settings"
                 )
-                self.brightness_button.connect("clicked", lambda b: self.shell.toggle_popup("brightness", b))
+                self.brightness_button.connect("clicked", open_qs)
                 row.pack_start(self.brightness_button, False, False, 0)
 
-            self.volume_button = button(icon_name="audio-volume-high-symbolic", size="icon-sm", tooltip="Volume")
-            self.volume_button.connect("clicked", lambda b: self.shell.toggle_popup("volume", b))
+            self.volume_button = button(
+                icon_name="audio-volume-high-symbolic", size="icon-sm", tooltip="Quick settings"
+            )
+            self.volume_button.connect("clicked", open_qs)
             row.pack_start(self.volume_button, False, False, 0)
 
-            self.network_button = button(icon_name="network-wireless-symbolic", size="icon-sm", tooltip="Network")
-            self.network_button.connect("clicked", lambda b: self.shell.toggle_popup("network", b))
+            self.network_button = button(
+                icon_name="network-wireless-symbolic", size="icon-sm", tooltip="Quick settings"
+            )
+            self.network_button.connect("clicked", open_qs)
             row.pack_start(self.network_button, False, False, 0)
 
-            bell = Gtk.Overlay()
+            # Bell + clock → Notification Center (calendar + history, Win+N).
+            open_nc = lambda b: self.shell.toggle_popup("clock", b)
+            self.bell_overlay = Gtk.Overlay()
             self.bell_button = button(
-                icon_name="preferences-system-notifications-symbolic", size="icon-sm", tooltip="Notifications"
+                icon_name="preferences-system-notifications-symbolic",
+                size="icon-sm",
+                tooltip="Notifications",
             )
-            self.bell_button.connect("clicked", lambda b: self.shell.toggle_popup("notifications", b))
-            bell.add(self.bell_button)
+            self.bell_button.connect("clicked", open_nc)
+            self.bell_overlay.add(self.bell_button)
             self.unread_dot = Gtk.Box()
             self.unread_dot.set_halign(Gtk.Align.END)
             self.unread_dot.set_valign(Gtk.Align.START)
@@ -223,12 +351,14 @@ class Panel(Gtk.Window):
             self.unread_dot.set_margin_end(4)
             self.unread_dot.set_no_show_all(True)
             add_classes(self.unread_dot, "fos-dot")
-            bell.add_overlay(self.unread_dot)
-            bell.set_overlay_pass_through(self.unread_dot, True)
-            row.pack_start(bell, False, False, 0)
+            self.bell_overlay.add_overlay(self.unread_dot)
+            self.bell_overlay.set_overlay_pass_through(self.unread_dot, True)
+            row.pack_start(self.bell_overlay, False, False, 0)
             row.pack_start(separator(), False, False, 4)
+        else:
+            self.bell_overlay = None
 
-        self.clock_button = button(variant="ghost", tooltip="Date & time")
+        self.clock_button = button(variant="ghost", tooltip="Calendar & notifications")
         clock_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
         self.clock_time = label("", "fos-small", "fos-strong", xalign=1.0)
         self.clock_date = label("", "fos-small", "fos-muted", xalign=1.0)
@@ -247,6 +377,28 @@ class Panel(Gtk.Window):
         GLib.timeout_add_seconds(5, self.update_clock)
         self.rebuild_workspaces()
         self.rebuild_tasks()
+        self.apply_prefs()
+
+    def apply_prefs(self) -> None:
+        """Apply taskbar visibility prefs from Settings."""
+        from .settings_pages import load_kv, truthy
+
+        prefs = load_kv("taskbar", {"workspaces": "1", "clock_date": "1", "bell": "1"})
+        show_workspaces = truthy(prefs.get("workspaces"), True)
+        if show_workspaces:
+            if self.screen.get_workspace_count() > 1:
+                self.workspace_box.show()
+        else:
+            self.workspace_box.hide()
+        if truthy(prefs.get("clock_date"), True):
+            self.clock_date.show()
+        else:
+            self.clock_date.hide()
+        if self.bell_overlay is not None:
+            if truthy(prefs.get("bell"), True):
+                self.bell_overlay.show()
+            else:
+                self.bell_overlay.hide()
 
     # Geometry
 
@@ -263,17 +415,16 @@ class Panel(Gtk.Window):
             set_struts(window, area, HEIGHT)
 
     def popup_anchors(self) -> dict[str, Gtk.Widget]:
-        anchors = {"clock": self.clock_button}
-        if self.volume_button is not None:
-            anchors["volume"] = self.volume_button
-        if self.network_button is not None:
-            anchors["network"] = self.network_button
+        anchors = {"clock": self.clock_button, "notifications": self.clock_button}
+        qs = self.volume_button or self.network_button or self.battery_button or self.brightness_button
+        if qs is not None:
+            anchors["quicksettings"] = qs
+            anchors["volume"] = qs
+            anchors["network"] = qs
+            anchors["battery"] = qs
+            anchors["brightness"] = qs
         if self.bell_button is not None:
             anchors["notifications"] = self.bell_button
-        if self.battery_button is not None:
-            anchors["battery"] = self.battery_button
-        if self.brightness_button is not None:
-            anchors["brightness"] = self.brightness_button
         return anchors
 
     def top(self) -> int:
@@ -300,7 +451,6 @@ class Panel(Gtk.Window):
             self.workspace_box.hide()
             self.refresh_workspaces()
             return
-        self.workspace_box.show()
         for index in range(count):
             workspace = self.screen.get_workspace(index)
             name = workspace.get_name() if workspace is not None else f"Desktop {index + 1}"
@@ -311,6 +461,7 @@ class Panel(Gtk.Window):
             self.workspace_box.pack_start(btn, False, False, 0)
         self.workspace_box.show_all()
         self.refresh_workspaces()
+        self.apply_prefs()
 
     def refresh_workspaces(self) -> None:
         active = self.screen.get_active_workspace()

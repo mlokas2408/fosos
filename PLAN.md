@@ -241,6 +241,176 @@ size is recorded in [ISO-SIZE.md](docs/ISO-SIZE.md). Complete the Hyper-V
 soak checklist in [TESTING.md](docs/TESTING.md) on the rebuilt image before
 tagging a release ISO.
 
+### Phase 8 — muscle memory and window behavior
+
+**Goal:** Windows-trained users can move, switch, lock, and snap without
+relearning shortcuts, while keeping the FosOS look.
+
+- Bind Super alone to Start (keep Super+Space as an alias).
+- Add familiar shortcuts where cheap: Win+R Run, Win+X quick links,
+  Win+Shift+S region screenshot (alias of existing capture).
+- Improve Alt+Tab to a hold-to-preview switcher (icon + title), not only
+  instant Openbox cycle.
+- Titlebar / edge behavior: drag to top maximizes; drag down restores.
+- Taskbar click rules: focused → minimize; minimized → restore; same-app
+  windows cycle (refine what Phase 5 already started).
+
+**Exit condition:** a Windows user can tile left/right, switch apps, lock,
+and open Start / Files / Settings from muscle memory on a stock install.
+
+**Constraint:** behavior and shortcuts only — no Fluent acrylic, rounded
+taskbar, or Windows blue. Stay on Openbox + `fosos-shell`.
+
+**Status:** Phase 8 implemented in `fosos-desktop` **1.3.8**. Super alone
+opens Start via `xcape` → Alt+F1 (Super+Space kept). Win+R Run, Win+X quick
+links, Win+Shift+S region screenshot, Alt+Tab hold-to-preview switcher,
+drag-to-top maximize (EdgeSnap), and taskbar click cycle/minimize rules.
+Soak the shortcuts on Hyper-V before treating the exit condition as closed.
+
+### Phase 9 — taskbar and Start launcher
+
+**Goal:** the taskbar and Start menu are the primary way to run the machine.
+
+**Taskbar**
+
+- Right-click: Pin / Unpin, Close window(s), Open new window.
+- Drag-reorder pinned apps and persist order.
+- Middle-click opens a new window when the app supports it.
+
+**Start**
+
+- Search across apps, settings pages, and recent files (not apps only).
+- Recommended strip: recent folders and files.
+- Clear Lock / Sign out in the user or power area.
+- All apps list scannable in alphabetical sections.
+
+**Exit condition:** pin, find, and launch daily apps without Terminal or
+browsing `/usr/share/applications`.
+
+**Status:** Phase 9 implemented in `fosos-desktop` **1.3.9**. Taskbar
+right-click Pin/Unpin, Close, Open new window; drag-reorder pinned apps;
+middle-click new window. Start searches apps, settings and files; Recommended
+uses recent paths; All apps is A–Z sectioned; account menu has Lock / Sign out.
+
+### Phase 10 — Quick Settings and Notification Center
+
+**Goal:** replace scattered indicator popups with Win11-like hubs in FosOS
+card styling.
+
+- Clock / date opens calendar plus notification history.
+- Network / volume / battery cluster opens one Quick Settings panel: Wi-Fi,
+  Bluetooth, volume, brightness, battery, power links, and a Settings footer.
+- Shortcuts: Win+A Quick Settings, Win+N notifications (or the clock flyout).
+- Keep toast popups; Clear all and click-to-focus must be reliable.
+
+**Exit condition:** volume, Wi-Fi, brightness, and notifications are
+adjustable in at most two clicks without opening full Settings tools.
+
+**Status:** Phase 10 implemented in `fosos-desktop` **1.3.10**. Status icons
+open Quick Settings (Wi-Fi, Bluetooth, mute, volume, brightness, battery,
+Lock/Suspend). Clock and bell open Notification Center (calendar + history,
+Clear all, click-to-focus). Win+A / Win+N shortcuts; toasts kept.
+
+### Phase 11 — Files Explorer parity
+
+**Goal:** File Explorer covers ordinary file chores without a third-party
+manager or Terminal.
+
+- Clipboard: Cut / Copy / Paste; Delete to Trash (`gio trash` / FreeDesktop).
+- Multi-select, Select all, F2 rename, Alt+Up, address-bar focus.
+- Recycle Bin in the sidebar and on the desktop.
+- Context menu: Open with, Properties, Copy path, Open Terminal here.
+- Drag-and-drop between folders; progress for large copies.
+- Keep FosOS Quick Access; make Downloads and Home one click from everywhere.
+
+**Exit condition:** copy, move, trash, restore, and open-with work for common
+desktop files without leaving Files.
+
+**Status:** Phase 11 implemented in `fosos-desktop` **1.3.11**. Files supports
+Cut/Copy/Paste, multi-select, trash/restore, Open with, Properties, Copy path,
+Open Terminal here, drag-and-drop with progress, Ctrl+L address bar, Recycle
+Bin in the sidebar and on the desktop; Home is the default folder.
+
+### Phase 12 — desktop and right-click world
+
+**Goal:** an empty desktop still feels owned and discoverable.
+
+- Desktop context menu: Refresh, Display settings, Personalize (wallpaper),
+  New folder, Open Files / Terminal here.
+- Icons: Recycle Bin, Home (or user folder), optional Computer (`/`); remember
+  positions.
+- Single-click vs double-click preference in Settings.
+- Keep Show Desktop (Win+D) and the Dawn Aperture watermark as-is.
+
+**Exit condition:** first-hour “right-click the desktop” habits work without
+opening Settings from Start.
+
+**Status:** Phase 12 implemented in `fosos-desktop` **1.3.12**. Desktop
+context menu covers Refresh / Display / Personalize / New folder / Files /
+Terminal here; icons (Home, Computer, Files, Recycle Bin, Install when live)
+drag and remember positions; Settings → Personalize sets single- vs
+double-click.
+
+### Phase 13 — multitasking (snap layouts and Task View)
+
+**Goal:** go beyond 50/50 tiling for multi-window work.
+
+- Snap layouts: hover maximize or Win+Z → 2×2 / three-column presets in a
+  FosOS card UI; place the focused window, then optional fill-next assist.
+- Task View (Win+Tab): overview of windows and the existing four virtual
+  desktops with thumbnails.
+- Move window to another desktop from overview or the taskbar menu.
+- Optional: drag to corners for quarter snaps.
+
+**Exit condition:** multi-window layouts and desktop switching work without
+manual resize math.
+
+**Note:** heaviest Openbox phase. Prefer “layouts + desktop switcher” first,
+full Task View second, if the WM fights overview UI.
+
+**Status:** Phase 13 implemented in `fosos-desktop` **1.3.13**. Win+Z /
+maximize right-click open snap layouts with fill-next assist; Win+Tab Task
+View shows all four desktops; taskbar and Task View can move windows between
+desktops; edge/corner drag snaps halves and quarters.
+
+### Phase 14 — Settings and personalization depth
+
+**Goal:** Settings feels like one FosOS product, not only a launcher for
+external tools.
+
+- Built-in pages: Wallpaper, Taskbar options, Notifications, richer About /
+  Storage summary.
+- Wrap or chrome external tools (display, sound, network) where cheap.
+- Updates page with last-checked / reboot-needed status (not only a Terminal
+  script).
+- Extend Default apps for common types (PDF, archives, `.deb` already
+  installs via Install Package).
+
+**Exit condition:** common personalization and update checks happen inside
+`fosos-settings` without hunting GNOME/XFCE dialogs.
+
+**Status:** Phase 14 implemented in `fosos-desktop` **1.3.14**. Wallpaper /
+Taskbar / Notifications / Storage / Updates are built-in; Display / Sound /
+Network / Bluetooth are chromed wrappers; About shows storage + reboot hint;
+Default apps cover PDF, archives, and images.
+
+### Phase 15 — convenience backlog (optional)
+
+**Goal:** pick only high-frequency Win11 conveniences after Phases 8–12 feel
+solid.
+
+| Item | Win11 analog | Guidance |
+| --- | --- | --- |
+| Clipboard history (Win+V) | Yes | High value, medium work |
+| Status Notifier tray | System tray | High compatibility value |
+| Run dialog (Win+R) | Yes | Cheap; may land in Phase 8 |
+| Jump lists / recent docs per app | Yes | Medium |
+| Widgets / news | Widgets | Skip — fights brand and lightness |
+| Acrylic / Mica / centered Fluent bar | Fluent look | Skip — keep square FosOS cards |
+
+**Exit condition:** each accepted item has its own soak note; skipped items
+stay documented as non-goals.
+
 ## Build, test, and release flow
 
 ```text

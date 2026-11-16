@@ -125,6 +125,78 @@ After Phase 7, rebuild the ISO first, then record its size in
 - [ ] Post–Phase 7 ISO size recorded in [ISO-SIZE.md](ISO-SIZE.md)
 - [ ] Rollback path in [RECOVERY.md](RECOVERY.md) reviewed
 
+## Phase 8 muscle-memory checklist
+
+- [ ] Super tap opens Start; Super+E / Super+I / Super+L still work
+- [ ] Super+R Run launches a command or app; Escape closes
+- [ ] Super+X quick links (Terminal, Files, Settings, Run, Lock, power)
+- [ ] Alt+Tab shows icon+title switcher; release Alt focuses the selection
+- [ ] Super+Shift+S (and Shift+Print) captures a region
+- [ ] Drag a window titlebar to the top edge maximizes; drag down restores
+- [ ] Taskbar: one window minimizes when focused; several windows cycle
+
+## Phase 9 taskbar / Start checklist
+
+- [ ] Taskbar right-click: Pin / Unpin, Open new window, Close window(s)
+- [ ] Drag pinned taskbar icons to reorder; order survives restart
+- [ ] Middle-click a pinned/running app opens another window
+- [ ] Start search finds an app, a settings panel, and a recent file
+- [ ] Recommended shows recent files/folders; All apps has A–Z headings
+- [ ] Account button menu: home, Lock, Sign out
+
+## Phase 10 Quick Settings / Notification Center checklist
+
+- [ ] Click volume, network, battery or brightness → one Quick Settings panel
+- [ ] Wi-Fi / Bluetooth / mute tiles and volume / brightness sliders work
+- [ ] Win+A opens Quick Settings; Settings / Sound… / Network… footers work
+- [ ] Clock or bell opens calendar + notification history
+- [ ] Win+N opens Notification Center; Clear all clears history and toasts
+- [ ] Click a history item focuses / activates the related app when possible
+- [ ] `notify-send` still shows a toast popup
+
+## Phase 11 Files Explorer checklist
+
+- [ ] Ctrl+C / Ctrl+X / Ctrl+V copy, cut and paste between folders
+- [ ] Ctrl+click and Shift+click multi-select; Ctrl+A selects all
+- [ ] Delete moves to Recycle Bin; restore from Recycle Bin works
+- [ ] Sidebar and desktop Recycle Bin open the trash folder
+- [ ] F2 renames; Alt+Up goes up; Ctrl+L edits the path
+- [ ] Context menu: Open with, Properties, Copy path, Open Terminal here
+- [ ] Drag files onto a folder or into another Files window / listing
+
+## Phase 12 desktop checklist
+
+- [ ] Right-click empty desktop: Refresh, Display settings, Personalize,
+      New folder, Open Files here, Open Terminal here
+- [ ] New folder creates under `~/Desktop` and opens Files there
+- [ ] Icons: Home, Computer, Files, Recycle Bin; drag and restart keeps place
+- [ ] Personalize → single-click opens icons with one click; double-click mode
+      still needs two clicks
+- [ ] Reset icon positions + Refresh / F5 re-stacks the default column
+- [ ] Win+D Show Desktop and Dawn Aperture watermark still work
+
+## Phase 13 multitasking checklist
+
+- [ ] Win+Z opens snap layouts; picking a cell tiles the focused window
+- [ ] After placing one region, focusing another window fills the next region
+- [ ] Right-click the titlebar maximize button opens the same layouts picker
+- [ ] Win+Tab shows Task View with all four desktops and their windows
+- [ ] Click a window in Task View to switch; Escape closes
+- [ ] Right-click a Task View window → Move to Desktop N
+- [ ] Taskbar right-click → Move to → Desktop N (single-window groups)
+- [ ] Drag window to left/right edge → half; to a corner → quarter; top → max
+
+## Phase 14 Settings checklist
+
+- [ ] Settings → Wallpaper changes the drawn desktop theme; Apply refreshes
+- [ ] Taskbar toggles hide/show desktop switcher, clock date, notification bell
+- [ ] Notifications → Do not disturb hides toasts; history still in Win+N
+- [ ] Display / Sound / Network / Bluetooth pages open the system tools
+- [ ] Updates shows last refresh, upgradable estimate, reboot required when set
+- [ ] Check for updates / Install updates open a Terminal with `fos …`
+- [ ] About lists storage mounts; Storage page matches
+- [ ] Default apps includes PDF, Archives, Images
+
 ## Package upgrade
 
 On an installed system with a network connection:

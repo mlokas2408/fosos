@@ -37,21 +37,29 @@ Revisit Wayland when the shell is stable for daily use.
 | `fosos-greeter` | LightDM greeter (two-column Sign in; always Desktop; power menu) |
 | `fosos-shell` | Taskbar, Start menu, desktop, notifications, status menus |
 | `fosos-lock` | Fullscreen lock screen (same layout + power menu) |
-| `fosos-settings` | Settings shell (built-in panels + arandr / pavucontrol / nm / blueman) |
+| `fosos-settings` | Settings shell (Wallpaper, Taskbar, Notifications, Updates, Storage, chromed system tools) |
 | `fosos-screenshot` | Full / region / window capture |
 
 ## Keyboard shortcuts
 
 | Keys | Action |
 | --- | --- |
-| Super+Space or Alt+F1 | Start menu |
+| Super (tap) / Super+Space / Alt+F1 | Start menu |
+| Super+X | Quick links |
+| Super+A | Quick settings |
+| Super+N | Notification center |
+| Super+R | Run |
 | Super+E | Files |
 | Ctrl+Alt+T | Terminal |
 | Super+I | Settings |
 | Super+L | Lock |
 | Super+D | Show desktop |
+| Super+↑ / ↓ / ← / → | Maximize / restore or minimize / tile left / right |
+| Super+Z | Snap layouts (right-click maximize also) |
+| Super+Tab | Task View (desktops + windows) |
+| Alt+Tab / Alt+Shift+Tab | Window switcher |
 | Super+1 … Super+4 | Workspaces |
-| Print / Shift+Print | Screenshot full / region |
+| Print / Shift+Print / Super+Shift+S | Screenshot full / region |
 
 ## Testing
 
@@ -64,4 +72,13 @@ sudo bash scripts/test-desktop.sh
 **Phase 7b** removed remaining `xfce4-*` package dependencies. **7c** drops
 Greybird / elementary-xfce from the image, records ISO size in
 [ISO-SIZE.md](ISO-SIZE.md), and completes the Hyper-V soak in
-[TESTING.md](TESTING.md).
+[TESTING.md](TESTING.md). **Phase 8** adds Win-like shortcuts, Alt+Tab
+preview, Run / Quick links, and drag-to-top maximize. **Phase 9** deepens
+the taskbar and Start launcher. **Phase 10** adds Quick Settings and
+Notification Center. **Phase 11** brings Files Explorer parity (trash,
+clipboard, drag-drop). **Phase 12** adds the desktop right-click menu,
+draggable icons with remembered positions, and Personalize (single/double
+click). **Phase 13** adds snap layouts (Win+Z), Task View (Win+Tab),
+move-to-desktop, and edge/corner snaps. **Phase 14** deepens Settings
+(Wallpaper, Taskbar, Notifications, Storage, Updates, chromed system tools,
+richer About) in `fosos-desktop` 1.3.14.

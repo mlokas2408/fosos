@@ -95,7 +95,7 @@
   <keyboard>
     <chainQuitKey>C-g</chainQuitKey>
 
-    <!-- Start menu. Super on its own is not bound, so Super combinations keep working. -->
+    <!-- Start: Super alone via xcape → Alt+F1; Super+Space remains an alias. -->
     <keybind key="W-space">
       <action name="Execute"><command>fosos-shell --toggle-start</command></action>
     </keybind>
@@ -115,10 +115,25 @@
     <keybind key="W-l">
       <action name="Execute"><command>fosos-lock</command></action>
     </keybind>
+    <keybind key="W-r">
+      <action name="Execute"><command>fosos-shell --run</command></action>
+    </keybind>
+    <keybind key="W-x">
+      <action name="Execute"><command>fosos-shell --quick-links</command></action>
+    </keybind>
+    <keybind key="W-a">
+      <action name="Execute"><command>fosos-shell --quick-settings</command></action>
+    </keybind>
+    <keybind key="W-n">
+      <action name="Execute"><command>fosos-shell --notification-center</command></action>
+    </keybind>
     <keybind key="Print">
       <action name="Execute"><command>fosos-screenshot -f</command></action>
     </keybind>
     <keybind key="S-Print">
+      <action name="Execute"><command>fosos-screenshot -r</command></action>
+    </keybind>
+    <keybind key="W-S-s">
       <action name="Execute"><command>fosos-screenshot -r</command></action>
     </keybind>
 
@@ -160,22 +175,16 @@
     </keybind>
 
     <keybind key="A-Tab">
-      <action name="NextWindow">
-        <finalactions>
-          <action name="Focus"/>
-          <action name="Raise"/>
-          <action name="Unshade"/>
-        </finalactions>
-      </action>
+      <action name="Execute"><command>fosos-shell --alt-tab next</command></action>
     </keybind>
     <keybind key="A-S-Tab">
-      <action name="PreviousWindow">
-        <finalactions>
-          <action name="Focus"/>
-          <action name="Raise"/>
-          <action name="Unshade"/>
-        </finalactions>
-      </action>
+      <action name="Execute"><command>fosos-shell --alt-tab prev</command></action>
+    </keybind>
+    <keybind key="W-Tab">
+      <action name="Execute"><command>fosos-shell --task-view</command></action>
+    </keybind>
+    <keybind key="W-z">
+      <action name="Execute"><command>fosos-shell --snap-layouts</command></action>
     </keybind>
     <keybind key="A-F4">
       <action name="Close"/>
@@ -240,6 +249,8 @@
     </context>
 
     <context name="Titlebar">
+      <!-- Drag to the top edge maximizes via fosos-shell EdgeSnap; Openbox
+           unmaximizes when a maximized titlebar is dragged. -->
       <mousebind button="Left" action="Drag">
         <action name="Move"/>
       </mousebind>
@@ -332,8 +343,15 @@
       </mousebind>
     </context>
     <context name="Maximize">
+      <!-- Left click toggles maximize; right click opens FosOS snap layouts
+           (Openbox has no hover action for the maximize button). -->
       <mousebind button="Left" action="Click">
         <action name="ToggleMaximize"/>
+      </mousebind>
+      <mousebind button="Right" action="Click">
+        <action name="Focus"/>
+        <action name="Raise"/>
+        <action name="Execute"><command>fosos-shell --snap-layouts</command></action>
       </mousebind>
     </context>
     <context name="Close">

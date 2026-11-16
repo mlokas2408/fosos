@@ -6,8 +6,14 @@ text/markdown=fosos-notepad.desktop
 text/x-log=fosos-notepad.desktop
 text/csv=fosos-notepad.desktop
 application/x-zerosize=fosos-notepad.desktop
+application/vnd.debian.binary-package=fosos-install-package.desktop
+application/x-deb=fosos-install-package.desktop
+application/x-debian-package=fosos-install-package.desktop
 
 [Added Associations]
 inode/directory=fosos-files.desktop;
 text/plain=fosos-notepad.desktop;
 text/markdown=fosos-notepad.desktop;
+application/vnd.debian.binary-package=fosos-install-package.desktop;
+application/x-deb=fosos-install-package.desktop;
+application/x-debian-package=fosos-install-package.desktop;

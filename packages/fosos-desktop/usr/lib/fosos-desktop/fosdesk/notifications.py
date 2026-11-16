@@ -55,6 +55,31 @@ POPUP_WIDTH = 360
 MAX_POPUPS = 4
 HISTORY_LIMIT = 50
 
+
+def _notification_prefs() -> dict[str, str]:
+    from .settings_pages import load_kv
+
+    return load_kv("notifications", {"dnd": "0", "toasts": "1", "timeout": str(DEFAULT_TIMEOUT_MS)})
+
+
+def _pref_true(prefs: dict[str, str], key: str, default: bool) -> bool:
+    from .settings_pages import truthy
+
+    return truthy(prefs.get(key), default)
+
+
+def toast_timeout_ms(note_timeout: int, urgency: int) -> int:
+    prefs = _notification_prefs()
+    try:
+        configured = max(1000, int(prefs.get("timeout", str(DEFAULT_TIMEOUT_MS))))
+    except ValueError:
+        configured = DEFAULT_TIMEOUT_MS
+    if note_timeout < 0:
+        return 0 if urgency >= 2 else configured
+    if note_timeout == 0:
+        return 0
+    return note_timeout
+
 EXPIRED, DISMISSED, CLOSED_BY_CALL = 1, 2, 3
 
 
@@ -97,7 +122,7 @@ class Notification:
         self.time = GLib.DateTime.new_now_local()
 
 
-def notification_card(note: Notification, on_close=None, on_action=None, compact=False) -> Gtk.Box:
+def notification_card(note: Notification, on_close=None, on_action=None, on_click=None, compact=False) -> Gtk.Widget:
     card = add_classes(Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6), "fos-card", "fos-notification")
     if note.urgency >= 2:
         add_classes(card, "critical")
@@ -133,7 +158,26 @@ def notification_card(note: Notification, on_close=None, on_action=None, compact
             action.connect("clicked", lambda _b, k=key: on_action(k))
             row.pack_start(action, False, False, 0)
         card.pack_start(row, False, False, 4)
-    return card
+    if on_click is None:
+        return card
+    events = Gtk.EventBox()
+    events.add_events(Gdk.EventMask.BUTTON_PRESS_MASK)
+    events.add(card)
+
+    def pressed(_widget, event: Gdk.EventButton) -> bool:
+        if event.button != 1:
+            return False
+        # Ignore clicks on action/close buttons inside the card.
+        widget = Gtk.get_event_widget(event)
+        while widget is not None and widget is not events:
+            if isinstance(widget, Gtk.Button):
+                return False
+            widget = widget.get_parent()
+        on_click()
+        return True
+
+    events.connect("button-press-event", pressed)
+    return events
 
 
 class NotificationPopup(Gtk.Window):
@@ -158,9 +202,7 @@ class NotificationPopup(Gtk.Window):
         self.timer = 0
 
     def start_timer(self) -> None:
-        timeout = self.note.timeout
-        if timeout < 0:
-            timeout = 0 if self.note.urgency >= 2 else DEFAULT_TIMEOUT_MS
+        timeout = toast_timeout_ms(self.note.timeout, self.note.urgency)
         if timeout > 0:
             self.timer = GLib.timeout_add(timeout, self._expire)
 
@@ -185,7 +227,7 @@ class NotificationPopup(Gtk.Window):
 
 
 class NotificationList(Popup):
-    """The bell menu: recent notifications and Clear all."""
+    """Standalone notifications list (kept for compatibility)."""
 
     def __init__(self, server: "NotificationServer") -> None:
         super().__init__(width=POPUP_WIDTH + 32)
@@ -195,7 +237,7 @@ class NotificationList(Popup):
         header = add_classes(Gtk.Box(spacing=8), "fos-card-header")
         header.pack_start(label("Notifications", "fos-title"), True, True, 0)
         clear_all = button("Clear all", variant="ghost", size="sm")
-        clear_all.connect("clicked", lambda _b: self._clear())
+        clear_all.connect("clicked", lambda _b: server.clear_all())
         header.pack_end(clear_all, False, False, 0)
         frame.pack_start(header, False, False, 0)
         self.items = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
@@ -210,17 +252,67 @@ class NotificationList(Popup):
 
     def refresh(self) -> None:
         clear(self.items)
-        if not self.server.history:
-            empty = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
-            empty.set_margin_top(16)
-            empty.set_margin_bottom(16)
-            empty.pack_start(icon("preferences-system-notifications-symbolic", 24), False, False, 0)
-            empty.pack_start(label("No notifications", "fos-text", "fos-muted", xalign=0.5), False, False, 0)
-            self.items.pack_start(empty, False, False, 0)
-        for note in reversed(self.server.history):
-            self.items.pack_start(
-                notification_card(note, on_close=lambda n=note: self._forget(n), compact=True), False, False, 0
-            )
+        _fill_notification_items(self.items, self.server, on_activate=None, on_forget=self._forget)
+        self.items.show_all()
+        self.relayout()
+
+    def _forget(self, note: Notification) -> None:
+        if note in self.server.history:
+            self.server.history.remove(note)
+        self.refresh()
+
+
+class NotificationCenter(Popup):
+    """Clock / Win+N hub: calendar plus notification history."""
+
+    def __init__(self, shell) -> None:
+        super().__init__(width=POPUP_WIDTH + 40)
+        self.shell = shell
+        self.server = shell.notifications
+        frame = add_classes(Gtk.Box(orientation=Gtk.Orientation.VERTICAL), "fos-card")
+        self.add(frame)
+
+        header = add_classes(Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2), "fos-card-header")
+        self.day = label("", "fos-text", "fos-muted")
+        self.date = label("", "fos-title")
+        header.pack_start(self.day, False, False, 0)
+        header.pack_start(self.date, False, False, 0)
+        frame.pack_start(header, False, False, 0)
+
+        body = add_classes(Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12), "fos-card-content")
+        frame.pack_start(body, True, True, 0)
+        self.calendar = add_classes(Gtk.Calendar(), "fos-calendar")
+        body.pack_start(self.calendar, False, False, 0)
+
+        notif_head = Gtk.Box(spacing=8)
+        notif_head.pack_start(label("Notifications", "fos-label"), True, True, 0)
+        clear_all = button("Clear all", variant="ghost", size="sm")
+        clear_all.connect("clicked", lambda _b: self._clear())
+        notif_head.pack_end(clear_all, False, False, 0)
+        body.pack_start(notif_head, False, False, 0)
+
+        self.items = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
+        scroller = Gtk.ScrolledWindow()
+        scroller.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
+        scroller.set_propagate_natural_height(True)
+        scroller.set_min_content_height(160)
+        scroller.set_max_content_height(280)
+        scroller.add(self.items)
+        body.pack_start(scroller, True, True, 0)
+
+    def refresh(self) -> None:
+        now = GLib.DateTime.new_now_local()
+        self.day.set_text(now.format("%A"))
+        self.date.set_text(now.format("%-d %B %Y"))
+        self.calendar.select_month(now.get_month() - 1, now.get_year())
+        self.calendar.select_day(now.get_day_of_month())
+        clear(self.items)
+        _fill_notification_items(
+            self.items,
+            self.server,
+            on_activate=self._activate,
+            on_forget=self._forget,
+        )
         self.items.show_all()
         self.relayout()
 
@@ -230,8 +322,36 @@ class NotificationList(Popup):
         self.refresh()
 
     def _clear(self) -> None:
-        self.server.history.clear()
+        self.server.clear_all()
         self.refresh()
+
+    def _activate(self, note: Notification) -> None:
+        self.dismiss()
+        self.server.activate_note(note)
+
+
+def _fill_notification_items(container: Gtk.Box, server: "NotificationServer", on_activate, on_forget) -> None:
+    if not server.history:
+        empty = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
+        empty.set_margin_top(12)
+        empty.set_margin_bottom(12)
+        empty.pack_start(icon("preferences-system-notifications-symbolic", 24), False, False, 0)
+        empty.pack_start(label("No notifications", "fos-text", "fos-muted", xalign=0.5), False, False, 0)
+        container.pack_start(empty, False, False, 0)
+        return
+    for note in reversed(server.history):
+        container.pack_start(
+            notification_card(
+                note,
+                on_close=(lambda n=note: on_forget(n)) if on_forget else None,
+                on_action=(lambda key, n=note: server.invoke(n.id, key)),
+                on_click=(lambda n=note: on_activate(n)) if on_activate else None,
+                compact=True,
+            ),
+            False,
+            False,
+            0,
+        )
 
 
 class NotificationServer:
@@ -291,14 +411,17 @@ class NotificationServer:
             self.unread = True
             if self.shell.panel is not None:
                 self.shell.panel.set_unread(True)
-        popup = NotificationPopup(self, note)
-        self.popups[nid] = popup
-        while len(self.popups) > MAX_POPUPS:
-            oldest = next(iter(self.popups))
-            self.close(oldest, EXPIRED)
-        popup.show_all()
-        popup.start_timer()
-        self.stack()
+        prefs = _notification_prefs()
+        show_toast = _pref_true(prefs, "toasts", True) and not _pref_true(prefs, "dnd", False)
+        if show_toast:
+            popup = NotificationPopup(self, note)
+            self.popups[nid] = popup
+            while len(self.popups) > MAX_POPUPS:
+                oldest = next(iter(self.popups))
+                self.close(oldest, EXPIRED)
+            popup.show_all()
+            popup.start_timer()
+            self.stack()
         return nid
 
     def stack(self) -> None:
@@ -344,3 +467,51 @@ class NotificationServer:
         self.unread = False
         if self.shell.panel is not None:
             self.shell.panel.set_unread(False)
+
+    def clear_all(self) -> None:
+        for nid in list(self.popups):
+            self.close(nid, DISMISSED)
+        self.history.clear()
+        self.mark_read()
+        center = self.shell.popups.get("clock")
+        if center is not None and center.get_visible() and hasattr(center, "refresh"):
+            center.refresh()
+        notes = self.shell.popups.get("notifications")
+        if notes is not None and notes.get_visible() and hasattr(notes, "refresh"):
+            notes.refresh()
+
+    def activate_note(self, note: Notification) -> None:
+        """Click-to-focus: default action and/or raise a matching window."""
+        if any(key == "default" for key, _text in note.actions):
+            self.invoke(note.id, "default")
+        else:
+            self._remove_popup(note.id)
+            self.stack()
+        self._focus_app(note.app_name)
+        if note in self.history:
+            self.history.remove(note)
+        self.mark_read()
+
+    def _focus_app(self, app_name: str) -> None:
+        if not app_name:
+            return
+        try:
+            gi.require_version("Wnck", "3.0")
+            from gi.repository import Wnck
+
+            from .panel import x_timestamp
+        except Exception:
+            return
+        needle = app_name.lower()
+        screen = Wnck.Screen.get_default()
+        screen.force_update()
+        stamp = x_timestamp(self.shell.panel) if self.shell.panel is not None else int(GLib.get_monotonic_time() / 1000)
+        for window in reversed(screen.get_windows_stacked()):
+            name = (window.get_name() or "").lower()
+            group = (window.get_class_group_name() or "").lower()
+            if needle in name or needle in group or name in needle or group in needle:
+                workspace = window.get_workspace()
+                if workspace is not None:
+                    workspace.activate(stamp)
+                window.activate(stamp)
+                return

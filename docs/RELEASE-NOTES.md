@@ -1,5 +1,61 @@
 # FosOS release notes
 
+## FosOS 1.3.14 — Phase 14 Settings depth
+
+- Built-in Wallpaper (Dawn / Steel / Graphite / Ink), Taskbar, Notifications
+  (Do not disturb, toast duration), Storage, and Updates pages
+- Display / Sound / Network / Bluetooth open through chromed Settings pages
+- About shows storage summary and reboot-required hint
+- Default apps: PDF, archives, images (`.deb` still uses Install Package)
+
+## FosOS 1.3.13 — Phase 13 snap layouts and Task View
+
+- Win+Z / maximize right-click: snap layout presets (2-col, 3-col, 2×2, tall)
+  with fill-next assist for remaining regions
+- Win+Tab Task View: overview of windows on all four virtual desktops
+- Taskbar and Task View: Move to Desktop N
+- Drag to left/right edges for halves; corners for quarters; top edge maximizes
+
+## FosOS 1.3.12 — Phase 12 desktop and right-click world
+
+- Desktop context menu: Refresh, Display settings, Personalize, New folder,
+  Open Files / Terminal here
+- Icons: Home, Computer, Files, Recycle Bin (Install when live); drag to
+  reposition; positions saved under `~/.config/fosos-desktop/`
+- Settings → Personalize: single- vs double-click icons; reset positions;
+  Dawn Aperture wallpaper note
+
+## FosOS 1.3.11 — Phase 11 Files Explorer parity
+
+- Cut / Copy / Paste, multi-select, Select all, F2, Alt+Up, Ctrl+L address bar
+- Delete to Recycle Bin with restore; Recycle Bin in sidebar and on the desktop
+- Context: Open with, Properties, Copy path, Open Terminal here
+- Drag-and-drop between folders with progress for larger transfers
+
+## FosOS 1.3.10 — Phase 10 Quick Settings & Notification Center
+
+- Status cluster opens Quick Settings (Wi-Fi, Bluetooth, volume, brightness, power)
+- Clock / bell open Notification Center (calendar + history, Clear all, click-to-focus)
+- Shortcuts: Win+A Quick Settings, Win+N Notification Center
+
+## FosOS 1.3.9 — Phase 9 taskbar and Start
+
+- Taskbar: right-click Pin/Unpin, Close window(s), Open new window; drag to reorder pins
+- Start search covers apps, settings panels, and recent files
+- Recommended recent files/folders; All apps grouped A–Z; account menu Lock / Sign out
+
+## FosOS 1.3.8 — Phase 8 muscle memory
+
+- Super alone opens Start (`xcape`); Super+Space still works
+- Win+R Run, Win+X quick links, Win+Shift+S region screenshot
+- Alt+Tab hold-to-preview switcher (icon + title)
+- Drag window to top edge to maximize; taskbar click cycles/minimizes
+
+## FosOS 1.3.7 — Install downloaded .deb packages
+
+- Opening a `.deb` (Files or browser) launches Install Package instead of xarchiver
+- Confirm dialog, then `pkexec apt-get install` for the local file
+
 ## FosOS 1.3.6 — Lock screen unlock on live
 
 - Lock used `import pam`, but Debian’s `python3-pam` exports `PAM` — unlock

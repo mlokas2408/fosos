@@ -138,6 +138,11 @@ def all_apps() -> list[App]:
     return apps
 
 
+def user_dir(kind, fallback: str) -> Path:
+    path = GLib.get_user_special_dir(kind)
+    return Path(path) if path else Path.home() / fallback
+
+
 def search_apps(query: str, apps: list[App]) -> list[App]:
     query = query.strip().lower()
     if not query:
@@ -156,6 +161,75 @@ def search_apps(query: str, apps: list[App]) -> list[App]:
         scored.append((score, name, app))
     scored.sort(key=lambda item: (item[0], item[1]))
     return [item[2] for item in scored]
+
+
+def recent_paths(limit: int = 8) -> list[Path]:
+    """Recent local files and folders for Start Recommended / search."""
+    seen: set[str] = set()
+    found: list[tuple[float, Path]] = []
+
+    def add(path: Path, mtime: float | None = None) -> None:
+        try:
+            path = path.expanduser().resolve()
+        except OSError:
+            return
+        key = str(path)
+        if key in seen or not path.exists():
+            return
+        seen.add(key)
+        try:
+            stamp = mtime if mtime is not None else path.stat().st_mtime
+        except OSError:
+            return
+        found.append((stamp, path))
+
+    try:
+        manager = Gtk.RecentManager.get_default()
+        for item in manager.get_items():
+            if item.get_private_hint() or not item.exists():
+                continue
+            uri = item.get_uri()
+            if not uri.startswith("file://"):
+                continue
+            try:
+                path = Path(GLib.filename_from_uri(uri)[0])
+            except (GLib.Error, TypeError, ValueError):
+                continue
+            add(path, item.get_modified())
+    except GLib.Error:
+        pass
+
+    for kind, fallback in (
+        (GLib.UserDirectory.DIRECTORY_DOWNLOAD, "Downloads"),
+        (GLib.UserDirectory.DIRECTORY_DOCUMENTS, "Documents"),
+        (GLib.UserDirectory.DIRECTORY_DESKTOP, "Desktop"),
+    ):
+        folder = user_dir(kind, fallback)
+        add(folder)
+        try:
+            children = [p for p in folder.iterdir() if not p.name.startswith(".")]
+        except OSError:
+            continue
+        children.sort(key=lambda p: p.stat().st_mtime if p.exists() else 0, reverse=True)
+        for child in children[:6]:
+            add(child)
+
+    found.sort(key=lambda item: item[0], reverse=True)
+    return [path for _mtime, path in found[:limit]]
+
+
+def search_paths(query: str, limit: int = 8) -> list[Path]:
+    query = query.strip().lower()
+    if not query:
+        return []
+    matches = []
+    for path in recent_paths(24):
+        name = path.name.lower()
+        if query in name or query in str(path).lower():
+            matches.append(path)
+        if len(matches) >= limit:
+            break
+    return matches
 
 
 class Pinned:
@@ -189,14 +263,40 @@ class Pinned:
     def contains(self, app_id: str) -> bool:
         return app_id in self.ids
 
+    def _notify(self) -> None:
+        self.save()
+        for listener in self.listeners:
+            listener()
+
     def toggle(self, app_id: str) -> None:
         if app_id in self.ids:
             self.ids.remove(app_id)
         else:
             self.ids.append(app_id)
-        self.save()
-        for listener in self.listeners:
-            listener()
+        self._notify()
+
+    def pin(self, app_id: str) -> None:
+        if not app_id or app_id in self.ids:
+            return
+        self.ids.append(app_id)
+        self._notify()
+
+    def unpin(self, app_id: str) -> None:
+        if app_id not in self.ids:
+            return
+        self.ids.remove(app_id)
+        self._notify()
+
+    def move(self, app_id: str, new_index: int) -> None:
+        if app_id not in self.ids:
+            return
+        ids = [item for item in self.ids if item != app_id]
+        new_index = max(0, min(new_index, len(ids)))
+        ids.insert(new_index, app_id)
+        if ids == self.ids:
+            return
+        self.ids = ids
+        self._notify()
 
     def save(self) -> None:
         CONFIG_DIR.mkdir(parents=True, exist_ok=True)
@@ -221,8 +321,3 @@ def open_path(path: Path) -> bool:
         if path.is_dir():
             return spawn(["fosos-files", str(path)])
         return False
-
-
-def user_dir(kind, fallback: str) -> Path:
-    path = GLib.get_user_special_dir(kind)
-    return Path(path) if path else Path.home() / fallback

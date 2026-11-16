@@ -1,6 +1,9 @@
 """The desktop: drawn wallpaper, the faint FosOS brand and desktop icons."""
 
+from __future__ import annotations
+
 from functools import lru_cache
+from pathlib import Path
 
 import gi
 
@@ -12,18 +15,90 @@ from gi.repository import Gdk, GdkPixbuf, GLib, Gtk, Pango, PangoCairo
 
 from . import apps as appmod
 from .panel import HEIGHT as PANEL_HEIGHT
-from .ui import BRAND, DATA_DIR, add_classes, icon, label, set_class
+from .ui import BRAND, DATA_DIR, add_classes, button, icon, label, set_class
 
 try:
     from .wallpaper import draw_wallpaper
 except ImportError:  # pragma: no cover - packaging fault; keep shell alive
-    def draw_wallpaper(cr, area: Gdk.Rectangle) -> None:
+    def draw_wallpaper(cr, area: Gdk.Rectangle, theme: str = "dawn") -> None:
         cr.set_source_rgb(10 / 255, 10 / 255, 10 / 255)
         cr.rectangle(area.x, area.y, area.width, area.height)
         cr.fill()
 
 # Re-export for callers that still import draw_wallpaper from desktop.
-__all__ = ["Desktop", "DesktopIcon", "draw_brand", "draw_wallpaper"]
+__all__ = ["Desktop", "DesktopIcon", "draw_brand", "draw_wallpaper", "desktop_dir", "load_desktop_prefs", "save_desktop_prefs"]
+
+ICON_W = 88
+ICON_H = 88
+ICON_GAP = 12
+DEFAULT_MARGIN = 16
+POSITIONS_FILE = "desktop-icons"
+PREFS_FILE = "desktop"
+
+
+def desktop_dir() -> Path:
+    path = appmod.user_dir(GLib.UserDirectory.DIRECTORY_DESKTOP, "Desktop")
+    path.mkdir(parents=True, exist_ok=True)
+    return path
+
+
+def config_dir() -> Path:
+    return Path(GLib.get_user_config_dir()) / "fosos-desktop"
+
+
+def load_desktop_prefs() -> dict[str, str]:
+    path = config_dir() / PREFS_FILE
+    values: dict[str, str] = {"click": "double", "wallpaper": "dawn"}
+    if not path.is_file():
+        return values
+    try:
+        for line in path.read_text(encoding="utf-8").splitlines():
+            if "=" in line and not line.strip().startswith("#"):
+                key, value = line.split("=", 1)
+                values[key.strip()] = value.strip()
+    except OSError:
+        pass
+    return values
+
+
+def wallpaper_theme() -> str:
+    theme = load_desktop_prefs().get("wallpaper", "dawn")
+    from .wallpaper import THEMES
+
+    ids = {tid for tid, _name in THEMES}
+    return theme if theme in ids else "dawn"
+
+
+def save_desktop_prefs(values: dict[str, str]) -> None:
+    config_dir().mkdir(parents=True, exist_ok=True)
+    lines = [f"{key}={value}\n" for key, value in values.items()]
+    (config_dir() / PREFS_FILE).write_text("".join(lines), encoding="utf-8")
+
+
+def load_icon_positions() -> dict[str, tuple[int, int]]:
+    path = config_dir() / POSITIONS_FILE
+    positions: dict[str, tuple[int, int]] = {}
+    if not path.is_file():
+        return positions
+    try:
+        for line in path.read_text(encoding="utf-8").splitlines():
+            line = line.strip()
+            if not line or line.startswith("#") or "=" not in line:
+                continue
+            key, value = line.split("=", 1)
+            parts = value.split(",")
+            if len(parts) != 2:
+                continue
+            positions[key.strip()] = (int(parts[0]), int(parts[1]))
+    except (OSError, ValueError):
+        pass
+    return positions
+
+
+def save_icon_positions(positions: dict[str, tuple[int, int]]) -> None:
+    config_dir().mkdir(parents=True, exist_ok=True)
+    text = "".join(f"{key}={x},{y}\n" for key, (x, y) in sorted(positions.items()))
+    (config_dir() / POSITIONS_FILE).write_text(text, encoding="utf-8")
 
 
 @lru_cache(maxsize=1)
@@ -88,15 +163,21 @@ def draw_brand(cr, widget: Gtk.Widget, area: Gdk.Rectangle) -> None:
 
 
 class DesktopIcon(Gtk.EventBox):
-    def __init__(self, desktop: "Desktop", title: str, icon_name: str, activate) -> None:
+    def __init__(self, desktop: "Desktop", icon_id: str, title: str, icon_name: str, activate) -> None:
         super().__init__()
         self.desktop = desktop
+        self.icon_id = icon_id
         self.activate_cb = activate
         self.set_visible_window(False)
         self.set_above_child(True)
-        self.add_events(Gdk.EventMask.BUTTON_PRESS_MASK)
+        self.add_events(
+            Gdk.EventMask.BUTTON_PRESS_MASK
+            | Gdk.EventMask.BUTTON_RELEASE_MASK
+            | Gdk.EventMask.BUTTON1_MOTION_MASK
+            | Gdk.EventMask.POINTER_MOTION_MASK
+        )
         self.box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
-        self.box.set_size_request(76, -1)
+        self.box.set_size_request(ICON_W - 8, -1)
         add_classes(self.box, "fos-desktop-icon")
         tile = Gtk.Box()
         tile.set_halign(Gtk.Align.CENTER)
@@ -110,8 +191,15 @@ class DesktopIcon(Gtk.EventBox):
         text.set_ellipsize(Pango.EllipsizeMode.END)
         text.set_max_width_chars(10)
         self.box.pack_start(text, False, False, 0)
+        self.set_size_request(ICON_W, ICON_H)
         self.add(self.box)
         self.connect("button-press-event", self._on_press)
+        self.connect("button-release-event", self._on_release)
+        self.connect("motion-notify-event", self._on_motion)
+        self._drag_origin: tuple[int, int] | None = None
+        self._drag_start: tuple[float, float] | None = None
+        self._dragging = False
+        self._double = getattr(Gdk.EventType, "DOUBLE_BUTTON_PRESS", Gdk.EventType._2BUTTON_PRESS)
 
     def set_selected(self, selected: bool) -> None:
         set_class(self.box, "selected", selected)
@@ -120,11 +208,49 @@ class DesktopIcon(Gtk.EventBox):
         if event.button != 1:
             return False
         self.desktop.shell.close_popups()
-        if event.type == Gdk.EventType._2BUTTON_PRESS:
+        self.desktop.select(self)
+        self._drag_origin = self.desktop.icon_pos(self.icon_id)
+        self._drag_start = (event.x_root, event.y_root)
+        self._dragging = False
+        single = self.desktop.click_mode() == "single"
+        if single and event.type == Gdk.EventType.BUTTON_PRESS:
+            # Activate on release unless the user dragged.
+            return True
+        if event.type == self._double and not single:
             self.desktop.select(None)
             self.activate_cb()
-        else:
-            self.desktop.select(self)
+            self._drag_start = None
+            return True
+        return True
+
+    def _on_motion(self, _widget, event: Gdk.EventMotion) -> bool:
+        if self._drag_start is None or self._drag_origin is None:
+            return False
+        if not (event.state & Gdk.ModifierType.BUTTON1_MASK):
+            return False
+        dx = int(event.x_root - self._drag_start[0])
+        dy = int(event.y_root - self._drag_start[1])
+        if not self._dragging and abs(dx) < 4 and abs(dy) < 4:
+            return False
+        self._dragging = True
+        x = self._drag_origin[0] + dx
+        y = self._drag_origin[1] + dy
+        self.desktop.move_icon(self, x, y, persist=False)
+        return True
+
+    def _on_release(self, _widget, event: Gdk.EventButton) -> bool:
+        if event.button != 1:
+            return False
+        single = self.desktop.click_mode() == "single"
+        if self._dragging:
+            pos = self.desktop.icon_pos(self.icon_id)
+            self.desktop.move_icon(self, pos[0], pos[1], persist=True)
+        elif single and self._drag_start is not None:
+            self.desktop.select(None)
+            self.activate_cb()
+        self._drag_start = None
+        self._drag_origin = None
+        self._dragging = False
         return True
 
 
@@ -148,30 +274,91 @@ class Desktop(Gtk.Window):
 
         self.fixed = Gtk.Fixed()
         self.add(self.fixed)
-        self.icons_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
         self.icons: list[DesktopIcon] = []
+        self.icon_by_id: dict[str, DesktopIcon] = {}
+        self.positions = load_icon_positions()
         self.selected: DesktopIcon | None = None
-        self._add_icon("Files", "folder-symbolic", lambda: self._launch("fosos-files.desktop"))
+        self._prefs = load_desktop_prefs()
+
+        self._add_icon("home", "Home", "user-home-symbolic", lambda: self._open_folder(Path.home()))
+        self._add_icon("computer", "Computer", "drive-harddisk-symbolic", lambda: self._open_folder(Path("/")))
+        self._add_icon("files", "Files", "folder-symbolic", lambda: self._launch("fosos-files.desktop"))
+        self._add_icon("trash", "Recycle Bin", "user-trash-symbolic", lambda: self._open_trash())
         if appmod.is_live() and appmod.load_app("calamares-install-fosos.desktop"):
             self._add_icon(
-                "Install FosOS", "system-software-install-symbolic", lambda: self._launch("calamares-install-fosos.desktop")
+                "install",
+                "Install FosOS",
+                "system-software-install-symbolic",
+                lambda: self._launch("calamares-install-fosos.desktop"),
             )
-        self.fixed.put(self.icons_box, 0, 0)
 
         screen = Gdk.Screen.get_default()
         screen.connect("monitors-changed", lambda _s: self.place())
         screen.connect("size-changed", lambda _s: self.place())
         self.place()
 
-    def _add_icon(self, title: str, icon_name: str, activate) -> None:
-        item = DesktopIcon(self, title, icon_name, activate)
+    def click_mode(self) -> str:
+        self._prefs = load_desktop_prefs()
+        mode = self._prefs.get("click", "double")
+        return mode if mode in ("single", "double") else "double"
+
+    def reload_prefs(self) -> None:
+        self._prefs = load_desktop_prefs()
+
+    def show_menu_at(self, x: int, y: int) -> None:
+        """Show the desktop context menu at a root coordinate (no Gdk event)."""
+        menu = self._build_context_menu()
+        menu.show_all()
+        try:
+            menu.popup_at_rect(
+                self.get_window(),
+                Gdk.Rectangle(x, y, 1, 1),
+                Gdk.Gravity.NORTH_WEST,
+                Gdk.Gravity.NORTH_WEST,
+                None,
+            )
+        except (TypeError, AttributeError):
+            menu.popup(None, None, None, None, 0, Gtk.get_current_event_time())
+
+    def _add_icon(self, icon_id: str, title: str, icon_name: str, activate) -> None:
+        item = DesktopIcon(self, icon_id, title, icon_name, activate)
         self.icons.append(item)
-        self.icons_box.pack_start(item, False, False, 0)
+        self.icon_by_id[icon_id] = item
+        self.fixed.put(item, 0, 0)
+
+    def icon_pos(self, icon_id: str) -> tuple[int, int]:
+        if icon_id in self.positions:
+            return self.positions[icon_id]
+        index = list(self.icon_by_id).index(icon_id) if icon_id in self.icon_by_id else 0
+        primary = self._primary()
+        return (
+            primary.x + DEFAULT_MARGIN,
+            primary.y + DEFAULT_MARGIN + index * (ICON_H + ICON_GAP),
+        )
+
+    def move_icon(self, item: DesktopIcon, x: int, y: int, persist: bool = True) -> None:
+        primary = self._primary()
+        max_x = primary.x + max(0, primary.width - ICON_W)
+        max_y = primary.y + max(0, primary.height - PANEL_HEIGHT - ICON_H)
+        x = max(primary.x, min(x, max_x))
+        y = max(primary.y, min(y, max_y))
+        self.fixed.move(item, x, y)
+        self.positions[item.icon_id] = (x, y)
+        if persist:
+            save_icon_positions(self.positions)
 
     def _launch(self, app_id: str) -> None:
         app = appmod.load_app(app_id)
         if app is not None:
             app.launch()
+
+    def _open_folder(self, path: Path) -> None:
+        appmod.spawn(["fosos-files", str(path)])
+
+    def _open_trash(self) -> None:
+        trash = Path.home() / ".local/share/Trash/files"
+        trash.mkdir(parents=True, exist_ok=True)
+        self._open_folder(trash)
 
     def place(self) -> None:
         screen = Gdk.Screen.get_default()
@@ -179,8 +366,25 @@ class Desktop(Gtk.Window):
         self.move(0, 0)
         self.set_size_request(width, height)
         self.resize(width, height)
-        primary = self._primary()
-        self.fixed.move(self.icons_box, primary.x + 16, primary.y + 16)
+        for item in self.icons:
+            x, y = self.icon_pos(item.icon_id)
+            self.fixed.move(item, x, y)
+            self.positions.setdefault(item.icon_id, (x, y))
+        self.queue_draw()
+
+    def refresh(self) -> None:
+        self.reload_prefs()
+        # Re-read positions so a Settings "Reset icon positions" takes effect.
+        self.positions = load_icon_positions()
+        for item in self.icons:
+            if item.icon_id not in self.positions:
+                index = list(self.icon_by_id).index(item.icon_id)
+                primary = self._primary()
+                self.positions[item.icon_id] = (
+                    primary.x + DEFAULT_MARGIN,
+                    primary.y + DEFAULT_MARGIN + index * (ICON_H + ICON_GAP),
+                )
+        self.place()
         self.queue_draw()
 
     def _primary(self) -> Gdk.Rectangle:
@@ -191,9 +395,10 @@ class Desktop(Gtk.Window):
     def _on_draw(self, _widget, cr) -> bool:
         display = Gdk.Display.get_default()
         primary = self._primary()
+        theme = wallpaper_theme()
         for index in range(display.get_n_monitors()):
             area = display.get_monitor(index).get_geometry()
-            draw_wallpaper(cr, area)
+            draw_wallpaper(cr, area, theme)
         draw_brand(cr, self, primary)
         return False
 
@@ -204,11 +409,67 @@ class Desktop(Gtk.Window):
 
     def _on_press(self, _widget, event: Gdk.EventButton) -> bool:
         self.shell.close_popups()
+        # Clicks on icons are handled by DesktopIcon; empty desktop clears selection.
+        if event.window != self.get_window():
+            return False
         self.select(None)
         if event.button == 3:
-            self.shell.show_desktop_menu(int(event.x_root), int(event.y_root))
+            self._show_context_menu(event)
             return True
         return False
+
+    def _build_context_menu(self) -> Gtk.Menu:
+        menu = Gtk.Menu()
+
+        refresh = Gtk.MenuItem(label="Refresh")
+        refresh.connect("activate", lambda _i: self.refresh())
+        menu.append(refresh)
+
+        menu.append(Gtk.SeparatorMenuItem())
+
+        display = Gtk.MenuItem(label="Display settings")
+        display.connect("activate", lambda _i: appmod.spawn(["arandr"]))
+        menu.append(display)
+
+        personalize = Gtk.MenuItem(label="Personalize")
+        personalize.connect("activate", lambda _i: appmod.spawn(["fosos-settings", "--builtin", "desktop"]))
+        menu.append(personalize)
+
+        menu.append(Gtk.SeparatorMenuItem())
+
+        new_folder = Gtk.MenuItem(label="New folder")
+        new_folder.connect("activate", lambda _i: self._new_folder())
+        menu.append(new_folder)
+
+        menu.append(Gtk.SeparatorMenuItem())
+
+        files_here = Gtk.MenuItem(label="Open Files here")
+        files_here.connect("activate", lambda _i: self._open_folder(desktop_dir()))
+        menu.append(files_here)
+
+        terminal = Gtk.MenuItem(label="Open Terminal here")
+        terminal.connect("activate", lambda _i: appmod.spawn(["fosos-terminal", str(desktop_dir())]))
+        menu.append(terminal)
+        return menu
+
+    def _show_context_menu(self, event: Gdk.EventButton) -> None:
+        menu = self._build_context_menu()
+        menu.show_all()
+        menu.popup_at_pointer(event)
+
+    def _new_folder(self) -> None:
+        folder = desktop_dir()
+        base = "New folder"
+        target = folder / base
+        index = 1
+        while target.exists():
+            target = folder / f"{base} ({index})"
+            index += 1
+        try:
+            target.mkdir(exist_ok=False)
+        except OSError:
+            return
+        self._open_folder(folder)
 
     def _on_key(self, _widget, event: Gdk.EventKey) -> bool:
         if event.keyval == Gdk.KEY_Escape:
@@ -218,5 +479,8 @@ class Desktop(Gtk.Window):
             item = self.selected
             self.select(None)
             item.activate_cb()
+            return True
+        if event.keyval == Gdk.KEY_F5:
+            self.refresh()
             return True
         return False

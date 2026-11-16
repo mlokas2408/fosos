@@ -52,8 +52,51 @@ DEFAULT_TYPES = [
     ("File manager", "inode/directory"),
     ("Terminal", "application/x-terminal"),
     ("Text editor", "text/plain"),
+    ("PDF", "application/pdf"),
+    ("Archives", "application/zip"),
+    ("Images", "image/jpeg"),
     ("Mail", "x-scheme-handler/mailto"),
 ]
+
+# Extra MIME types set alongside the primary default above.
+DEFAULT_MIME_ALIASES = {
+    "x-scheme-handler/http": ("x-scheme-handler/https",),
+    "application/zip": (
+        "application/x-tar",
+        "application/gzip",
+        "application/x-compressed-tar",
+        "application/x-7z-compressed",
+        "application/x-rar-compressed",
+        "application/vnd.rar",
+    ),
+    "image/jpeg": ("image/png", "image/webp", "image/gif", "image/bmp"),
+}
+
+
+def load_kv(name: str, defaults: dict[str, str] | None = None) -> dict[str, str]:
+    values = dict(defaults or {})
+    path = CONFIG / name
+    if not path.is_file():
+        return values
+    try:
+        for line in path.read_text(encoding="utf-8").splitlines():
+            if "=" in line and not line.strip().startswith("#"):
+                key, value = line.split("=", 1)
+                values[key.strip()] = value.strip()
+    except OSError:
+        pass
+    return values
+
+
+def save_kv(name: str, values: dict[str, str]) -> None:
+    CONFIG.mkdir(parents=True, exist_ok=True)
+    (CONFIG / name).write_text("".join(f"{key}={value}\n" for key, value in values.items()), encoding="utf-8")
+
+
+def truthy(value: str | None, default: bool = True) -> bool:
+    if value is None:
+        return default
+    return value.strip().lower() not in ("0", "false", "no", "off")
 
 
 def run(argv: list[str], timeout: float = 3.0) -> str | None:
@@ -285,20 +328,513 @@ def build_defaults(status_cb) -> Gtk.Box:
                 continue
             if set_default_for_type(apps[index], mime):
                 changed += 1
-            if mime == "x-scheme-handler/http":
-                set_default_for_type(apps[index], "x-scheme-handler/https")
+            for alias in DEFAULT_MIME_ALIASES.get(mime, ()):
+                set_default_for_type(apps[index], alias)
         status_cb(f"Updated {changed} default app{'s' if changed != 1 else ''}.")
 
     apply_btn = button("Apply", variant="default")
     apply_btn.connect("clicked", apply)
     root.pack_start(apply_btn, False, False, 0)
     note = label(
-        f"Choices are stored for your account ({MIMEAPPS}).",
+        f"Choices are stored for your account ({MIMEAPPS}). "
+        "Downloaded .deb packages open with Install Package.",
         "fos-small",
         "fos-muted",
     )
     note.set_line_wrap(True)
     root.pack_start(note, False, False, 0)
+    return root
+
+
+def _request_shell_reload() -> None:
+    from . import apps as appmod
+
+    appmod.spawn(["fosos-shell", "--reload-ui"])
+
+
+def build_wallpaper(status_cb) -> Gtk.Box:
+    from .desktop import load_desktop_prefs, save_desktop_prefs
+    from .wallpaper import THEMES
+
+    root = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=16)
+    root.pack_start(
+        pack_header("Wallpaper", "Drawn FosOS backgrounds. Login and lock screens stay on Dawn Aperture."),
+        False,
+        False,
+        0,
+    )
+    prefs = load_desktop_prefs()
+    current = prefs.get("wallpaper", "dawn")
+    group = None
+    radios: dict[str, Gtk.RadioButton] = {}
+    for theme_id, title in THEMES:
+        radio = Gtk.RadioButton.new_with_label_from_widget(group, title)
+        if group is None:
+            group = radio
+        if theme_id == current:
+            radio.set_active(True)
+        radios[theme_id] = radio
+        root.pack_start(radio, False, False, 0)
+
+    def apply(_button=None) -> None:
+        values = load_desktop_prefs()
+        chosen = "dawn"
+        for theme_id, radio in radios.items():
+            if radio.get_active():
+                chosen = theme_id
+                break
+        values["wallpaper"] = chosen
+        save_desktop_prefs(values)
+        _request_shell_reload()
+        status_cb(f"Wallpaper set to {dict(THEMES).get(chosen, chosen)}. Desktop refreshes shortly.")
+
+    apply_btn = button("Apply", variant="default")
+    apply_btn.connect("clicked", apply)
+    root.pack_start(apply_btn, False, False, 0)
+    tip = label(
+        "Image file wallpapers are not supported yet — keep the branded drawn look.",
+        "fos-small",
+        "fos-muted",
+    )
+    tip.set_line_wrap(True)
+    root.pack_start(tip, False, False, 0)
+    return root
+
+
+def build_desktop(status_cb) -> Gtk.Box:
+    from . import apps as appmod
+    from .desktop import load_desktop_prefs, save_desktop_prefs, save_icon_positions
+
+    root = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=16)
+    root.pack_start(
+        pack_header("Personalize", "Desktop icons and how they open."),
+        False,
+        False,
+        0,
+    )
+
+    prefs = load_desktop_prefs()
+    click_mode = prefs.get("click", "double")
+    if click_mode not in ("single", "double"):
+        click_mode = "double"
+
+    click_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
+    click_box.pack_start(label("Open desktop icons", "fos-text", "fos-strong"), False, False, 0)
+    group = Gtk.RadioButton.new_with_label_from_widget(None, "Double-click")
+    single = Gtk.RadioButton.new_with_label_from_widget(group, "Single-click")
+    if click_mode == "single":
+        single.set_active(True)
+    else:
+        group.set_active(True)
+    click_box.pack_start(group, False, False, 0)
+    click_box.pack_start(single, False, False, 0)
+    root.pack_start(click_box, False, False, 0)
+
+    def apply(_button=None) -> None:
+        values = load_desktop_prefs()
+        values["click"] = "single" if single.get_active() else "double"
+        save_desktop_prefs(values)
+        status_cb("Desktop preferences saved. Changes apply on the next click.")
+
+    apply_btn = button("Apply", variant="default")
+    apply_btn.connect("clicked", apply)
+    root.pack_start(apply_btn, False, False, 0)
+
+    def reset_positions(_button=None) -> None:
+        save_icon_positions({})
+        status_cb("Icon positions reset. Press F5 or Refresh on the desktop to re-stack.")
+
+    reset = button("Reset icon positions", variant="outline")
+    reset.connect("clicked", reset_positions)
+    root.pack_start(reset, False, False, 0)
+
+    wallpaper = button("Wallpaper…", variant="outline", icon_name="preferences-desktop-wallpaper-symbolic")
+    wallpaper.connect("clicked", lambda _b: appmod.spawn(["fosos-settings", "--builtin", "wallpaper"]))
+    root.pack_start(wallpaper, False, False, 0)
+
+    def open_display(_button=None) -> None:
+        if appmod.spawn(["arandr"]):
+            status_cb("Opened Display settings.")
+        else:
+            status_cb("Display settings are not available.")
+
+    display = button("Open Display settings", variant="outline", icon_name="video-display-symbolic")
+    display.connect("clicked", open_display)
+    root.pack_start(display, False, False, 0)
+    return root
+
+
+def build_taskbar(status_cb) -> Gtk.Box:
+    root = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=16)
+    root.pack_start(
+        pack_header("Taskbar", "What the FosOS panel shows on the primary display."),
+        False,
+        False,
+        0,
+    )
+    prefs = load_kv("taskbar", {"workspaces": "1", "clock_date": "1", "bell": "1"})
+
+    workspaces = Gtk.CheckButton(label="Show desktop switcher (1–4)")
+    workspaces.set_active(truthy(prefs.get("workspaces"), True))
+    root.pack_start(workspaces, False, False, 0)
+
+    clock_date = Gtk.CheckButton(label="Show date under the clock")
+    clock_date.set_active(truthy(prefs.get("clock_date"), True))
+    root.pack_start(clock_date, False, False, 0)
+
+    bell = Gtk.CheckButton(label="Show notification bell")
+    bell.set_active(truthy(prefs.get("bell"), True))
+    root.pack_start(bell, False, False, 0)
+
+    def apply(_button=None) -> None:
+        save_kv(
+            "taskbar",
+            {
+                "workspaces": "1" if workspaces.get_active() else "0",
+                "clock_date": "1" if clock_date.get_active() else "0",
+                "bell": "1" if bell.get_active() else "0",
+            },
+        )
+        _request_shell_reload()
+        status_cb("Taskbar preferences saved.")
+
+    apply_btn = button("Apply", variant="default")
+    apply_btn.connect("clicked", apply)
+    root.pack_start(apply_btn, False, False, 0)
+    tip = label("Pinned apps are managed from the taskbar (right-click → Pin).", "fos-small", "fos-muted")
+    tip.set_line_wrap(True)
+    root.pack_start(tip, False, False, 0)
+    return root
+
+
+def build_notifications(status_cb) -> Gtk.Box:
+    root = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=16)
+    root.pack_start(
+        pack_header("Notifications", "Toasts, quiet hours, and Notification Center history."),
+        False,
+        False,
+        0,
+    )
+    prefs = load_kv("notifications", {"dnd": "0", "toasts": "1", "timeout": "5000"})
+
+    dnd = Gtk.CheckButton(label="Do not disturb (hide toast popups)")
+    dnd.set_active(truthy(prefs.get("dnd"), False))
+    root.pack_start(dnd, False, False, 0)
+
+    toasts = Gtk.CheckButton(label="Show toast popups for new notifications")
+    toasts.set_active(truthy(prefs.get("toasts"), True))
+    root.pack_start(toasts, False, False, 0)
+
+    row = Gtk.Box(spacing=12)
+    row.pack_start(label("Toast duration", "fos-text"), False, False, 0)
+    try:
+        timeout_ms = max(1000, int(prefs.get("timeout", "5000")))
+    except ValueError:
+        timeout_ms = 5000
+    scale = add_classes(Gtk.Scale.new_with_range(Gtk.Orientation.HORIZONTAL, 2, 20, 1), "fos-scale")
+    scale.set_value(timeout_ms / 1000)
+    scale.set_hexpand(True)
+    scale.set_draw_value(True)
+    scale.connect("format-value", lambda _s, v: f"{int(v)} s")
+    row.pack_start(scale, True, True, 0)
+    root.pack_start(row, False, False, 0)
+
+    def apply(_button=None) -> None:
+        save_kv(
+            "notifications",
+            {
+                "dnd": "1" if dnd.get_active() else "0",
+                "toasts": "1" if toasts.get_active() else "0",
+                "timeout": str(int(scale.get_value() * 1000)),
+            },
+        )
+        _request_shell_reload()
+        status_cb("Notification preferences saved.")
+
+    apply_btn = button("Apply", variant="default")
+    apply_btn.connect("clicked", apply)
+    root.pack_start(apply_btn, False, False, 0)
+
+    tip = label(
+        "History still appears in Notification Center (Win+N) while Do not disturb is on.",
+        "fos-small",
+        "fos-muted",
+    )
+    tip.set_line_wrap(True)
+    root.pack_start(tip, False, False, 0)
+    return root
+
+
+def build_tool_page(title: str, subtitle: str, command: list[str], button_label: str, status_cb) -> Gtk.Box:
+    from . import apps as appmod
+
+    root = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=16)
+    root.pack_start(pack_header(title, subtitle), False, False, 0)
+    tip = label(
+        "FosOS opens the system tool below so you stay in one Settings shell.",
+        "fos-small",
+        "fos-muted",
+    )
+    tip.set_line_wrap(True)
+    root.pack_start(tip, False, False, 0)
+
+    def open_tool(_button=None) -> None:
+        if appmod.spawn(command):
+            status_cb(f"Opened {title}.")
+        else:
+            status_cb(f"{title} is not available on this system.")
+
+    open_btn = button(button_label, variant="default")
+    open_btn.connect("clicked", open_tool)
+    root.pack_start(open_btn, False, False, 0)
+    return root
+
+
+def build_display(status_cb) -> Gtk.Box:
+    return build_tool_page(
+        "Display",
+        "Arrange monitors, set resolution and orientation.",
+        ["arandr"],
+        "Open display layout",
+        status_cb,
+    )
+
+
+def build_sound(status_cb) -> Gtk.Box:
+    return build_tool_page(
+        "Sound",
+        "Choose output and input devices and levels.",
+        ["pavucontrol"],
+        "Open volume control",
+        status_cb,
+    )
+
+
+def build_network(status_cb) -> Gtk.Box:
+    return build_tool_page(
+        "Network",
+        "Wi-Fi, wired, and VPN connections via NetworkManager.",
+        ["nm-connection-editor"],
+        "Open network connections",
+        status_cb,
+    )
+
+
+def build_bluetooth(status_cb) -> Gtk.Box:
+    return build_tool_page(
+        "Bluetooth",
+        "Pair and manage Bluetooth devices.",
+        ["blueman-manager"],
+        "Open Bluetooth manager",
+        status_cb,
+    )
+
+
+def reboot_required() -> bool:
+    for path in (Path("/run/reboot-required"), Path("/var/run/reboot-required")):
+        if path.is_file():
+            return True
+    return False
+
+
+def last_update_text() -> str:
+    stamps = [
+        Path("/var/lib/apt/periodic/update-success-stamp"),
+        Path("/var/cache/apt/pkgcache.bin"),
+    ]
+    latest = 0.0
+    for path in stamps:
+        try:
+            latest = max(latest, path.stat().st_mtime)
+        except OSError:
+            continue
+    if not latest:
+        return "Unknown"
+    try:
+        from datetime import datetime
+
+        return datetime.fromtimestamp(latest).strftime("%Y-%m-%d %H:%M")
+    except (OverflowError, OSError, ValueError):
+        return "Unknown"
+
+
+def upgradable_estimate() -> str:
+    try:
+        result = subprocess.run(
+            ["apt", "list", "--upgradable"],
+            capture_output=True,
+            text=True,
+            timeout=20,
+            check=False,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return "Could not query (try Check for updates)."
+    lines = [
+        line
+        for line in (result.stdout or "").splitlines()
+        if "/" in line and not line.startswith("Listing")
+    ]
+    count = len(lines)
+    if count == 0:
+        return "No upgrades listed (refresh package lists if this looks stale)."
+    return f"{count} package{'s' if count != 1 else ''} listed as upgradable."
+
+
+def build_updates(status_cb) -> Gtk.Box:
+    from . import apps as appmod
+
+    root = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=16)
+    root.pack_start(
+        pack_header("Updates", "Debian and FosOS packages through fos / APT."),
+        False,
+        False,
+        0,
+    )
+
+    card = add_classes(Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8), "fos-card")
+    card.set_border_width(12)
+    last_label = label(f"Last package list refresh: {last_update_text()}", "fos-text")
+    card.pack_start(last_label, False, False, 0)
+    reboot_label = label(
+        "A restart is required to finish some updates." if reboot_required() else "No reboot required right now.",
+        "fos-text",
+        "fos-strong" if reboot_required() else "fos-muted",
+    )
+    card.pack_start(reboot_label, False, False, 0)
+    summary = label(upgradable_estimate(), "fos-small", "fos-muted")
+    summary.set_line_wrap(True)
+    card.pack_start(summary, False, False, 0)
+    root.pack_start(card, False, False, 0)
+
+    def refresh_labels() -> None:
+        last_label.set_text(f"Last package list refresh: {last_update_text()}")
+        needed = reboot_required()
+        reboot_label.set_text(
+            "A restart is required to finish some updates." if needed else "No reboot required right now."
+        )
+        ctx = reboot_label.get_style_context()
+        if needed:
+            ctx.add_class("fos-strong")
+            ctx.remove_class("fos-muted")
+        else:
+            ctx.add_class("fos-muted")
+            ctx.remove_class("fos-strong")
+        summary.set_text(upgradable_estimate())
+
+    def check(_button=None) -> None:
+        status_cb("Refreshing package lists…")
+        script = (
+            "fos update; status=$?; echo; "
+            "if [ $status -eq 0 ]; then echo 'Package lists refreshed.'; "
+            "else echo 'Refresh failed. Check the network.'; fi; "
+            "printf 'Press Enter to close. '; read _"
+        )
+        if appmod.spawn(["fosos-terminal", "-e", "sh", "-c", script]):
+            save_kv("updates", {**load_kv("updates"), "last_check": str(int(__import__("time").time()))})
+            GLib.timeout_add_seconds(2, lambda: (refresh_labels(), False)[1])
+        else:
+            status_cb("Terminal is not available.")
+
+    def upgrade(_button=None) -> None:
+        script = (
+            "fos update && fos upgrade; status=$?; echo; "
+            "if [ $status -eq 0 ]; then echo 'Updates are installed.'; "
+            "else echo 'Updates did not finish. Check the network and try again.'; fi; "
+            "printf 'Press Enter to close. '; read _"
+        )
+        if appmod.spawn(["fosos-terminal", "-e", "sh", "-c", script]):
+            status_cb("Opened update terminal.")
+            GLib.timeout_add_seconds(3, lambda: (refresh_labels(), False)[1])
+        else:
+            status_cb("Terminal is not available.")
+
+    def reboot(_button=None) -> None:
+        status_cb("Restarting…")
+        subprocess.Popen(["systemctl", "reboot"])
+
+    actions = Gtk.Box(spacing=8)
+    check_btn = button("Check for updates", variant="outline")
+    check_btn.connect("clicked", check)
+    actions.pack_start(check_btn, False, False, 0)
+    upgrade_btn = button("Install updates", variant="default")
+    upgrade_btn.connect("clicked", upgrade)
+    actions.pack_start(upgrade_btn, False, False, 0)
+    if reboot_required():
+        reboot_btn = button("Restart now", variant="outline")
+        reboot_btn.connect("clicked", reboot)
+        actions.pack_start(reboot_btn, False, False, 0)
+    root.pack_start(actions, False, False, 0)
+
+    tip = label(
+        "Install updates runs `fos update && fos upgrade` with your password when needed.",
+        "fos-small",
+        "fos-muted",
+    )
+    tip.set_line_wrap(True)
+    root.pack_start(tip, False, False, 0)
+    return root
+
+
+def storage_rows() -> list[tuple[str, str]]:
+    rows: list[tuple[str, str]] = []
+    gib = 1024**3
+    try:
+        usage = shutil.disk_usage("/")
+        rows.append(("/", f"{usage.free / gib:.1f} GiB free of {usage.total / gib:.1f} GiB"))
+    except OSError:
+        rows.append(("/", "Unknown"))
+    home = Path.home()
+    try:
+        usage = shutil.disk_usage(str(home))
+        if str(home) != "/":
+            rows.append((str(home), f"{usage.free / gib:.1f} GiB free of {usage.total / gib:.1f} GiB"))
+    except OSError:
+        pass
+    # Extra mounts from /proc/mounts (common user-visible ones).
+    seen = {path for path, _ in rows}
+    try:
+        for line in Path("/proc/mounts").read_text(encoding="utf-8").splitlines():
+            parts = line.split()
+            if len(parts) < 3:
+                continue
+            mount, fstype = parts[1], parts[2]
+            if fstype not in ("ext4", "xfs", "btrfs", "vfat", "ntfs", "exfat"):
+                continue
+            if mount in seen or mount.startswith("/snap") or mount.startswith("/boot/efi"):
+                continue
+            if mount.count("/") > 2 and mount not in ("/home", "/var", "/usr"):
+                continue
+            try:
+                usage = shutil.disk_usage(mount)
+            except OSError:
+                continue
+            rows.append((mount, f"{usage.free / gib:.1f} GiB free of {usage.total / gib:.1f} GiB"))
+            seen.add(mount)
+            if len(rows) >= 6:
+                break
+    except OSError:
+        pass
+    return rows
+
+
+def build_storage(status_cb) -> Gtk.Box:
+    root = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=16)
+    root.pack_start(pack_header("Storage", "Free space on mounted disks."), False, False, 0)
+    table = add_classes(Gtk.Grid(column_spacing=24, row_spacing=0), "fos-card")
+    for index, (mount, text) in enumerate(storage_rows()):
+        key_label = label(mount, "fos-text", "fos-muted")
+        value_label = label(text, "fos-text", ellipsize=True)
+        value_label.set_selectable(True)
+        for widget in (key_label, value_label):
+            widget.set_margin_top(8)
+            widget.set_margin_bottom(8)
+        key_label.set_margin_start(12)
+        value_label.set_margin_end(12)
+        value_label.set_hexpand(True)
+        table.attach(key_label, 0, index, 1, 1)
+        table.attach(value_label, 1, index, 1, 1)
+    root.pack_start(table, False, False, 0)
+    status_cb("Storage summary loaded.")
     return root
 
 
@@ -358,6 +894,16 @@ PAGES = {
     "mouse": ("Mouse and touchpad", build_mouse),
     "defaults": ("Default apps", build_defaults),
     "power": ("Power", build_power),
+    "desktop": ("Personalize", build_desktop),
+    "wallpaper": ("Wallpaper", build_wallpaper),
+    "taskbar": ("Taskbar", build_taskbar),
+    "notifications": ("Notifications", build_notifications),
+    "display": ("Display", build_display),
+    "sound": ("Sound", build_sound),
+    "network": ("Network", build_network),
+    "bluetooth": ("Bluetooth", build_bluetooth),
+    "updates": ("Updates", build_updates),
+    "storage": ("Storage", build_storage),
 }
 
 

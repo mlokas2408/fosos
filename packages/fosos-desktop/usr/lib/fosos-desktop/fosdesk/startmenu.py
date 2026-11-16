@@ -1,4 +1,6 @@
-"""The Start menu: search, pinned apps, recent folders and power."""
+"""The Start menu: search, pinned apps, recommended and power."""
+
+from __future__ import annotations
 
 import datetime
 from pathlib import Path
@@ -7,11 +9,12 @@ import gi
 
 gi.require_version("Gdk", "3.0")
 gi.require_version("Gtk", "3.0")
-from gi.repository import Gdk, GLib, Gtk, Pango
+from gi.repository import Gdk, Gio, Gtk, Pango
 
 from . import apps as appmod
 from .popup import Popup
-from .ui import BRAND, add_classes, badge, brand_title, button, clear, icon, kbd, label, mark, tile
+from .settings import PANELS, panel_available
+from .ui import BRAND, add_classes, badge, brand_title, button, clear, kbd, label, mark, tile
 
 WIDTH = 420
 
@@ -37,11 +40,32 @@ def folder_summary(path: Path) -> str:
     return " · ".join(p.name for p in entries[:3])
 
 
+def path_icon(path: Path) -> str:
+    if path.is_dir():
+        return "folder-symbolic"
+    mime, _ = Gio.content_type_guess(str(path), None)
+    if mime and mime.startswith("image/"):
+        return "image-x-generic-symbolic"
+    if mime and mime.startswith("text/"):
+        return "text-x-generic-symbolic"
+    if mime and "pdf" in mime:
+        return "application-x-pdf-symbolic"
+    return "text-x-generic-symbolic"
+
+
+def letter_key(name: str) -> str:
+    if not name:
+        return "#"
+    char = name[0].upper()
+    return char if char.isalpha() else "#"
+
+
 class StartMenu(Popup):
     def __init__(self, shell) -> None:
         super().__init__(width=WIDTH)
         self.shell = shell
         self.all_apps: list[appmod.App] = []
+        self._search_launch = None
 
         frame = add_classes(Gtk.Box(orientation=Gtk.Orientation.VERTICAL), "fos-card")
         self.add(frame)
@@ -64,7 +88,7 @@ class StartMenu(Popup):
         frame.pack_start(content, True, True, 0)
 
         self.search = add_classes(Gtk.Entry(), "fos-input")
-        self.search.set_placeholder_text("Search FosOS")
+        self.search.set_placeholder_text("Search apps, settings, files")
         self.search.set_icon_from_icon_name(Gtk.EntryIconPosition.PRIMARY, "system-search-symbolic")
         self.search.connect("changed", self._on_search_changed)
         self.search.connect("activate", self._on_search_activate)
@@ -79,7 +103,7 @@ class StartMenu(Popup):
 
         self.home = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=20)
         self.stack.add_named(self.home, "home")
-        self.results_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
+        self.results_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
         self.stack.add_named(self._scroller(self.results_box, 320), "results")
         self.all_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
         all_page = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
@@ -99,8 +123,8 @@ class StartMenu(Popup):
         user_row.pack_start(avatar, False, False, 0)
         user_row.pack_start(label(appmod.user_display_name()), False, False, 0)
         user.add(user_row)
-        user.set_tooltip_text("Open your home folder")
-        user.connect("clicked", lambda _b: self._open(Path.home()))
+        user.set_tooltip_text("Account: home, lock, sign out")
+        user.connect("button-press-event", self._on_user_press)
         footer.pack_start(user, False, False, 0)
         for icon_name, tooltip, handler in (
             ("system-shutdown-symbolic", "Power", self._on_power),
@@ -133,6 +157,7 @@ class StartMenu(Popup):
     def open(self, x: int, bottom: int, monitor: Gdk.Rectangle) -> None:
         self.all_apps = self.shell.app_cache(refresh=True)
         self.search.set_text("")
+        self._search_launch = None
         self.confirm_revealer.set_reveal_child(False)
         self.show_home()
         self.show_at(x, bottom, monitor)
@@ -160,15 +185,11 @@ class StartMenu(Popup):
         recommended = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
         recommended.pack_start(label("Recommended", "fos-label"), False, False, 0)
         rows = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
-        for kind, fallback in (
-            (GLib.UserDirectory.DIRECTORY_DOCUMENTS, "Documents"),
-            (GLib.UserDirectory.DIRECTORY_DOWNLOAD, "Downloads"),
-        ):
-            path = appmod.user_dir(kind, fallback)
-            if path.is_dir():
-                rows.pack_start(self._folder_row(path), False, False, 0)
-        if not rows.get_children():
-            rows.pack_start(self._folder_row(Path.home()), False, False, 0)
+        recent = appmod.recent_paths(6)
+        if not recent:
+            recent = [Path.home()]
+        for path in recent:
+            rows.pack_start(self._path_row(path), False, False, 0)
         recommended.pack_start(rows, False, False, 0)
         self.home.pack_start(recommended, False, False, 0)
 
@@ -178,7 +199,15 @@ class StartMenu(Popup):
 
     def show_all_apps(self) -> None:
         clear(self.all_box)
+        current = None
         for app in self.all_apps:
+            key = letter_key(app.name)
+            if key != current:
+                current = key
+                header = label(current, "fos-label")
+                header.set_margin_top(8 if self.all_box.get_children() else 0)
+                header.set_margin_bottom(2)
+                self.all_box.pack_start(header, False, False, 0)
             self.all_box.pack_start(self._app_row(app, pin_toggle=True), False, False, 0)
         self.all_box.show_all()
         self.stack.set_visible_child_name("all")
@@ -197,17 +226,43 @@ class StartMenu(Popup):
         widget.add(box)
         widget.set_tooltip_text(app.description or app.name)
         widget.connect("clicked", lambda _b: self._launch(app))
+        widget.connect("button-press-event", lambda _w, e, a=app: self._pinned_press(a, e))
         return widget
 
-    def _folder_row(self, path: Path) -> Gtk.Button:
+    def _pinned_press(self, app: appmod.App, event: Gdk.EventButton) -> bool:
+        if event.button != 3:
+            return False
+        menu = Gtk.Menu()
+        unpin = Gtk.MenuItem(label="Unpin from Start")
+        unpin.connect("activate", lambda _i: self._unpin_home(app))
+        menu.append(unpin)
+        menu.show_all()
+        menu.popup_at_pointer(event)
+        return True
+
+    def _unpin_home(self, app: appmod.App) -> None:
+        self.shell.pinned.unpin(app.id)
+        self.show_home()
+
+    def _path_row(self, path: Path) -> Gtk.Button:
         widget = button(variant="ghost")
         add_classes(widget, "row")
         row = Gtk.Box(spacing=12)
-        row.pack_start(tile("folder-symbolic", "muted", small=True), False, False, 0)
+        row.pack_start(tile(path_icon(path), "muted", small=True), False, False, 0)
         texts = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
         texts.set_valign(Gtk.Align.CENTER)
-        texts.pack_start(label(path.name or str(path), "fos-text", "fos-strong", ellipsize=True), False, False, 0)
-        texts.pack_start(label(folder_summary(path), "fos-small", "fos-muted", ellipsize=True), False, False, 0)
+        title = path.name or str(path)
+        if path.is_dir():
+            subtitle = folder_summary(path)
+        elif path.parent == Path.home():
+            subtitle = "Home"
+        else:
+            try:
+                subtitle = str(path.parent.relative_to(Path.home()))
+            except ValueError:
+                subtitle = str(path.parent)
+        texts.pack_start(label(title, "fos-text", "fos-strong", ellipsize=True), False, False, 0)
+        texts.pack_start(label(subtitle, "fos-small", "fos-muted", ellipsize=True), False, False, 0)
         row.pack_start(texts, True, True, 0)
         try:
             when = relative_day(path.stat().st_mtime)
@@ -243,31 +298,102 @@ class StartMenu(Popup):
             outer.pack_end(toggle, False, False, 0)
         return outer
 
+    def _settings_row(self, title: str, desc: str, icon_name: str, action: dict) -> Gtk.Button:
+        widget = button(variant="ghost")
+        add_classes(widget, "row")
+        row = Gtk.Box(spacing=12)
+        row.pack_start(tile(icon_name, "muted", small=True), False, False, 0)
+        texts = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
+        texts.set_valign(Gtk.Align.CENTER)
+        texts.pack_start(label(title, "fos-text", "fos-strong", ellipsize=True), False, False, 0)
+        texts.pack_start(label(desc or "Settings", "fos-small", "fos-muted", ellipsize=True), False, False, 0)
+        row.pack_start(texts, True, True, 0)
+        badge_label = label("Settings", "fos-small", "fos-muted")
+        row.pack_end(badge_label, False, False, 0)
+        widget.add(row)
+        widget.connect("clicked", lambda _b: self._open_settings(action))
+        return widget
+
+    def _section(self, title: str, children: list[Gtk.Widget]) -> Gtk.Box:
+        box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
+        box.pack_start(label(title, "fos-label"), False, False, 0)
+        for child in children:
+            box.pack_start(child, False, False, 0)
+        return box
+
     # Search
+
+    def _settings_matches(self, query: str) -> list[tuple]:
+        query = query.strip().lower()
+        matches = []
+        for entry in PANELS:
+            group, title, desc, icon_name, action = entry
+            if not panel_available(action):
+                continue
+            hay = f"{group} {title} {desc}".lower()
+            if query in hay:
+                matches.append(entry)
+        return matches[:6]
 
     def _on_search_changed(self, entry: Gtk.Entry) -> None:
         query = entry.get_text()
         if not query.strip():
+            self._search_launch = None
             self.stack.set_visible_child_name("home")
             self.relayout()
             return
         clear(self.results_box)
-        results = appmod.search_apps(query, self.all_apps)[:12]
-        if not results:
-            empty = label(f"No apps match “{query.strip()}”.", "fos-text", "fos-muted")
+        apps = appmod.search_apps(query, self.all_apps)[:8]
+        settings = self._settings_matches(query)
+        files = appmod.search_paths(query, limit=6)
+        self._search_launch = None
+        if apps:
+            self._search_launch = ("app", apps[0])
+        elif settings:
+            self._search_launch = ("settings", settings[0][4])
+        elif files:
+            self._search_launch = ("path", files[0])
+
+        if not apps and not settings and not files:
+            empty = label(f"No results for “{query.strip()}”.", "fos-text", "fos-muted")
             empty.set_line_wrap(True)
             empty.set_ellipsize(Pango.EllipsizeMode.NONE)
             self.results_box.pack_start(empty, False, False, 8)
-        for app in results:
-            self.results_box.pack_start(self._app_row(app), False, False, 0)
+        else:
+            if apps:
+                self.results_box.pack_start(
+                    self._section("Apps", [self._app_row(app) for app in apps]),
+                    False,
+                    False,
+                    0,
+                )
+            if settings:
+                rows = [
+                    self._settings_row(title, desc, icon_name, action)
+                    for _group, title, desc, icon_name, action in settings
+                ]
+                self.results_box.pack_start(self._section("Settings", rows), False, False, 0)
+            if files:
+                self.results_box.pack_start(
+                    self._section("Files", [self._path_row(path) for path in files]),
+                    False,
+                    False,
+                    0,
+                )
         self.results_box.show_all()
         self.stack.set_visible_child_name("results")
         self.relayout()
 
-    def _on_search_activate(self, entry: Gtk.Entry) -> None:
-        results = appmod.search_apps(entry.get_text(), self.all_apps)
-        if results:
-            self._launch(results[0])
+    def _on_search_activate(self, _entry: Gtk.Entry) -> None:
+        if self._search_launch is None:
+            return
+        kind, payload = self._search_launch
+        if kind == "app":
+            self._launch(payload)
+        elif kind == "settings":
+            self._open_settings(payload)
+        elif kind == "path":
+            self._open(payload)
 
     # Actions
 
@@ -279,9 +405,30 @@ class StartMenu(Popup):
         self.dismiss()
         appmod.open_path(path)
 
+    def _open_settings(self, action: dict) -> None:
+        self.dismiss()
+        self.shell.open_settings_action(action)
+
     def _toggle_pin(self, app: appmod.App) -> None:
         self.shell.pinned.toggle(app.id)
         self.show_all_apps()
+
+    def _on_user_press(self, _button, event: Gdk.EventButton) -> bool:
+        if event.button not in (1, 3):
+            return False
+        menu = Gtk.Menu()
+        home = Gtk.MenuItem(label="Open home folder")
+        home.connect("activate", lambda _i: self._open(Path.home()))
+        menu.append(home)
+        lock = Gtk.MenuItem(label="Lock")
+        lock.connect("activate", lambda _i: self._on_lock(None))
+        menu.append(lock)
+        sign = Gtk.MenuItem(label="Sign out…")
+        sign.connect("activate", lambda _i: self._on_sign_out(None))
+        menu.append(sign)
+        menu.show_all()
+        menu.popup_at_pointer(event)
+        return True
 
     def _on_settings(self, _button) -> None:
         self.dismiss()

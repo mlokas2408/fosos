@@ -18,36 +18,58 @@ from .ui import add_classes, brand_title, button, clear, label, load_css, mark, 
 
 APP_ID = "org.fosos.Settings"
 
-UPDATE_SCRIPT = (
-    "fos update && fos upgrade; status=$?; echo; "
-    "if [ $status -eq 0 ]; then echo 'Updates are installed.'; "
-    "else echo 'Updates did not finish. Check the network and try again.'; fi; "
-    "printf 'Press Enter to close. '; read _"
-)
-
 # External tools or built-in page ids.
 # (group, title, description, icon, {"command": [...]} | {"page": "id"})
 PANELS = [
-    ("System", "Display", "Resolution, scaling and monitors", "video-display-symbolic", {"command": ["arandr"]}),
-    ("System", "Sound", "Output, input and volume", "audio-volume-high-symbolic", {"command": ["pavucontrol"]}),
+    ("System", "Display", "Resolution, scaling and monitors", "video-display-symbolic", {"page": "display"}),
+    ("System", "Sound", "Output, input and volume", "audio-volume-high-symbolic", {"page": "sound"}),
     (
         "System",
         "Network",
         "Wi-Fi, cable and VPN connections",
         "network-wireless-symbolic",
-        {"command": ["nm-connection-editor"]},
+        {"page": "network"},
     ),
-    ("System", "Bluetooth", "Pair and manage devices", "bluetooth-active-symbolic", {"command": ["blueman-manager"]}),
+    ("System", "Bluetooth", "Pair and manage devices", "bluetooth-active-symbolic", {"page": "bluetooth"}),
     ("System", "Power", "Idle blanking and suspend", "battery-good-symbolic", {"page": "power"}),
+    ("System", "Storage", "Free space on disks", "drive-harddisk-symbolic", {"page": "storage"}),
+    (
+        "Personalization",
+        "Wallpaper",
+        "Dawn Aperture and other drawn backgrounds",
+        "preferences-desktop-wallpaper-symbolic",
+        {"page": "wallpaper"},
+    ),
+    (
+        "Personalization",
+        "Personalize",
+        "Desktop icons and click behavior",
+        "user-desktop-symbolic",
+        {"page": "desktop"},
+    ),
+    (
+        "Personalization",
+        "Taskbar",
+        "Desktop switcher, clock and notification bell",
+        "view-continuous-symbolic",
+        {"page": "taskbar"},
+    ),
+    (
+        "Personalization",
+        "Notifications",
+        "Toasts, Do not disturb and duration",
+        "preferences-system-notifications-symbolic",
+        {"page": "notifications"},
+    ),
     ("Input", "Keyboard", "Layout, repeat and shortcuts", "input-keyboard-symbolic", {"page": "keyboard"}),
     ("Input", "Mouse and touchpad", "Pointer speed and buttons", "input-mouse-symbolic", {"page": "mouse"}),
-    ("Apps", "Default apps", "Browser, mail and file types", "starred-symbolic", {"page": "defaults"}),
+    ("Apps", "Default apps", "Browser, PDF, archives and more", "starred-symbolic", {"page": "defaults"}),
     (
         "FosOS",
         "Updates",
-        "Install Debian and FosOS updates",
+        "Check status and install Debian / FosOS updates",
         "software-update-available-symbolic",
-        {"command": ["fosos-terminal", "-e", "sh", "-c", UPDATE_SCRIPT]},
+        {"page": "updates"},
     ),
     ("FosOS", "Welcome", "Open the FosOS welcome again", "help-about-symbolic", {"command": ["fosos-welcome", "--again"]}),
 ]
@@ -98,7 +120,20 @@ def disk_text() -> str:
 
 def panel_available(action: dict) -> bool:
     if "page" in action:
-        return action["page"] in pages.PAGES
+        page_id = action["page"]
+        if page_id not in pages.PAGES:
+            return False
+        # Tool wrappers need their binary present.
+        commands = {
+            "display": "arandr",
+            "sound": "pavucontrol",
+            "network": "nm-connection-editor",
+            "bluetooth": "blueman-manager",
+        }
+        binary = commands.get(page_id)
+        if binary is not None and shutil.which(binary) is None:
+            return False
+        return True
     command = action.get("command") or []
     return bool(command) and shutil.which(command[0]) is not None
 
@@ -269,9 +304,10 @@ class SettingsWindow(Gtk.ApplicationWindow):
             ("Kernel", platform.release()),
             ("Processor", cpu_text()),
             ("Memory", memory_text()),
-            ("Disk", disk_text()),
             ("Computer name", os.uname().nodename),
         ]
+        if pages.reboot_required():
+            rows.append(("Updates", "Restart required to finish some updates"))
         table = add_classes(Gtk.Grid(column_spacing=24, row_spacing=0), "fos-card")
         for index, (key, value) in enumerate(rows):
             key_label = label(key, "fos-text", "fos-muted")
@@ -287,11 +323,41 @@ class SettingsWindow(Gtk.ApplicationWindow):
             table.attach(value_label, 1, index, 1, 1)
         self.content.pack_start(table, False, False, 0)
 
+        storage_heading = label("Storage", "fos-label")
+        storage_heading.set_margin_top(8)
+        self.content.pack_start(storage_heading, False, False, 0)
+        storage = add_classes(Gtk.Grid(column_spacing=24, row_spacing=0), "fos-card")
+        for index, (mount, text) in enumerate(pages.storage_rows()):
+            key_label = label(mount, "fos-text", "fos-muted")
+            value_label = label(text, "fos-text", ellipsize=True)
+            value_label.set_selectable(True)
+            for widget in (key_label, value_label):
+                widget.set_margin_top(8)
+                widget.set_margin_bottom(8)
+            key_label.set_margin_start(12)
+            value_label.set_margin_end(12)
+            value_label.set_hexpand(True)
+            storage.attach(key_label, 0, index, 1, 1)
+            storage.attach(value_label, 1, index, 1, 1)
+        self.content.pack_start(storage, False, False, 0)
+
+        actions = Gtk.Box(spacing=8)
+        actions.set_margin_top(8)
+        open_storage = button("Storage details", variant="outline", size="sm")
+        open_storage.connect("clicked", lambda _b: self.show_builtin("storage"))
+        actions.pack_start(open_storage, False, False, 0)
+        open_updates = button("Updates", variant="outline", size="sm")
+        open_updates.connect("clicked", lambda _b: self.show_builtin("updates"))
+        actions.pack_start(open_updates, False, False, 0)
+        self.content.pack_start(actions, False, False, 0)
+
 
 class SettingsApp(Gtk.Application):
     def __init__(self) -> None:
-        super().__init__(application_id=APP_ID, flags=Gio.ApplicationFlags.FLAGS_NONE)
+        super().__init__(application_id=APP_ID, flags=Gio.ApplicationFlags.HANDLES_COMMAND_LINE)
         self.window: SettingsWindow | None = None
+        self._pending_builtin: str | None = None
+        self._pending_open: str | None = None
 
     def do_startup(self) -> None:
         Gtk.Application.do_startup(self)
@@ -304,6 +370,36 @@ class SettingsApp(Gtk.Application):
             self.window = SettingsWindow(self)
             self.window.show_all()
         self.window.present()
+        if self._pending_builtin:
+            self.window.show_builtin(self._pending_builtin)
+            self._pending_builtin = None
+        elif self._pending_open:
+            self._open_named(self._pending_open)
+            self._pending_open = None
+
+    def do_command_line(self, command_line: Gio.ApplicationCommandLine) -> int:
+        args = command_line.get_arguments()[1:]
+        if "--builtin" in args:
+            index = args.index("--builtin")
+            self._pending_builtin = args[index + 1] if index + 1 < len(args) else None
+            self._pending_open = None
+        elif "--open" in args:
+            index = args.index("--open")
+            self._pending_open = args[index + 1] if index + 1 < len(args) else None
+            self._pending_builtin = None
+        self.activate()
+        return 0
+
+    def _open_named(self, title: str) -> None:
+        if self.window is None:
+            return
+        needle = title.strip().lower()
+        for _group, panel_title, _desc, _icon, action in PANELS:
+            if panel_title.lower() != needle:
+                continue
+            self.window._open(panel_title, action)
+            return
+        self.window.show_page("All settings")
 
 
 def main() -> int:

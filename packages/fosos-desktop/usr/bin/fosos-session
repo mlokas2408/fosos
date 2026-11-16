@@ -63,6 +63,12 @@ for agent in \
 	fi
 done
 
+# Super alone opens Start (tap Super → Alt+F1). Super+key chords still work.
+if command -v xcape >/dev/null 2>&1; then
+	pkill -u "$(id -u)" -x xcape >/dev/null 2>&1 || true
+	xcape -e 'Super_L=Alt_L|F1;Super_R=Alt_L|F1' >/dev/null 2>&1 &
+fi
+
 # nm-applet has no tray here, but it still asks for Wi-Fi passwords.
 if command -v nm-applet >/dev/null 2>&1; then
 	nm-applet >/dev/null 2>&1 &
@@ -131,6 +137,7 @@ pkill -u "$(id -u)" -x fosos-shell 2>/dev/null || true
 pkill -u "$(id -u)" -x fosos-lock 2>/dev/null || true
 pkill -u "$(id -u)" -x xss-lock 2>/dev/null || true
 pkill -u "$(id -u)" -x xsettingsd 2>/dev/null || true
+pkill -u "$(id -u)" -x xcape 2>/dev/null || true
 if command -v systemctl >/dev/null 2>&1; then
 	systemctl --user unset-environment XDG_CURRENT_DESKTOP XDG_SESSION_DESKTOP DESKTOP_SESSION GTK_THEME GTK_ICON_THEME_NAME \
 		>/dev/null 2>&1 || true

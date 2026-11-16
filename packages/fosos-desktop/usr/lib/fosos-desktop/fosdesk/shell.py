@@ -12,13 +12,10 @@ gi.require_version("Wnck", "3.0")
 from gi.repository import Gdk, Gio, GLib, Gtk, Wnck
 
 from . import apps as appmod
+from .alttab import AltTabSwitcher
 from .desktop import Desktop
+from .edgesnap import EdgeSnap
 from .indicators import (
-    BatteryPopup,
-    BrightnessPopup,
-    ClockPopup,
-    NetworkPopup,
-    VolumePopup,
     battery_state,
     brightness_icon,
     network_state,
@@ -26,10 +23,15 @@ from .indicators import (
     read_volume,
     volume_icon,
 )
-from .notifications import NotificationList, NotificationServer
+from .notifications import NotificationCenter, NotificationServer
 from .panel import Panel, x_timestamp
 from .popup import Popup
+from .quicklinks import QuickLinks
+from .quicksettings import QuickSettings
+from .run import RunDialog
+from .snaplayouts import SnapLayouts, move_window_to_workspace
 from .startmenu import StartMenu
+from .taskview import TaskView
 from .ui import add_classes, button, load_css
 
 APP_ID = "org.fosos.Shell"
@@ -79,14 +81,25 @@ class Shell(Gtk.Application):
         self.add_window(self.desktop)
         self.notifications = NotificationServer(self)
         self.start_menu = StartMenu(self)
+        self.quick_links = QuickLinks(self)
+        self.run_dialog = RunDialog(self)
+        self.alt_tab = AltTabSwitcher(self)
+        self.edge_snap = EdgeSnap()
+        self.snap_layouts = SnapLayouts(self)
+        self.task_view = TaskView(self)
+        self.quick_settings = QuickSettings(self)
+        self.notification_center = NotificationCenter(self)
         self.popups = {
             "start": self.start_menu,
-            "volume": VolumePopup(self),
-            "network": NetworkPopup(self),
-            "clock": ClockPopup(self),
-            "battery": BatteryPopup(self),
-            "brightness": BrightnessPopup(self),
-            "notifications": NotificationList(self.notifications),
+            "quicklinks": self.quick_links,
+            "quicksettings": self.quick_settings,
+            "clock": self.notification_center,
+            "notifications": self.notification_center,
+            # Aliases so status icons and old --toggle-popup names open the hubs.
+            "volume": self.quick_settings,
+            "network": self.quick_settings,
+            "battery": self.quick_settings,
+            "brightness": self.quick_settings,
         }
         self.start_menu.on_dismiss = lambda: self._set_start_open(False)
         self.desktop.show_all()
@@ -112,6 +125,22 @@ class Shell(Gtk.Application):
         args = command_line.get_arguments()[1:]
         if "--toggle-start" in args:
             self.toggle_start()
+        elif "--quick-links" in args:
+            self.toggle_quick_links()
+        elif "--run" in args:
+            self.open_run()
+        elif "--alt-tab" in args:
+            index = args.index("--alt-tab")
+            direction = args[index + 1] if index + 1 < len(args) else "next"
+            self.cycle_alt_tab(-1 if direction == "prev" else 1)
+        elif "--snap-layouts" in args:
+            self.toggle_snap_layouts()
+        elif "--task-view" in args:
+            self.toggle_task_view()
+        elif "--quick-settings" in args:
+            self.toggle_quick_settings()
+        elif "--notification-center" in args:
+            self.toggle_notification_center()
         elif "--toggle-popup" in args:
             index = args.index("--toggle-popup")
             name = args[index + 1] if index + 1 < len(args) else ""
@@ -119,7 +148,8 @@ class Shell(Gtk.Application):
             anchor = panel.popup_anchors().get(name) if panel is not None else None
             if anchor is None:
                 command_line.printerr(
-                    f"Unknown popup: {name}. Use volume, network, notifications, clock, battery or brightness.\n"
+                    "Unknown popup: "
+                    f"{name}. Use quicksettings, clock, notifications, volume, network, battery or brightness.\n"
                 )
                 return 2
             self.toggle_popup(name, anchor, panel)
@@ -131,6 +161,8 @@ class Shell(Gtk.Application):
                 command_line.printerr("Usage: fosos-shell --workspace N\n")
                 return 2
             self.switch_workspace(number)
+        elif "--reload-ui" in args:
+            self.reload_ui()
         elif "--lock" in args:
             self.lock_screen()
         elif "--quit" in args:
@@ -217,35 +249,104 @@ class Shell(Gtk.Application):
         if app is None or not app.launch():
             appmod.spawn(["fosos-settings"])
 
+    def open_settings_action(self, action: dict) -> None:
+        """Open a Settings panel or its external tool from Start search."""
+        if "page" in action:
+            if appmod.spawn(["fosos-settings", "--builtin", str(action["page"])]):
+                return
+        command = list(action.get("command") or [])
+        if command and appmod.spawn(command):
+            return
+        self.open_settings()
+
     # Popups
 
     def close_popups(self, keep: str | None = None) -> None:
-        for name, popup in self.popups.items():
-            if name != keep and popup.get_visible():
+        keep_popup = self.popups.get(keep) if keep else None
+        seen: set[int] = set()
+        for popup in self.popups.values():
+            identity = id(popup)
+            if identity in seen:
+                continue
+            seen.add(identity)
+            if popup is keep_popup:
+                continue
+            if popup.get_visible():
                 popup.dismiss()
+        if keep != "run" and self.run_dialog.get_visible():
+            self.run_dialog.hide()
+        if keep != "alttab" and self.alt_tab.get_visible():
+            self.alt_tab.hide_switcher()
+        if keep != "snaplayouts" and self.snap_layouts.get_visible():
+            self.snap_layouts.hide_picker()
+        if keep != "taskview" and self.task_view.get_visible():
+            self.task_view.hide_view()
 
     def toggle_start(self, panel: Panel | None = None) -> None:
         panel = panel or self.panel
         if panel is None:
             return
+        if self.alt_tab.get_visible():
+            self.alt_tab.hide_switcher()
         if self.start_menu.get_visible():
             self.start_menu.dismiss()
             return
         self.close_popups()
+        if self.run_dialog.get_visible():
+            self.run_dialog.hide()
         area = panel.area()
         self._set_start_open(True)
         panel.set_start_open(True)
         self.start_menu.open(area.x, panel.top(), area)
+
+    def toggle_quick_links(self, panel: Panel | None = None) -> None:
+        panel = panel or self.panel
+        if panel is None:
+            return
+        if self.alt_tab.get_visible():
+            self.alt_tab.hide_switcher()
+        self.quick_links.open_near_start(panel)
+
+    def open_run(self) -> None:
+        if self.alt_tab.get_visible():
+            self.alt_tab.hide_switcher()
+        self.run_dialog.open_dialog()
+
+    def cycle_alt_tab(self, direction: int = 1) -> None:
+        self.close_popups(keep="alttab")
+        if self.task_view.get_visible():
+            self.task_view.hide_view()
+        self.alt_tab.cycle(direction)
+
+    def toggle_snap_layouts(self) -> None:
+        if self.alt_tab.get_visible():
+            self.alt_tab.hide_switcher()
+        if self.task_view.get_visible():
+            self.task_view.hide_view()
+        self.snap_layouts.toggle()
+
+    def toggle_task_view(self) -> None:
+        if self.alt_tab.get_visible():
+            self.alt_tab.hide_switcher()
+        if self.snap_layouts.get_visible():
+            self.snap_layouts.hide_picker()
+        self.task_view.toggle()
+
+    def move_window_to_workspace(self, window: Wnck.Window, index: int) -> None:
+        move_window_to_workspace(window, index)
+        for panel in self.panels:
+            panel.rebuild_tasks()
+            panel.refresh_workspaces()
 
     def toggle_popup(self, name: str, anchor: Gtk.Widget, panel: Panel | None = None) -> None:
         popup = self.popups[name]
         if popup.get_visible():
             popup.dismiss()
             return
-        self.close_popups()
+        self.close_popups(keep=name)
         if hasattr(popup, "refresh"):
             popup.refresh()
-        if name == "notifications":
+        if name in ("notifications", "clock") or popup is self.notification_center:
             self.notifications.mark_read()
         panel = panel or self.panel
         if panel is None:
@@ -255,38 +356,26 @@ class Shell(Gtk.Application):
         x = panel.anchor_x(anchor) + alloc.width - popup.width
         popup.show_at(x, panel.top(), area)
 
+    def toggle_quick_settings(self, panel: Panel | None = None) -> None:
+        panel = panel or self.panel
+        if panel is None:
+            return
+        anchor = panel.popup_anchors().get("quicksettings") or panel.volume_button or panel.clock_button
+        if anchor is None:
+            return
+        self.toggle_popup("quicksettings", anchor, panel)
+
+    def toggle_notification_center(self, panel: Panel | None = None) -> None:
+        panel = panel or self.panel
+        if panel is None:
+            return
+        anchor = panel.clock_button
+        self.toggle_popup("clock", anchor, panel)
+
     def show_desktop_menu(self, x: int, y: int) -> None:
         self.close_popups()
-        menu = self.popups.get("desktop")
-        if menu is None:
-            menu = Popup(width=200)
-            frame = add_classes(Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2), "fos-card")
-            frame.set_border_width(4)
-            for text, icon_name, app_id in (
-                ("Open Files", "folder-symbolic", "fosos-files.desktop"),
-                ("Open Terminal", "utilities-terminal-symbolic", "fosos-terminal.desktop"),
-                ("Open Notepad", "accessories-text-editor-symbolic", "fosos-notepad.desktop"),
-                ("Settings", "preferences-system-symbolic", "fosos-settings.desktop"),
-            ):
-                item = button(text, icon_name=icon_name, variant="ghost")
-                item.get_child().set_halign(Gtk.Align.START)
-                item.connect("clicked", lambda _b, a=app_id: self._menu_launch(a))
-                frame.pack_start(item, False, False, 0)
-            menu.add(frame)
-            self.popups["desktop"] = menu
-        monitor = Gdk.Display.get_default().get_monitor_at_point(x, y).get_geometry()
-        menu.show_all()
-        _minimum, natural = menu.get_preferred_size()
-        menu.show_at(x, y + natural.height + 1, monitor)
-
-    def _menu_launch(self, app_id: str) -> None:
-        self.close_popups()
-        if app_id == "fosos-settings.desktop":
-            self.open_settings()
-            return
-        app = appmod.load_app(app_id)
-        if app is not None:
-            app.launch()
+        if self.desktop is not None:
+            self.desktop.show_menu_at(x, y)
 
     # Status
 
@@ -313,6 +402,13 @@ class Shell(Gtk.Application):
         return True
 
     # Workspaces and lock
+
+    def reload_ui(self) -> None:
+        """Re-apply desktop / taskbar prefs after Settings changes."""
+        if getattr(self, "desktop", None) is not None:
+            self.desktop.refresh()
+        for panel in self.panels:
+            panel.apply_prefs()
 
     def switch_workspace(self, index: int) -> None:
         screen = Wnck.Screen.get_default()
