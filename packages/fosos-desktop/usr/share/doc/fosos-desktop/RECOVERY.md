@@ -47,6 +47,27 @@ sudo systemctl restart lightdm
 
 On the live image the account is `user` / password `live`.
 
+## Settings freezes when enabling Remote Desktop
+
+Older builds ran `pkexec` synchronously inside Settings, which blocked the
+UI (mouse still moved). Update `fosos-desktop` or rebuild the ISO. Escape
+with Ctrl+Alt+F2, then `pkill -x fosos-settings` or `sudo systemctl restart
+lightdm`.
+
+## Hyper-V: desktop visible, mouse/keyboard frozen
+
+Usually the legacy `hyperv_fb` framebuffer. FosOS images blacklist it and
+prefer `hyperv_drm`. On an old ISO, Ctrl+Alt+F2 (`user` / `live`) then:
+
+```bash
+cat /proc/fb
+# Expect hyperv_drmdrmfb after a fixed image, not hyperv_fb
+sudo systemctl restart lightdm
+```
+
+Or reboot and at GRUB append `module_blacklist=hyperv_fb` once, then rebuild
+the ISO so the live hook and bootappend include the fix.
+
 ## Black screen after Welcome / Install (live)
 
 Openbox may be running without the FosOS shell. On Ctrl+Alt+F2 (`user` / `live`):
@@ -111,8 +132,8 @@ apt-cache policy fosos-desktop
 sudo apt install fosos-desktop=<previous-version>
 ```
 
-Prefer promoting only packages that passed the [testing guide](TESTING.md)
-soak. ISOs are for fresh installs; day-to-day fixes come through APT.
+Prefer promoting only packages that passed the testing soak. ISOs are for
+fresh installs; day-to-day fixes come through APT.
 
 ## When to file a bug
 

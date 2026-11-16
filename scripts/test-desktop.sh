@@ -10,9 +10,9 @@ out_dir="$repo_root/output/desktop"
 mirror="${FOSOS_MIRROR:-http://deb.debian.org/debian}"
 
 packages=(
-  xvfb openbox dbus dbus-x11 x11-utils xdotool libnotify-bin mousepad
+  xvfb openbox dbus dbus-x11 x11-utils xdotool libnotify-bin
   python3-gi python3-gi-cairo python3-pam gir1.2-gtk-3.0 gir1.2-wnck-3.0 gir1.2-vte-2.91 python3-xlib
-  fonts-inter fonts-liberation libgtk-3-0 adwaita-icon-theme elementary-xfce-icon-theme librsvg2-common
+  fonts-inter fonts-liberation libgtk-3-0 adwaita-icon-theme librsvg2-common
 )
 
 if [[ "${EUID}" -ne 0 ]]; then
@@ -103,7 +103,7 @@ out=/opt/shots
 rm -rf "$out" && mkdir -p "$out"
 mkdir -p ~/Documents/Projects ~/Documents/Reports ~/Downloads
 touch ~/Documents/"Meeting notes.md" ~/Downloads/report.pdf
-printf 'org.xfce.mousepad.desktop\n' > /tmp/extra-pin
+printf 'fosos-notepad.desktop\n' > /tmp/extra-pin
 mkdir -p ~/.config/fosos-desktop
 cat /opt/fosos-desktop/usr/share/fosos-desktop/pinned /tmp/extra-pin | grep -v '^#' > ~/.config/fosos-desktop/pinned
 

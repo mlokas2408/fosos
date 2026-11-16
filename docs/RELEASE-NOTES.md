@@ -1,5 +1,14 @@
 # FosOS release notes
 
+## FosOS 1.5.0 — bidirectional RDP
+
+- `fosos-remote`: outbound RDP client (FreeRDP) with FosOS card chrome
+- Inbound hosting via FreeRDP **shadow** (`freerdp3-shadow-x11`) shares the
+  console desktop with mstsc (TLS + PAM, fitted resolution, Desktop `.rdp`
+  helper) — no xrdp, no second Xorg
+- Off until enabled in Settings → Remote Desktop
+- Live image: sign in as `user` / `live` (or use the Desktop `.rdp` file)
+
 ## FosOS 1.4.0 — UI improvements (taskbar, desktop grid, Files)
 
 - Taskbar: remove numbered desktop pager; Task View button after Start;

@@ -194,16 +194,12 @@ def main() -> None:
         icons[("mimetypes", name)] = exe
 
     icons[("apps", "system-file-manager")] = folder
-    icons[("apps", "org.xfce.thunar")] = folder
-    icons[("apps", "Thunar")] = folder
     terminal = svg(
         "  <rect x=\"3\" y=\"5\" width=\"18\" height=\"14\" rx=\"1\"/>\n"
         "  <path d=\"M7 10l3 2-3 2\"/>\n"
         "  <path d=\"M12 14h5\"/>"
     )
     icons[("apps", "utilities-terminal")] = terminal
-    icons[("apps", "org.xfce.terminalemulator")] = terminal
-    icons[("apps", "xfce4-terminal")] = terminal
     browser = svg(
         "  <circle cx=\"12\" cy=\"12\" r=\"9\"/>\n"
         "  <path d=\"M3 12h18\"/>\n"
@@ -215,7 +211,6 @@ def main() -> None:
     icons[("apps", "firefox-esr")] = browser
     icons[("apps", "preferences-system")] = network
     icons[("apps", "accessories-text-editor")] = doc
-    icons[("apps", "org.xfce.mousepad")] = doc
 
     for (ctx, name), content in icons.items():
         path = BASE / "scalable" / ctx / f"{name}.svg"

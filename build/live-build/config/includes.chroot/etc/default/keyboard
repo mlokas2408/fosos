@@ -1,4 +1,4 @@
-# FosOS default keyboard. Change it here or in the XFCE keyboard settings.
+# FosOS default keyboard. Change it here or in Settings → Keyboard.
 XKBMODEL="pc105"
 XKBLAYOUT="us"
 XKBVARIANT=""

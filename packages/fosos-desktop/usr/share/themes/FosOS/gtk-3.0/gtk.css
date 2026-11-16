@@ -334,7 +334,7 @@ infobar.error {
   box-shadow: none;
 }
 
-/* Thunar: mockup File Explorer colours (card body, muted sidebar). */
+/* Files / legacy file-manager class: mockup colours (card body, muted sidebar). */
 .thunar {
   background-color: @fos_card;
   color: @fos_fg;

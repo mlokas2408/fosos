@@ -23,16 +23,12 @@ KNOWN_APPS = {
     "fosos-files.desktop": ("Files", "folder-symbolic"),
     "fosos-terminal.desktop": ("Terminal", "utilities-terminal-symbolic"),
     "fosos-notepad.desktop": ("Notepad", "accessories-text-editor-symbolic"),
-    "thunar.desktop": ("Thunar", "folder-symbolic"),
-    "xfce4-terminal.desktop": ("XFCE Terminal", "utilities-terminal-symbolic"),
     "firefox-esr.desktop": ("Firefox", "web-browser-symbolic"),
     "fosos-settings.desktop": ("Settings", "preferences-system-symbolic"),
     "fosos-remote.desktop": ("Remote Desktop", "network-server-symbolic"),
-    "org.xfce.mousepad.desktop": ("Mousepad", "accessories-text-editor-symbolic"),
     "calamares-install-fosos.desktop": ("Install FosOS", "system-software-install-symbolic"),
     "fosos-welcome.desktop": ("Welcome", "help-about-symbolic"),
     "org.pulseaudio.pavucontrol.desktop": ("Sound", "audio-volume-high-symbolic"),
-    "xfce4-screenshooter.desktop": ("Screenshot", "camera-photo-symbolic"),
     "fosos-screenshot.desktop": ("Screenshot", "camera-photo-symbolic"),
 }
 
