@@ -1,5 +1,6 @@
 polkit.addRule(function(action, subject) {
-    if (action.id == "com.github.calamares.calamares.pkexec.run" &&
+    if ((action.id == "com.github.calamares.calamares.pkexec.run" ||
+         action.id == "com.fosos.installer.run") &&
         subject.isInGroup("sudo") &&
         subject.active) {
         return polkit.Result.YES;

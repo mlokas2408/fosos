@@ -1,0 +1,48 @@
+#!/bin/sh
+# pkexec drops the session theme, so Calamares would otherwise start in
+# Qt's light Fusion style. Set the FosOS GTK theme before exec.
+export GTK_THEME=FosOS
+export GTK_ICON_THEME_NAME=FosOS
+export QT_QPA_PLATFORMTHEME=gtk3
+export QT_AUTO_SCREEN_SCALE_FACTOR=1
+if [ -z "${QT_QPA_PLATFORM:-}" ]; then
+	export QT_QPA_PLATFORM=xcb
+fi
+
+# Calamares hides "Erase disk" when any partition on the chosen disk is
+# mounted, which leaves only manual partitioning. The desktop automounts
+# leftover partitions (for example the EFI partition from a failed attempt).
+# Unmount real disks first, and never the disk the live system is using.
+live_disk=""
+for live_mount in /run/live/medium /lib/live/mount/medium; do
+	live_src=$(findmnt -n -o SOURCE "$live_mount" 2>/dev/null || true)
+	[ -n "$live_src" ] || continue
+	live_disk=$(lsblk -no PKNAME "$live_src" 2>/dev/null || true)
+	if [ -z "$live_disk" ]; then
+		live_disk=$(basename "$live_src" | sed 's/[0-9]*$//')
+	fi
+	break
+done
+
+for part in /dev/sd* /dev/vd* /dev/nvme[0-9]n[0-9]p[0-9]* /dev/mmcblk[0-9]p[0-9]*; do
+	[ -b "$part" ] || continue
+	disk=$(lsblk -no PKNAME "$part" 2>/dev/null || true)
+	if [ -n "$live_disk" ] && [ "$disk" = "$live_disk" ]; then
+		continue
+	fi
+	if findmnt -n "$part" >/dev/null 2>&1; then
+		umount "$part" 2>/dev/null || umount -l "$part" 2>/dev/null || true
+	fi
+done
+
+if [ -r /proc/swaps ]; then
+	awk 'NR > 1 && $1 ~ /^\// { print $1 }' /proc/swaps | while read -r swapdev; do
+		disk=$(lsblk -no PKNAME "$swapdev" 2>/dev/null || true)
+		if [ -n "$live_disk" ] && [ "$disk" = "$live_disk" ]; then
+			continue
+		fi
+		swapoff "$swapdev" 2>/dev/null || true
+	done
+fi
+
+exec /usr/bin/calamares "$@"

@@ -13,10 +13,9 @@ restore_fstab() {
 }
 trap restore_fstab EXIT
 
-export QT_AUTO_SCREEN_SCALE_FACTOR=1
 xhost +si:localuser:root
 set +e
-pkexec calamares
+pkexec /usr/libexec/fosos-calamares "$@"
 status=$?
 set -e
 xhost -si:localuser:root || true

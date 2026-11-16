@@ -1,0 +1,5 @@
+# The repository stores all text files with LF line endings. Without this,
+# Git for Windows (core.autocrlf=true) checks files out as CRLF, and a stray
+# "\r" breaks shell scripts ("set: pipefail\r: invalid option name") and
+# $-anchored grep checks in scripts/check-build-config.sh.
+* text=auto eol=lf

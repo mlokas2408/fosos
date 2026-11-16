@@ -31,4 +31,14 @@ if [ -f /etc/default/grub ] && grep -q '^#GRUB_DISABLE_OS_PROBER=false' /etc/def
 	sed -i 's/^#GRUB_DISABLE_OS_PROBER=false/GRUB_DISABLE_OS_PROBER=false/' /etc/default/grub
 fi
 
+# Calamares has already written the chosen layout to /etc/default/keyboard.
+# Rebuild the cached console map so the next boot does not keep the live
+# image's US keymap.
+if command -v setupcon >/dev/null 2>&1; then
+	setupcon --save-only || true
+	if command -v systemctl >/dev/null 2>&1; then
+		systemctl enable console-setup.service >/dev/null 2>&1 || true
+	fi
+fi
+
 exit 0

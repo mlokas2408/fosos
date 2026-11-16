@@ -34,7 +34,7 @@ Or use the text console alone without Recovery (next section).
 
 1. Press Ctrl+Alt+F2 (or F3…F6).
 2. Sign in with your account.
-3. Diagnose or repair packages, then return with Ctrl+Alt+F1:
+3. Diagnose or repair packages, then return with Ctrl+Alt+F7:
 
 ```bash
 fos update
@@ -57,7 +57,7 @@ cat ~/.config/fosos-desktop/shell-crash.log
 fosos-shell &
 ```
 
-Switch back with Ctrl+Alt+F1. If the taskbar returns, rebuild the ISO with
+Switch back with Ctrl+Alt+F7. If the taskbar returns, rebuild the ISO with
 `fosos-desktop` **1.3.2+**.
 
 ## Shell crashed (no taskbar)
@@ -90,7 +90,7 @@ pkill -x fosos-lock
 sudo loginctl unlock-sessions
 ```
 
-4. Switch back with Ctrl+Alt+F1. If the session is still stuck, reboot:
+4. Switch back with Ctrl+Alt+F7. If the session is still stuck, reboot:
    `sudo systemctl reboot`.
 
 ## Restore FosOS Desktop as the default

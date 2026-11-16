@@ -29,7 +29,11 @@ required_files=(
   "$repo_root/scripts/_render_grub_splash.mjs"
   "$repo_root/packages/fosos-installer/DEBIAN/control"
   "$repo_root/packages/fosos-installer/etc/calamares/settings.conf"
+  "$repo_root/packages/fosos-installer/etc/calamares/modules/mount.conf"
   "$repo_root/packages/fosos-installer/usr/bin/calamares-install-fosos"
+  "$repo_root/packages/fosos-installer/usr/libexec/fosos-calamares"
+  "$repo_root/packages/fosos-installer/usr/libexec/fosos-grub-install"
+  "$repo_root/packages/fosos-installer/usr/share/polkit-1/actions/com.fosos.installer.policy"
   "$repo_root/packages/fosos-welcome/DEBIAN/control"
   "$repo_root/packages/fosos-welcome/usr/bin/fosos-welcome"
   "$repo_root/packages/fosos-welcome/usr/share/doc/fosos/guide.html"
@@ -137,9 +141,9 @@ if grep -qE '(^|[, ])python3-pam([, ]|$)' "$repo_root/packages/fosos-desktop/DEB
   echo "fosos-desktop must not depend on python3-pam (wrong module name PAM)." >&2
   exit 1
 fi
-if ! grep -q 'desktopFile: "fosos-desktop.desktop"' \
+if ! grep -q '^[[:space:]]*desktopFile: "fosos-desktop"$' \
   "$repo_root/packages/fosos-installer/etc/calamares/modules/displaymanager.conf"; then
-  echo "Calamares must default to fosos-desktop.desktop." >&2
+  echo "Calamares desktopFile must be fosos-desktop, without the .desktop suffix." >&2
   exit 1
 fi
 if ! grep -q '^Name=FosOS Desktop$' \
@@ -178,12 +182,47 @@ if ! grep -q '^Version: 0\.6\.' "$repo_root/packages/fosos-theme/DEBIAN/control"
   exit 1
 fi
 
+# live-build replaces every line containing LINUX_LIVE (sed matches comments
+# too), so the placeholder must appear exactly once or the GRUB menu duplicates.
+if [[ "$(grep -c 'LINUX_LIVE' "$repo_root/build/live-build/config/bootloaders/grub-pc/grub.cfg")" -ne 1 ]]; then
+  echo "grub.cfg must contain the LINUX_LIVE placeholder exactly once: bootloaders/grub-pc/grub.cfg" >&2
+  exit 1
+fi
+
+# Calamares runs mkfs.fat to create the UEFI partition; without dosfstools the
+# installer fails at "Create file system 'fat32'".
+if ! grep -qx 'dosfstools' "$repo_root/build/live-build/config/package-lists/fosos-base.list.chroot"; then
+  echo "The image package list must install dosfstools (mkfs.fat for the EFI partition)." >&2
+  exit 1
+fi
+if ! grep -qx 'console-setup' "$repo_root/build/live-build/config/package-lists/fosos-base.list.chroot"; then
+  echo "The image package list must install console-setup so the text console uses the chosen keyboard layout." >&2
+  exit 1
+fi
+if ! grep -q 'dosfstools' "$repo_root/packages/fosos-installer/DEBIAN/control"; then
+  echo "fosos-installer must depend on dosfstools (mkfs.fat for the EFI partition)." >&2
+  exit 1
+fi
+if ! grep -q 'device: /dev' "$repo_root/packages/fosos-installer/etc/calamares/modules/mount.conf"; then
+  echo "mount.conf must bind-mount /dev into the target so grub-install can see /boot/efi." >&2
+  exit 1
+fi
+settings_conf="$repo_root/packages/fosos-installer/etc/calamares/settings.conf"
+if ! grep -q 'config: shellprocess_prepare.conf' "$settings_conf" \
+  || ! grep -q 'config: shellprocess_sources.conf' "$settings_conf"; then
+  echo "settings.conf must name the shellprocess instance config files." >&2
+  exit 1
+fi
+
 bash -n "$repo_root/scripts/build-iso.sh"
 bash -n "$repo_root/scripts/check-build-config.sh"
 bash -n "$repo_root/scripts/stage-deb.sh"
 bash -n "$repo_root/scripts/apt-archive.sh"
 bash -n "$repo_root/scripts/test-apt-archive.sh"
 bash -n "$repo_root/scripts/test-desktop.sh"
+sh -n "$repo_root/packages/fosos-installer/usr/bin/calamares-install-fosos"
+sh -n "$repo_root/packages/fosos-installer/usr/libexec/fosos-calamares"
+sh -n "$repo_root/packages/fosos-installer/usr/libexec/fosos-grub-install"
 sh -n "$repo_root/packages/fosos-cli/usr/bin/fos"
 sh -n "$repo_root/packages/fosos-desktop/usr/bin/fosos-session"
 sh -n "$repo_root/packages/fosos-desktop/usr/bin/fosos-recovery-session"

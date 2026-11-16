@@ -3,7 +3,7 @@ Version: 1.0.0
 Section: admin
 Priority: optional
 Architecture: all
-Depends: calamares, squashfs-tools, rsync, grub-efi-amd64-bin, grub2-common, grub-common, efibootmgr, cryptsetup, cryptsetup-initramfs, os-prober, pkexec, sudo, qt6-qpa-plugins, qt6-gtk-platformtheme, qt6-svg-plugins, x11-xserver-utils
+Depends: calamares, squashfs-tools, rsync, grub-efi-amd64-bin, grub2-common, grub-common, efibootmgr, cryptsetup, cryptsetup-initramfs, dosfstools, os-prober, pkexec, sudo, qt6-qpa-plugins, qt6-gtk-platformtheme, qt6-svg-plugins, x11-xserver-utils
 Maintainer: FosOS <dev@fosos.local>
 Description: FosOS graphical installer
  Calamares configuration and branding for installing FosOS.

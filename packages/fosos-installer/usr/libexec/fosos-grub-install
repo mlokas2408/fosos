@@ -1,0 +1,14 @@
+#!/bin/sh
+# grub-install wrapper used by Calamares (bootloader.conf: grubInstall).
+# Try the normal install, which also registers a UEFI NVRAM boot entry. If
+# the firmware variables cannot be written (common in VMs and some firmware),
+# install again with --no-nvram. Calamares' installEFIFallback then provides
+# EFI/BOOT/BOOTX64.EFI, which UEFI firmware boots without an NVRAM entry.
+set -u
+
+if grub-install "$@"; then
+	exit 0
+fi
+
+echo "fosos-grub-install: NVRAM install failed; retrying with --no-nvram" >&2
+exec grub-install --no-nvram "$@"

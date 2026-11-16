@@ -42,3 +42,8 @@ lxpolkit
 sudo
 xarchiver
 firmware-linux
+# Calamares formats the UEFI system partition with mkfs.fat (dosfstools).
+dosfstools
+# Applies /etc/default/keyboard to the text consoles. Without it, a layout
+# chosen in the installer (for example Croatian) never reaches Ctrl+Alt+F2.
+console-setup
