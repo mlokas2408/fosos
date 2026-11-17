@@ -1,15 +1,15 @@
 Package: fosos-desktop
-Version: 1.5.0
+Version: 1.6.1
 Section: x11
 Priority: optional
 Architecture: all
 Depends: python3, python3-gi, python3-gi-cairo, python3-pamela, gir1.2-gtk-3.0, gir1.2-wnck-3.0, gir1.2-vte-2.91, gir1.2-lightdm-1, lightdm, python3-xlib, openbox, xss-lock, xcape, brightnessctl, xsettingsd, arandr, scrot, x11-xkb-utils, x11-xserver-utils, network-manager, network-manager-gnome, gvfs, wireplumber, fonts-inter, fonts-liberation, adwaita-icon-theme, pkexec, fosos-theme
-Recommends: freerdp3-x11, freerdp3-shadow-x11
+Recommends: freerdp3-x11, xrdp, xorgxrdp
 Maintainer: FosOS <dev@fosos.local>
 Description: FosOS Desktop session
  The FosOS panel, Start menu, desktop, Files, Terminal, Notepad,
  Remote Desktop client, notifications, lock screen, LightDM greeter and
  settings shell, running on the Openbox window manager. It is the default
  login session. A minimal FosOS Recovery session and text consoles are the
- fallback when the shell fails. Inbound RDP shares the console via FreeRDP
- shadow when installed; enable it from Settings → Remote Desktop.
+ fallback when the shell fails. Inbound RDP uses xrdp for a separate FosOS
+ Desktop session (any local user); enable it from Settings → Remote Desktop.

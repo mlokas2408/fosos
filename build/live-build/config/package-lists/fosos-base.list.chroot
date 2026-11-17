@@ -52,7 +52,8 @@ dosfstools
 # chosen in the installer (for example Croatian) never reaches Ctrl+Alt+F2.
 console-setup
 
-# Remote Desktop (RDP). Console sharing via FreeRDP shadow (no xrdp/xorgxrdp).
-# freerdp3-x11 = outbound client; freerdp3-shadow-x11 = inbound mstsc target.
+# Remote Desktop (RDP). Inbound Windows-like host via xrdp (separate session);
+# outbound client via FreeRDP. Off until Settings → Remote Desktop enables it.
 freerdp3-x11
-freerdp3-shadow-x11
+xrdp
+xorgxrdp

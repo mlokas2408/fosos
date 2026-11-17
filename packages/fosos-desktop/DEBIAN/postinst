@@ -5,13 +5,21 @@ if command -v gtk-update-icon-cache >/dev/null 2>&1; then
 	gtk-update-icon-cache -f -t /usr/share/icons/FosOS >/dev/null 2>&1 || true
 fi
 
-# Console RDP sharing stays off until Settings enables it.
+# Remote Desktop (xrdp) stays off until Settings enables it.
 if command -v systemctl >/dev/null 2>&1 \
 	&& { [ -d /lib/systemd/system ] || [ -d /usr/lib/systemd/system ]; }; then
 	systemctl daemon-reload >/dev/null 2>&1 || true
-	if [ ! -f /var/lib/fosos/remote-desktop-enabled ]; then
-		systemctl disable --now fosos-rdp-shadow.service >/dev/null 2>&1 || true
-		# Legacy xrdp path from earlier builds — keep it off if present.
+	# Drop leftover FreeRDP shadow unit from 1.5.x if still present.
+	systemctl disable --now fosos-rdp-shadow.service >/dev/null 2>&1 || true
+	if [ -f /var/lib/fosos/remote-desktop-enabled ]; then
+		if [ -x /usr/libexec/fosos-remote-host ]; then
+			/usr/libexec/fosos-remote-host apply-config >/dev/null 2>&1 || true
+		fi
+		systemctl enable xrdp.service >/dev/null 2>&1 || true
+		systemctl enable xrdp-sesman.service >/dev/null 2>&1 || true
+		systemctl restart xrdp-sesman.service >/dev/null 2>&1 || true
+		systemctl restart xrdp.service >/dev/null 2>&1 || true
+	else
 		systemctl disable --now xrdp.service >/dev/null 2>&1 || true
 		systemctl disable --now xrdp-sesman.service >/dev/null 2>&1 || true
 	fi

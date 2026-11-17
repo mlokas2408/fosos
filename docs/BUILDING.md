@@ -90,6 +90,8 @@ output/FosOS-trixie-amd64.iso
 - A first-login welcome screen for network status, the FosOS guide, and updates
 - First-party Files, Terminal, Notepad, Settings, screenshot, lock screen and
   notifications (no XFCE session or xfce4-* Depends)
+- Remote Desktop: outbound FreeRDP client; inbound xrdp host (off until
+  Settings enables it; separate FosOS Desktop session)
 - A FosOS archive key and the `fos` command for update, upgrade, install,
   remove, and repair
 - Firefox ESR as the preinstalled browser

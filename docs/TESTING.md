@@ -240,11 +240,16 @@ After Phase 7, rebuild the ISO first, then record its size in
 ## Remote Desktop checklist
 
 - [ ] Settings → Remote Desktop shows enable toggle (off by default)
-- [ ] Enable → pkexec → status shows IP, port 3389, username, display size
-- [ ] Desktop gets `FosOS-Remote-Desktop.rdp` with matching width/height + smart sizing
-- [ ] From Windows `mstsc`: certificate warning → login as console user (live: `user` / `live`)
-- [ ] After login: same console desktop; mouse/keyboard work; Full Screen shows whole desktop
-- [ ] Disable → new connections refused; `systemctl is-active fosos-rdp-shadow` is inactive
+- [ ] Enable with nobody else using the console (or at greeter) → pkexec → status
+      shows IP, port 3389, “any local user”, separate session (xrdp)
+- [ ] Desktop gets `FosOS-Remote-Desktop.rdp` helper
+- [ ] From Windows `mstsc`: certificate warning (accept once) → FosOS-branded
+      xrdp login → sign in as any local user (live: `user` / `live`)
+- [ ] After login: **separate** FosOS Desktop session (not the console screen);
+      mouse/keyboard work; Full Screen usable
+- [ ] Sign in as a second local account works while the first remains valid
+- [ ] Local LightDM greeter / console session stays unaffected
+- [ ] Disable → new connections refused; `systemctl is-active xrdp` is inactive
 - [ ] `fosos-remote`: Connect out to Windows / Ubuntu RDP hosts
 
 ## Package upgrade

@@ -11,10 +11,10 @@ FosOS Desktop. It is not built or shipped.
 
 ## Current status
 
-The live image boots into FosOS Desktop (`fosos-desktop` **1.5.0**) with a
+The live image boots into FosOS Desktop (`fosos-desktop` **1.6.1**) with a
 graphical installer, first-login welcome, and the FosOS package archive.
 Settings, screenshots, and Remote Desktop (outbound FreeRDP client plus
-optional inbound FreeRDP shadow host) are FosOS-owned. XFCE is not shipped.
+optional inbound xrdp host) are FosOS-owned. XFCE is not shipped.
 Development images are built in Debian WSL and tested in Hyper-V. Release
 images are built on a dedicated Debian 13 VM, then tested again before they
 are written to USB.

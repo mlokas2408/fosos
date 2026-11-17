@@ -29,9 +29,10 @@ Wayland compositor, and FosOS does not build one at this stage.
 - First-party dialogs (alerts, confirms, prompts, file chooser, install
   package) use shared `fosdesk.ui` helpers instead of stock GTK dialog chrome.
 - `fosos-remote` is the outbound RDP client (FreeRDP). Inbound hosting uses
-  FreeRDP **shadow** (`freerdp3-shadow-x11`) to share the **console** desktop
-  with mstsc (TLS + PAM login, fitted resolution, Desktop `.rdp` helper) — no
-  xrdp, no second Xorg. Off until enabled in Settings → Remote Desktop.
+  **xrdp** + **xorgxrdp** for a **separate** FosOS Desktop session (any local
+  user via PAM; works with nobody on the console). FosOS-branded login chrome,
+  TLS negotiate, Desktop `.rdp` helper. Off until enabled in Settings →
+  Remote Desktop.
 - `fosos-lock` is the screen locker (`xss-lock` on idle / before suspend).
 
 On Hyper-V Gen2 the image blacklists `hyperv_fb` and uses `hyperv_drm`
@@ -53,7 +54,7 @@ Revisit Wayland when the shell is stable for daily use.
 | `fosos-remote` | RDP client (card chrome; FreeRDP to Windows / Ubuntu / other hosts) |
 | `fosos-welcome` | First-login / `--again` welcome (card chrome; guide, install, updates) |
 | `fosos-screenshot` | Full / region / window capture |
-| `fosos-rdp-shadow` (optional host) | Shares the console over RDP via FreeRDP shadow; off until Settings enables it |
+| xrdp host (optional) | Separate-session RDP via xrdp/xorgxrdp → `fosos-session`; off until Settings enables it |
 
 ## Keyboard shortcuts
 
@@ -99,5 +100,6 @@ move-to-desktop, and edge/corner snaps. **Phase 14** deepens Settings
 (Wallpaper, Taskbar, Notifications, Storage, Updates, chromed system tools,
 richer About). **UI improvements 1.4.0** replace the taskbar desktop pager
 with a Task View button and Show Desktop strip, snap desktop icons to a
-grid, and polish Files search / folder background menus. **1.5.0** adds
-bidirectional RDP (FreeRDP shadow host + `fosos-remote` client).
+grid, and polish Files search / folder background menus. **1.5.0** added
+bidirectional RDP (FreeRDP shadow). **1.6.0** replaces inbound hosting with
+xrdp (separate FosOS Desktop session + `fosos-remote` client).

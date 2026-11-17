@@ -58,9 +58,14 @@ required_files=(
   "$repo_root/packages/fosos-desktop/usr/bin/fosos-remote"
   "$repo_root/packages/fosos-desktop/usr/share/fosos-desktop/xsettingsd.conf"
   "$repo_root/packages/fosos-desktop/usr/libexec/fosos-remote-host"
-  "$repo_root/packages/fosos-desktop/usr/libexec/fosos-rdp-shadow-run"
-  "$repo_root/packages/fosos-desktop/usr/lib/systemd/system/fosos-rdp-shadow.service"
+  "$repo_root/packages/fosos-desktop/usr/share/fosos-desktop/xrdp/xrdp.ini"
+  "$repo_root/packages/fosos-desktop/usr/share/fosos-desktop/xrdp/sesman.ini"
+  "$repo_root/packages/fosos-desktop/usr/share/fosos-desktop/xrdp/startwm.sh"
+  "$repo_root/packages/fosos-desktop/usr/share/fosos-desktop/xrdp/fosos-dawn-aperture.bmp"
+  "$repo_root/packages/fosos-desktop/usr/share/fosos-desktop/xrdp/fosos-rdp-login-banner.bmp"
+  "$repo_root/packages/fosos-desktop/usr/share/fosos-desktop/xrdp/fosos-rdp-login-bg.bmp"
   "$repo_root/packages/fosos-desktop/usr/share/polkit-1/actions/org.fosos.remote-host.policy"
+  "$repo_root/scripts/_gen_xrdp_logo.py"
   "$repo_root/packages/fosos-desktop/usr/bin/fosos-files"
   "$repo_root/packages/fosos-desktop/usr/bin/fosos-terminal"
   "$repo_root/packages/fosos-desktop/usr/bin/fosos-notepad"
@@ -178,6 +183,40 @@ if grep -qE '^xfce4-' "$repo_root/build/live-build/config/package-lists/fosos-ba
   echo "Phase 7b: image package list must not list xfce4-* packages." >&2
   exit 1
 fi
+pkg_list="$repo_root/build/live-build/config/package-lists/fosos-base.list.chroot"
+desktop_control="$repo_root/packages/fosos-desktop/DEBIAN/control"
+if ! grep -qE '^xrdp$' "$pkg_list" || ! grep -qE '^xorgxrdp$' "$pkg_list"; then
+  echo "Remote Desktop host: image package list must install xrdp and xorgxrdp." >&2
+  exit 1
+fi
+if grep -qE '^freerdp3-shadow' "$pkg_list"; then
+  echo "Remote Desktop host: freerdp3-shadow must not be on the image list (use xrdp)." >&2
+  exit 1
+fi
+if ! grep -qE '(^|[, ])xrdp([, ]|$)' "$desktop_control" \
+  || ! grep -qE '(^|[, ])xorgxrdp([, ]|$)' "$desktop_control"; then
+  echo "fosos-desktop must Recommend xrdp and xorgxrdp." >&2
+  exit 1
+fi
+if grep -qE 'freerdp3-shadow' "$desktop_control"; then
+  echo "fosos-desktop must not Recommend freerdp3-shadow (replaced by xrdp)." >&2
+  exit 1
+fi
+if ! grep -q 'name=FosOS Desktop' \
+  "$repo_root/packages/fosos-desktop/usr/share/fosos-desktop/xrdp/xrdp.ini"; then
+  echo "xrdp.ini must offer a single FosOS Desktop session stanza." >&2
+  exit 1
+fi
+if ! grep -q 'exec fosos-session' \
+  "$repo_root/packages/fosos-desktop/usr/share/fosos-desktop/xrdp/startwm.sh"; then
+  echo "xrdp startwm.sh must exec fosos-session." >&2
+  exit 1
+fi
+if [[ -e "$repo_root/packages/fosos-desktop/usr/libexec/fosos-rdp-shadow-run" ]] \
+  || [[ -e "$repo_root/packages/fosos-desktop/usr/lib/systemd/system/fosos-rdp-shadow.service" ]]; then
+  echo "FreeRDP shadow host files must be removed (replaced by xrdp)." >&2
+  exit 1
+fi
 if grep -qE 'greybird-gtk-theme|elementary-xfce-icon-theme' \
   "$repo_root/packages/fosos-theme/DEBIAN/control"; then
   echo "Phase 7c: fosos-theme must not Depend on greybird or elementary-xfce." >&2
@@ -249,7 +288,7 @@ sh -n "$repo_root/packages/fosos-desktop/usr/bin/fosos-session"
 sh -n "$repo_root/packages/fosos-desktop/usr/bin/fosos-recovery-session"
 sh -n "$repo_root/packages/fosos-desktop/usr/libexec/fosos-shell-recovery"
 sh -n "$repo_root/packages/fosos-desktop/usr/libexec/fosos-remote-host"
-sh -n "$repo_root/packages/fosos-desktop/usr/libexec/fosos-rdp-shadow-run"
+sh -n "$repo_root/packages/fosos-desktop/usr/share/fosos-desktop/xrdp/startwm.sh"
 
 # Parse the Python sources without writing bytecode into the package tree.
 python3 - "$repo_root" <<'PY'

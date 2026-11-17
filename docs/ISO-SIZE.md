@@ -20,6 +20,7 @@ Record the result in the table below (and in release notes when tagging).
 | --- | --- | ---: | ---: | --- |
 | Pre–Phase 7 baseline (repo `output/`) | 2026-11-15 | 879394816 | ~839 | Existing ISO before 7c packaging cleanup; may still include Phase 6/7a content depending when it was built |
 | Post–Phase 7c (WSL rebuild) | 2026-11-16 | 854405120 | ~815 | 7a–7c package list; `fosos-desktop` 1.3.5; `fosos-theme` 0.6.0 (no greybird/elementary); Dawn Aperture GRUB; −24 MiB vs baseline |
+| Post–1.6.0 xrdp host (WSL) | 2026-11-17 | 886945792 | ~846 | `fosos-desktop` 1.6.0; xrdp + xorgxrdp replace freerdp3-shadow; +~31 MiB vs Phase 7c |
 
 ## What was removed from the image path
 
@@ -61,17 +62,18 @@ Squashfs savings on the ISO are smaller than the sum of Installed-Size, but
 dropping the full XFCE session stack is still a clear reduction. The 2026-11-16
 rebuild is **~24 MiB** smaller than the recorded pre–Phase 7 baseline.
 
-## Remote Desktop packages (1.5.0)
+## Remote Desktop packages (1.6.0)
 
-Added to the live package list (host off until Settings enables sharing):
+Live package list (host off until Settings enables it):
 
 | Package | Role |
 | --- | --- |
-| `freerdp3-shadow-x11` | Console RDP share for mstsc (no xrdp/xorgxrdp) |
+| `xrdp` | Windows-like RDP host (separate session) |
+| `xorgxrdp` | Xorg backend for xrdp sessions |
 | `freerdp3-x11` | Outbound client for `fosos-remote` |
 
-Expect a modest ISO growth versus the Phase 7c baseline. Record the next
-rebuild size in the table above after measuring on the Debian builder VM.
+`freerdp3-shadow-x11` was removed in 1.6.0. Expect modest ISO growth versus
+Phase 7c from xrdp/xorgxrdp; record the next rebuild size in the table above.
 
 ## Expected direction
 
@@ -79,7 +81,7 @@ The post–Phase 7 ISO should be **clearly smaller** than a Phase 6 image that
 shipped the full XFCE session. Exact MiB saved depends on mirror package
 versions and squashfs compression; always compare two ISOs built with the
 same `scripts/build-iso.sh` on the same builder. Remote Desktop packages
-will offset some of that reduction — compare before/after 1.5.0 explicitly.
+will offset some of that reduction — compare before/after 1.6.0 explicitly.
 
 ## Soak
 

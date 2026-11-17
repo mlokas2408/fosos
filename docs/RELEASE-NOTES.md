@@ -1,11 +1,41 @@
 # FosOS release notes
 
+## FosOS 1.6.1 — xrdp session start + login chrome
+
+- Remove obsolete `ip=` from the Xorg session stanza (xrdp 0.10 uses a
+  UNIX socket to sesman; `ip=` caused “‘ip’ is not needed” and bad startup)
+- Replace incomplete `sesman.ini` with a Debian 0.10-compatible file
+  (`Policy=Separate`, correct `DisconnectedTimeLimit` keys, stock `[Xorg]`
+  params using `/usr/lib/xorg/Xorg`)
+- `startwm.sh` loads `/etc/profile` then starts `fosos-session` (no longer
+  clears `XDG_RUNTIME_DIR`)
+- FosOS-branded RDP login: Dawn Aperture banner (“FosOS / Sign in”), dark
+  square card, borderless field (`scripts/_gen_xrdp_logo.py`)
+
+## FosOS installer 1.0.1 — live squashfs path for USB install
+
+- `fosos-calamares` binds `/lib/live/mount/medium` onto `/run/live/medium`
+  when needed so Calamares unpackfs finds `live/filesystem.squashfs` on
+  real USB boots (Balena Etcher / dd hybrid ISO)
+- Fixes “The source filesystem …/filesystem.squashfs does not exist”
+
+## FosOS 1.6.0 — Windows-like RDP host (xrdp)
+
+- Inbound hosting via **xrdp** + **xorgxrdp**: separate FosOS Desktop session
+  for any local user; works with nobody signed in on the console
+- FosOS-branded xrdp login (Dawn Aperture logo, dark square card chrome)
+- Settings → Remote Desktop enable/disable (off by default); Desktop
+  `FosOS-Remote-Desktop.rdp` helper on enable
+- TLS negotiate + self-signed cert (accept once in mstsc)
+- Outbound `fosos-remote` (FreeRDP) unchanged
+- Removes FreeRDP console-shadow host from 1.5.0
+
 ## FosOS 1.5.0 — bidirectional RDP
 
 - `fosos-remote`: outbound RDP client (FreeRDP) with FosOS card chrome
 - Inbound hosting via FreeRDP **shadow** (`freerdp3-shadow-x11`) shares the
   console desktop with mstsc (TLS + PAM, fitted resolution, Desktop `.rdp`
-  helper) — no xrdp, no second Xorg
+  helper) — superseded by xrdp in 1.6.0
 - Off until enabled in Settings → Remote Desktop
 - Live image: sign in as `user` / `live` (or use the Desktop `.rdp` file)
 

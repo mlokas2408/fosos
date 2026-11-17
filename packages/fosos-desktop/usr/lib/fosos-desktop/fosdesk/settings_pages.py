@@ -839,14 +839,14 @@ def build_storage(status_cb) -> Gtk.Box:
 
 REMOTE_HOST = Path("/usr/libexec/fosos-remote-host")
 REMOTE_PORT = 3389
-REMOTE_INFO = Path("/run/fosos/rdp-shadow-info")
+REMOTE_INFO = Path("/run/fosos/rdp-host-info")
 
 
 def remote_host_active() -> bool:
-    """True when console RDP shadow is running."""
+    """True when xrdp is listening for Remote Desktop sessions."""
     try:
         result = subprocess.run(
-            ["systemctl", "is-active", "fosos-rdp-shadow.service"],
+            ["systemctl", "is-active", "xrdp.service"],
             capture_output=True,
             text=True,
             timeout=5,
@@ -861,9 +861,11 @@ def remote_host_installed() -> bool:
     return any(
         Path(path).is_file()
         for path in (
-            "/usr/bin/freerdp-shadow-cli3",
-            "/usr/bin/freerdp-shadow-cli",
-            "/usr/libexec/fosos-rdp-shadow-run",
+            "/usr/sbin/xrdp",
+            "/usr/bin/xrdp",
+            "/lib/systemd/system/xrdp.service",
+            "/usr/lib/systemd/system/xrdp.service",
+            "/usr/libexec/fosos-remote-host",
         )
     )
 
@@ -934,7 +936,7 @@ def remote_display_geometry() -> str:
 
 
 def set_remote_host_enabled_async(enabled: bool, done_cb) -> None:
-    """Toggle console RDP sharing via pkexec without blocking the GTK main loop.
+    """Toggle xrdp Remote Desktop via pkexec without blocking the GTK main loop.
 
     A synchronous pkexec + capture_output freezes Settings (mouse still moves).
     """
@@ -971,7 +973,7 @@ def build_remote_desktop(status_cb) -> Gtk.Box:
     root.pack_start(
         pack_header(
             "Remote Desktop",
-            "Let Windows Remote Desktop (mstsc) control this PC, or connect out to other PCs.",
+            "Allow remote sign-in to a FosOS Desktop session, or connect out to other PCs.",
         ),
         False,
         False,
@@ -980,7 +982,7 @@ def build_remote_desktop(status_cb) -> Gtk.Box:
 
     if not remote_host_installed():
         tip = label(
-            "Install freerdp3-shadow-x11 to host Remote Desktop. "
+            "Install xrdp and xorgxrdp to host Remote Desktop. "
             "The FosOS Remote Desktop app still connects out with FreeRDP.",
             "fos-text",
             "fos-muted",
@@ -1008,10 +1010,12 @@ def build_remote_desktop(status_cb) -> Gtk.Box:
         card.pack_start(how_line, False, False, 0)
 
         help_line = label(
-            "Shows the desktop already on this screen (like Ubuntu Desktop Sharing). "
-            "mstsc will ask you to accept the certificate, then sign in with this account. "
-            "Live image: user / live. Use Full Screen or the .rdp file on the Desktop. "
-            "Turn off when finished — no firewall on the live image by default.",
+            "Starts a separate FosOS Desktop session for the account you sign in with "
+            "(any local user). Works even when nobody is signed in on this PC. "
+            "mstsc will ask you to accept the certificate once, then ask for username "
+            "and password. Live image: user / live. A FosOS-Remote-Desktop.rdp helper "
+            "is written to the Desktop when you enable. Turn off when finished — "
+            "no firewall on the live image by default.",
             "fos-small",
             "fos-muted",
         )
@@ -1026,24 +1030,20 @@ def build_remote_desktop(status_cb) -> Gtk.Box:
             toggling["busy"] = True
             switch.set_active(active)
             toggling["busy"] = False
-            info = remote_host_info()
-            user = info.get("user") or GLib.get_user_name()
-            geom = info.get("geometry") or remote_display_geometry() or "unknown"
             if active:
                 targets = remote_host_addresses() or ["(no address yet)"]
                 primary = targets[0]
                 lines = [
-                    f"Listening on port {REMOTE_PORT} · display {geom}",
-                    f"Sign in as: {user}",
+                    f"Listening on port {REMOTE_PORT} · separate session (xrdp)",
+                    "Sign in as any local FosOS user",
                 ]
                 for item in targets:
                     lines.append(f"{item}:{REMOTE_PORT}")
                 status_line.set_text("\n".join(lines))
                 how_line.set_text(
                     f"On Windows: open mstsc → Computer “{primary}:{REMOTE_PORT}” "
-                    f"→ User name “{user}” → accept the certificate → enter the password. "
-                    f"Or copy Desktop/FosOS-Remote-Desktop.rdp to Windows and open it "
-                    f"(Full Screen + smart sizing for {geom})."
+                    f"→ accept the certificate → sign in with a local username and password. "
+                    f"Or copy Desktop/FosOS-Remote-Desktop.rdp to Windows and open it."
                 )
             else:
                 status_line.set_text("Remote Desktop is off.")
@@ -1077,7 +1077,7 @@ def build_remote_desktop(status_cb) -> Gtk.Box:
                     refresh_status()
                     return False
 
-                # Geometry / .rdp file appear shortly after the unit starts.
+                # Status / .rdp file appear shortly after the unit starts.
                 GLib.timeout_add(600, refresh_later)
                 refresh_status()
 

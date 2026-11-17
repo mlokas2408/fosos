@@ -9,6 +9,72 @@ if [ -z "${QT_QPA_PLATFORM:-}" ]; then
 	export QT_QPA_PLATFORM=xcb
 fi
 
+# Calamares unpackfs is hardcoded to /run/live/medium/live/filesystem.squashfs
+# (see unpackfs.conf). Debian live-boot often mounts the USB/ISO at
+# /lib/live/mount/medium instead. Make the Calamares path resolve before launch.
+CALAMARES_MEDIUM=/run/live/medium
+CALAMARES_SQUASHFS="$CALAMARES_MEDIUM/live/filesystem.squashfs"
+
+find_live_squashfs() {
+	for candidate in \
+		"$CALAMARES_SQUASHFS" \
+		/lib/live/mount/medium/live/filesystem.squashfs; do
+		if [ -f "$candidate" ]; then
+			printf '%s\n' "$candidate"
+			return 0
+		fi
+	done
+	# Case-insensitive fallback (FAT-copied media can uppercase names).
+	for medium in "$CALAMARES_MEDIUM" /lib/live/mount/medium; do
+		[ -d "$medium" ] || continue
+		found=$(find "$medium" -maxdepth 2 -type f -iname 'filesystem.squashfs' 2>/dev/null | head -n 1)
+		if [ -n "$found" ] && [ -f "$found" ]; then
+			printf '%s\n' "$found"
+			return 0
+		fi
+	done
+	return 1
+}
+
+ensure_calamares_squashfs() {
+	if [ -f "$CALAMARES_SQUASHFS" ] || [ -L "$CALAMARES_SQUASHFS" ]; then
+		return 0
+	fi
+	src=$(find_live_squashfs) || {
+		echo "FosOS installer: live filesystem.squashfs not found under /run/live or /lib/live." >&2
+		echo "Confirm the USB was written as a hybrid ISO (Balena Etcher / dd), not ISO-mode Rufus." >&2
+		return 1
+	}
+	if [ "$src" = "$CALAMARES_SQUASHFS" ]; then
+		return 0
+	fi
+
+	# Prefer binding the real live medium onto the path Calamares hardcodes.
+	# Never unmount an existing /run/live/medium — live-boot may own it.
+	if [ -d /lib/live/mount/medium/live ] \
+		&& [ -f /lib/live/mount/medium/live/filesystem.squashfs ]; then
+		mkdir -p "$CALAMARES_MEDIUM"
+		if ! findmnt -n "$CALAMARES_MEDIUM" >/dev/null 2>&1; then
+			mount --bind /lib/live/mount/medium "$CALAMARES_MEDIUM" || return 1
+		fi
+		if [ -f "$CALAMARES_SQUASHFS" ] || [ -L "$CALAMARES_SQUASHFS" ]; then
+			return 0
+		fi
+	fi
+
+	# Writable /run tree: symlink the squashfs file to the expected path.
+	if ! findmnt -n "$CALAMARES_MEDIUM" >/dev/null 2>&1; then
+		mkdir -p "$CALAMARES_MEDIUM/live"
+		ln -sfn "$src" "$CALAMARES_SQUASHFS" || return 1
+		return 0
+	fi
+
+	echo "FosOS installer: found $src but could not expose $CALAMARES_SQUASHFS" >&2
+	return 1
+}
+
+ensure_calamares_squashfs || exit 1
+
 # Calamares hides "Erase disk" when any partition on the chosen disk is
 # mounted, which leaves only manual partitioning. The desktop automounts
 # leftover partitions (for example the EFI partition from a failed attempt).

@@ -47,6 +47,24 @@ sudo systemctl restart lightdm
 
 On the live image the account is `user` / password `live`.
 
+## Installer: filesystem.squashfs does not exist
+
+Calamares expects `/run/live/medium/live/filesystem.squashfs`. On some USB
+boots Debian live-boot only mounts the stick at `/lib/live/mount/medium`.
+`fosos-installer` 1.0.1+ fixes this automatically. On an older live image,
+before Install FosOS:
+
+```bash
+# Live account: user / live
+ls /lib/live/mount/medium/live/filesystem.squashfs
+sudo mkdir -p /run/live/medium
+sudo mount --bind /lib/live/mount/medium /run/live/medium
+ls /run/live/medium/live/filesystem.squashfs
+```
+
+Then start Install FosOS again. Prefer writing the hybrid ISO with Balena
+Etcher or `dd`; Rufus in “ISO mode” can break the live layout.
+
 ## Settings freezes when enabling Remote Desktop
 
 Older builds ran `pkexec` synchronously inside Settings, which blocked the

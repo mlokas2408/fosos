@@ -1,5 +1,5 @@
 Package: fosos-installer
-Version: 1.0.0
+Version: 1.0.1
 Section: admin
 Priority: optional
 Architecture: all
@@ -9,3 +9,5 @@ Description: FosOS graphical installer
  Calamares configuration and branding for installing FosOS.
  Covers partitioning, optional disk encryption, locale, timezone,
  keyboard, and the account that will own the installed system.
+ Ensures the live squashfs is visible at the path Calamares expects
+ (/run/live/medium) even when live-boot mounted the USB elsewhere.

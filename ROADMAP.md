@@ -19,7 +19,7 @@ from Debian or upstream as needed.
 | Area | Choice |
 | --- | --- |
 | Base | Debian Stable |
-| Arch / boot | x86_64/amd64, UEFI only |
+| Arch / boot | x86_64/amd64, UEFI only (Secure Boot not yet) |
 | Desktop | FosOS Desktop (`fosos-desktop`) on Openbox; no XFCE session |
 | Fallback | FosOS Recovery (Openbox + terminal) and text consoles |
 | Browser | Firefox only (no Chrome by default) |
@@ -33,7 +33,7 @@ Debian supplies the kernel, drivers, libraries, and optional software.
 The `mockup/` directory is a visual reference only. Do not build, ship, or
 import it.
 
-## Current baseline (`fosos-desktop` 1.5.0)
+## Current baseline (`fosos-desktop` 1.6.1)
 
 - Live and installable Debian-based ISO with Calamares and FosOS APT keyring
 - FosOS Desktop as the only full session; Recovery + TTY documented
@@ -42,8 +42,8 @@ import it.
   snap layouts, Task View, desktop icons, muscle-memory shortcuts
 - Task View button + Show Desktop strip (no numbered pager); icon grid with
   no overlap; Files search and folder-background menus
-- Bidirectional RDP: `fosos-remote` client + FreeRDP shadow host (off until
-  Settings → Remote Desktop)
+- Bidirectional RDP: `fosos-remote` client + xrdp host (separate FosOS
+  Desktop session for any local user; off until Settings → Remote Desktop)
 - No `xfce4-*` Depends on `fosos-desktop` / `fosos-theme`
 
 See [DESKTOP.md](docs/DESKTOP.md) and [ISO-SIZE.md](docs/ISO-SIZE.md).
@@ -103,6 +103,24 @@ Pick only high-frequency items after 1–3 feel solid.
 Complete the Hyper-V soak in [TESTING.md](docs/TESTING.md) (and USB where
 needed) before tagging a release ISO. Promote APT packages only after VM
 testing.
+
+### 6 — UEFI Secure Boot
+
+**Goal:** boot the live and installed system with Secure Boot enabled
+(Hyper-V Gen2 default and typical hardware), without asking users to turn
+it off.
+
+Today the image is UEFI-only but not Secure Boot–ready: no Microsoft-trusted
+`shim`, no signed GRUB/kernel path for the FosOS live bootloader. Testing
+docs and Hyper-V scripts disable Secure Boot for that reason.
+
+Candidates: Debian `shim-signed` + signed GRUB EFI packages in the live
+image; keep FosOS GRUB branding where signing allows; verify live ISO and
+Calamares-installed system under Secure Boot on Hyper-V and USB hardware;
+update [TESTING.md](docs/TESTING.md) / Hyper-V scripts when green.
+
+**Exit:** Gen2 Hyper-V and selected hardware boot FosOS with Secure Boot
+on; docs no longer require turning it off.
 
 ## Working rules
 
