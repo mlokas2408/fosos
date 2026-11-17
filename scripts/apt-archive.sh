@@ -36,13 +36,15 @@ Usage: apt-archive.sh <publish|promote> [package...]
 
 The signing private key is created on first publish, under
 /root/.local/share/fosos/archive-gnupg, and is not written to git.
+Each publish and promote rebuilds the local reprepro database from
+the public fosos-apt checkout so any machine with the key can run it.
 EOF
 }
 
 require_tools() {
   local missing=()
   local tool
-  for tool in gpg reprepro rsync dpkg-deb; do
+  for tool in gpg reprepro rsync dpkg-deb gzip; do
     if ! command -v "$tool" >/dev/null 2>&1; then
       missing+=("$tool")
     fi
@@ -139,6 +141,38 @@ assert_public_checkout() {
   fi
 }
 
+list_suite_filenames() {
+  local suite="$1"
+  local packages_file="$apt_dir/dists/$suite/main/binary-amd64/Packages"
+  local packages_gz="${packages_file}.gz"
+  if [[ -f "$packages_file" ]]; then
+    awk '/^Filename:/{print $2}' "$packages_file"
+  elif [[ -f "$packages_gz" ]]; then
+    gzip -dc "$packages_gz" | awk '/^Filename:/{print $2}'
+  fi
+}
+
+rebuild_work_from_public() {
+  local fingerprint="$1"
+  local suite filename
+  assert_public_checkout
+  rm -rf -- "$work_dir/db" "$work_dir/dists" "$work_dir/pool"
+  prepare_reprepro "$fingerprint"
+  for suite in testing stable; do
+    while IFS= read -r filename; do
+      [[ -z "$filename" ]] && continue
+      if [[ ! -f "$apt_dir/$filename" ]]; then
+        echo "Missing package file for $suite: $apt_dir/$filename" >&2
+        exit 1
+      fi
+      reprepro -b "$work_dir" includedeb "$suite" "$apt_dir/$filename"
+    done < <(list_suite_filenames "$suite")
+  done
+  if [[ -d "$work_dir/db" ]]; then
+    reprepro -b "$work_dir" export
+  fi
+}
+
 sync_public() {
   local fingerprint="$1"
   assert_public_checkout
@@ -160,7 +194,7 @@ publish_testing() {
     names=("${packages[@]}")
   fi
   fingerprint="$(ensure_key)"
-  prepare_reprepro "$fingerprint"
+  rebuild_work_from_public "$fingerprint"
   debs_dir="$(mktemp -d /var/tmp/fosos-debs.XXXXXX)"
   for name in "${names[@]}"; do
     deb="$(stage_deb "$repo_root" "$name" "$debs_dir")"
@@ -179,11 +213,11 @@ publish_testing() {
 promote_stable() {
   local fingerprint
   fingerprint="$(ensure_key)"
+  rebuild_work_from_public "$fingerprint"
   if [[ ! -d "$work_dir/db" ]]; then
     echo "Nothing to promote. Publish to testing first." >&2
     exit 1
   fi
-  prepare_reprepro "$fingerprint"
   if [[ "$#" -eq 0 ]]; then
     set -- "${packages[@]}"
   fi

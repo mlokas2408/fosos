@@ -1,0 +1,112 @@
+name: APT publish
+
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        description: Publish packages to testing, or promote testing to stable
+        required: true
+        type: choice
+        options:
+          - publish
+          - promote
+      packages:
+        description: Optional space-separated package names (empty = all FosOS packages)
+        required: false
+        type: string
+        default: ""
+
+permissions:
+  contents: read
+
+jobs:
+  apt:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out fosos
+        uses: actions/checkout@v6
+
+      - name: Check out fosos-apt
+        uses: actions/checkout@v6
+        with:
+          repository: MLOKAS2408/fosos-apt
+          path: fosos-apt
+          token: ${{ secrets.FOSOS_APT_PUSH_TOKEN }}
+
+      - name: Install archive tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gnupg reprepro rsync debootstrap
+
+      - name: Import signing key
+        env:
+          FOSOS_APT_SIGNING_KEY: ${{ secrets.FOSOS_APT_SIGNING_KEY }}
+          FOSOS_APT_PUSH_TOKEN: ${{ secrets.FOSOS_APT_PUSH_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [[ -z "${FOSOS_APT_SIGNING_KEY}" ]]; then
+            echo "Secret FOSOS_APT_SIGNING_KEY is not set." >&2
+            exit 1
+          fi
+          if [[ -z "${FOSOS_APT_PUSH_TOKEN}" ]]; then
+            echo "Secret FOSOS_APT_PUSH_TOKEN is not set." >&2
+            exit 1
+          fi
+          gnupg_home="${GITHUB_WORKSPACE}/archive-gnupg"
+          mkdir -p "$gnupg_home"
+          chmod 700 "$gnupg_home"
+          export GNUPGHOME="$gnupg_home"
+          printf '%s\n' "$FOSOS_APT_SIGNING_KEY" | gpg --batch --import
+          expected="$(tr -d '[:space:]' < archive/signing-key.txt)"
+          actual="$(gpg --batch --with-colons --list-secret-keys archive@fosos.local \
+            | awk -F: '/^fpr:/ {print $10; exit}')"
+          if [[ -z "$actual" || "$actual" != "$expected" ]]; then
+            echo "Signing key fingerprint mismatch." >&2
+            echo "Expected: $expected" >&2
+            echo "Actual:   ${actual:-none}" >&2
+            exit 1
+          fi
+          echo "Imported archive signing key $actual"
+
+      - name: Run apt-archive
+        env:
+          FOSOS_GNUPGHOME: ${{ github.workspace }}/archive-gnupg
+          FOSOS_APT_DIR: ${{ github.workspace }}/fosos-apt
+          FOSOS_APT_WORK: ${{ github.workspace }}/apt-work
+          ARCHIVE_ACTION: ${{ inputs.action }}
+          ARCHIVE_PACKAGES: ${{ inputs.packages }}
+        run: |
+          set -euo pipefail
+          if [[ -n "${ARCHIVE_PACKAGES}" && ! "${ARCHIVE_PACKAGES}" =~ ^[a-z0-9[:space:]-]+$ ]]; then
+            echo "packages input may only contain package names." >&2
+            exit 1
+          fi
+          # shellcheck disable=SC2086
+          sudo --preserve-env=FOSOS_GNUPGHOME,FOSOS_APT_DIR,FOSOS_APT_WORK,GNUPGHOME \
+            bash scripts/apt-archive.sh "${ARCHIVE_ACTION}" ${ARCHIVE_PACKAGES}
+
+      - name: Test testing archive
+        if: ${{ inputs.action == 'publish' }}
+        env:
+          FOSOS_GNUPGHOME: ${{ github.workspace }}/archive-gnupg
+          FOSOS_APT_WORK: ${{ github.workspace }}/apt-work
+          FOSOS_APT_TEST_ROOT: ${{ github.workspace }}/apt-test-root
+        run: |
+          set -euo pipefail
+          sudo --preserve-env=FOSOS_GNUPGHOME,FOSOS_APT_WORK,FOSOS_APT_TEST_ROOT,GNUPGHOME \
+            bash scripts/test-apt-archive.sh
+
+      - name: Push fosos-apt
+        working-directory: fosos-apt
+        run: |
+          set -euo pipefail
+          sudo chown -R "$(id -u):$(id -g)" .
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add dists pool fosos-archive-keyring.gpg FINGERPRINT
+          if git diff --staged --quiet; then
+            echo "No archive changes to push."
+            exit 0
+          fi
+          git commit -m "Update FosOS archive from ${GITHUB_SHA}"
+          git push

@@ -113,10 +113,40 @@ byte size in [ISO-SIZE.md](ISO-SIZE.md).
 
 ## Package archive
 
-Publish from Debian 13, where `gnupg` and `reprepro` are installed. The signing
-private key is created on the first publish and stored in
-`/root/.local/share/fosos/archive-gnupg`. It is not written to either git
-repository.
+Prefer GitHub Actions so any machine can publish without a local signing key
+or reprepro database. Open **Actions → APT publish → Run workflow**, choose
+`publish` or `promote`, and optionally limit the package list. `publish` builds
+packages into testing, runs `scripts/test-apt-archive.sh`, and pushes the
+`fosos-apt` checkout. Run `promote` afterward to copy those packages to stable
+and push again. The public URL is
+`https://mlokas2408.github.io/fosos-apt`.
+
+### One-time Actions secrets
+
+Create these repository secrets on `fosos` (never commit them):
+
+| Secret | Purpose |
+|--------|---------|
+| `FOSOS_APT_SIGNING_KEY` | Armored private archive signing key |
+| `FOSOS_APT_PUSH_TOKEN` | Token with `contents: write` on `MLOKAS2408/fosos-apt` |
+
+Export the existing key once from the machine that first published:
+
+```bash
+sudo gpg --homedir /root/.local/share/fosos/archive-gnupg \
+  --export-secret-keys --armor archive@fosos.local
+```
+
+Paste that armored block into `FOSOS_APT_SIGNING_KEY`. The private key must
+never enter git.
+
+### Local publish
+
+You can still publish from Debian 13 with `gnupg` and `reprepro`. Point
+`FOSOS_APT_DIR` at a pulled `fosos-apt` checkout and keep the matching private
+key in `FOSOS_GNUPGHOME` (default `/root/.local/share/fosos/archive-gnupg`).
+Each run rebuilds the local reprepro work database from that public checkout,
+so you do not need to copy `/var/tmp/fosos-apt` between machines.
 
 ```bash
 sudo bash scripts/apt-archive.sh publish
@@ -124,8 +154,5 @@ sudo bash scripts/test-apt-archive.sh
 sudo bash scripts/apt-archive.sh promote
 ```
 
-`publish` builds the FosOS packages and puts them in the testing suite.
-`promote` copies those exact packages to stable. The public files land in the
-`fosos-apt` checkout beside this repository. Push that checkout and serve it
-with GitHub Pages from the `main` branch root before an installed system can
-download it. The public URL is `https://mlokas2408.github.io/fosos-apt`.
+Then push the `fosos-apt` checkout so GitHub Pages serves the update from the
+`main` branch root.
