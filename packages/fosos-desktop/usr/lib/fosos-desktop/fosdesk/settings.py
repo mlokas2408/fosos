@@ -65,7 +65,7 @@ PANELS = [
     (
         "Personalization",
         "Notifications",
-        "Toasts, Do not disturb and duration",
+        "Focus assist, toasts, and per-app mutes",
         "preferences-system-notifications-symbolic",
         {"page": "notifications"},
     ),
@@ -135,9 +135,11 @@ def panel_available(action: dict) -> bool:
         commands = {
             "display": "arandr",
             "sound": "pavucontrol",
-            "network": "nm-connection-editor",
             "bluetooth": "blueman-manager",
         }
+        # Network page uses nmcli / WifiPicker in-process; nm-connection-editor is optional.
+        if page_id == "network":
+            return shutil.which("nmcli") is not None
         binary = commands.get(page_id)
         if binary is not None and shutil.which(binary) is None:
             return False

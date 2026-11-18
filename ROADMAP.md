@@ -33,13 +33,21 @@ Debian supplies the kernel, drivers, libraries, and optional software.
 The `mockup/` directory is a visual reference only. Do not build, ship, or
 import it.
 
-## Current baseline (`fosos-desktop` 1.6.1)
+## Current baseline (`fosos-desktop` 1.12.0)
 
 - Live and installable Debian-based ISO with Calamares and FosOS APT keyring
 - FosOS Desktop as the only full session; Recovery + TTY documented
 - First-party Files, Terminal, Notepad, Settings, Welcome, greeter, lock
 - Win-habit shell: Start, taskbar pins, Quick Settings, Notification Center,
   snap layouts, Task View, desktop icons, muscle-memory shortcuts
+- Start: search clear + Esc-clears-first, arrow/Enter launch, Pinned /
+  Recommended / All apps under home scroller, Account + Power footer
+- Snap: edge zone preview; Win+arrows tile/restore via work area; CardWindow
+  titlebar menu; Alt+Tab selection polish
+- Quick Settings 2×2 (Wi-Fi / Bluetooth / Focus assist / Mute); per-app
+  toast mutes; toast hover pauses expire
+- Super+V clipboard history; Status Notifier tray (nm-applet and peers)
+- Network flyout + Settings Wi-Fi picker (scan/join; not nm-connection-editor-only)
 - Task View button + Show Desktop strip (no numbered pager); icon grid with
   no overlap; Files search and folder-background menus
 - Bidirectional RDP: `fosos-remote` client + xrdp host (separate FosOS
@@ -53,56 +61,35 @@ See [DESKTOP.md](docs/DESKTOP.md) and [ISO-SIZE.md](docs/ISO-SIZE.md).
 Prioritized. Prefer Windows *behavior* over Windows *pixels*; keep square
 FosOS cards, Dawn Aperture, Inter.
 
-### 1 — Start menu and search polish
+### 1 — Start menu and search polish — done (1.7.0)
 
-**Goal:** Start feels closer to Windows for find-and-launch without a full
-redesign.
+Shipped: stronger Search, Pinned/Recommended/All apps layout, keyboard
+nav, home scrolling, Account + Power footer.
 
-Candidates: stronger Search affordance, pinned vs recommended clarity,
-keyboard focus order, All apps scrolling, power/account placement.
+### 2 — Window chrome and snap feedback — done (1.8.0)
 
-**Exit:** daily apps are findable and launchable from Start without fighting
-focus or layout.
+Shipped: edge snap zone overlay, restore-from-snap (Win+Down), work-area
+Win+Left/Right, CardWindow titlebar menu, Alt+Tab selection polish.
 
-### 2 — Window chrome and snap feedback
+### 3 — Notifications and Quick Settings depth — done (1.9.0)
 
-**Goal:** maximize / snap / restore cues match Windows expectations (layouts
-already exist).
+Shipped: Focus assist naming + QS tile, 2×2 Quick Settings grid, per-app
+toast mutes, toast hover pause / restack.
 
-Candidates: clearer snap zones, restore-from-snap, titlebar context menu
-parity, Alt+Tab preview polish.
+### 4 — Optional convenience backlog — partial (1.10.0)
 
-**Exit:** multi-window tiling and restore feel predictable without manual
-resize math.
-
-### 3 — Notifications and Quick Settings depth
-
-**Goal:** hubs feel complete for everyday controls.
-
-Candidates: per-app notification toggles, Quick Settings tile layout, Focus
-assist naming, toast stacking.
-
-**Exit:** volume, network, brightness, and notification habits work in at
-most two clicks without hunting full Settings pages.
-
-### 4 — Optional convenience backlog
-
-Pick only high-frequency items after 1–3 feel solid.
-
-| Item | Guidance |
+| Item | Status |
 | --- | --- |
-| Clipboard history (Win+V) | High value |
-| Status Notifier tray | High compatibility value |
-| Jump lists / recent docs per app | Medium |
-| Widgets / news / Fluent acrylic / centered bar | Skip — fights brand and lightness |
-
-**Exit:** each accepted item has a soak note; skipped items stay non-goals.
+| Clipboard history (Win+V) | Done (1.10.0) |
+| Status Notifier tray | Done (1.10.0) |
+| Jump lists / recent docs per app | Deferred |
+| Widgets / news / Fluent acrylic / centered bar | Skip — non-goal |
 
 ### 5 — Release hygiene
 
-Complete the Hyper-V soak in [TESTING.md](docs/TESTING.md) (and USB where
-needed) before tagging a release ISO. Promote APT packages only after VM
-testing.
+Complete a Hyper-V soak log ([TESTING.md](docs/TESTING.md) /
+[SOAK-LOG.md](docs/SOAK-LOG.md), and USB where needed) with no open `fail`
+rows before tagging a release ISO. Promote APT packages only after VM testing.
 
 ### 6 — UEFI Secure Boot
 
@@ -135,6 +122,6 @@ on; docs no longer require turning it off.
 
 - [DESKTOP.md](docs/DESKTOP.md) — architecture and shortcuts
 - [BUILDING.md](docs/BUILDING.md) — ISO and package builds
-- [TESTING.md](docs/TESTING.md) — soak checklists
+- [TESTING.md](docs/TESTING.md) — test suites; [SOAK-LOG.md](docs/SOAK-LOG.md) — pass/fail log
 - [RECOVERY.md](docs/RECOVERY.md) — Recovery, TTY, Hyper-V, rollback
 - [RELEASE-NOTES.md](docs/RELEASE-NOTES.md) — what shipped

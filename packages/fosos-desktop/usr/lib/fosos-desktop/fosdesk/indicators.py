@@ -162,15 +162,26 @@ def network_state() -> tuple[str, str]:
     for kind in ("ethernet", "wifi"):
         for line in output.splitlines():
             fields = split_terse(line)
-            if len(fields) >= 3 and fields[0] == kind and fields[1] == "connected":
-                if kind == "wifi":
-                    return "network-wireless-symbolic", f"Connected to {fields[2]}"
-                return "network-wired-symbolic", "Connected by cable"
+            if len(fields) < 2 or fields[0] != kind:
+                continue
+            # nmcli may report "connected (externally)" etc.
+            if not fields[1].startswith("connected"):
+                continue
+            name = fields[2] if len(fields) >= 3 and fields[2] else kind
+            if kind == "wifi":
+                return "network-wireless-symbolic", f"Connected to {name}"
+            return "network-wired-symbolic", "Connected by cable"
     return "network-offline-symbolic", "Not connected"
 
 
-def wifi_networks() -> list[dict]:
-    output = run(["nmcli", "-t", "-f", "IN-USE,SSID,SIGNAL,SECURITY", "device", "wifi", "list", "--rescan", "no"])
+def wifi_networks(*, rescan: bool = False, limit: int = 12) -> list[dict]:
+    """List nearby Wi-Fi networks. rescan=True asks NetworkManager to scan first."""
+    mode = "yes" if rescan else "no"
+    # Rescan can take a few seconds on real hardware.
+    output = run(
+        ["nmcli", "-t", "-f", "IN-USE,SSID,SIGNAL,SECURITY", "device", "wifi", "list", "--rescan", mode],
+        timeout=12.0 if rescan else 2.0,
+    )
     if not output:
         return []
     networks: dict[str, dict] = {}
@@ -179,16 +190,18 @@ def wifi_networks() -> list[dict]:
         if len(fields) < 4 or not fields[1]:
             continue
         ssid = fields[1]
+        security = fields[3]
         entry = {
             "ssid": ssid,
             "active": fields[0] == "*",
             "signal": int(fields[2]) if fields[2].isdigit() else 0,
-            "secure": fields[3] not in ("", "--"),
+            "secure": security not in ("", "--"),
+            "security": security,
         }
         known = networks.get(ssid)
         if known is None or entry["active"] or entry["signal"] > known["signal"]:
             networks[ssid] = entry
-    return sorted(networks.values(), key=lambda n: (not n["active"], -n["signal"]))[:8]
+    return sorted(networks.values(), key=lambda n: (not n["active"], -n["signal"]))[:limit]
 
 
 def wifi_enabled() -> bool | None:
@@ -198,55 +211,118 @@ def wifi_enabled() -> bool | None:
     return output.strip() == "enabled"
 
 
-class NetworkPopup(Popup):
-    def __init__(self, shell) -> None:
-        super().__init__(width=320)
-        self.shell = shell
-        frame = add_classes(Gtk.Box(orientation=Gtk.Orientation.VERTICAL), "fos-card")
-        self.add(frame)
-        header = popup_header("Network")
-        self.wifi_switch = add_classes(Gtk.Switch(), "fos-switch")
-        self.wifi_switch.set_valign(Gtk.Align.CENTER)
-        self.wifi_switch.set_tooltip_text("Wi-Fi")
-        self.wifi_switch.connect("state-set", self._on_wifi_toggled)
-        header.pack_end(self.wifi_switch, False, False, 0)
-        header.pack_end(label("Wi-Fi", "fos-small", "fos-muted"), False, False, 0)
-        frame.pack_start(header, False, False, 0)
-        body = add_classes(Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10), "fos-card-content")
-        frame.pack_start(body, True, True, 0)
+def wifi_ask_password(parent: Gtk.Widget | None, ssid: str) -> str | None:
+    """Modal password prompt for a secured SSID. Returns None if cancelled."""
+    dialog = Gtk.Dialog(title=f"Connect to {ssid}", modal=True, destroy_with_parent=True)
+    if parent is not None:
+        toplevel = parent.get_toplevel()
+        if isinstance(toplevel, Gtk.Window):
+            dialog.set_transient_for(toplevel)
+    dialog.add_button("Cancel", Gtk.ResponseType.CANCEL)
+    dialog.add_button("Connect", Gtk.ResponseType.OK)
+    dialog.set_default_response(Gtk.ResponseType.OK)
+    box = dialog.get_content_area()
+    box.set_spacing(10)
+    box.set_border_width(12)
+    box.pack_start(label(f"Password for “{ssid}”", "fos-text"), False, False, 0)
+    entry = Gtk.Entry()
+    entry.set_visibility(False)
+    entry.set_input_purpose(Gtk.InputPurpose.PASSWORD)
+    entry.set_activates_default(True)
+    box.pack_start(entry, False, False, 0)
+    dialog.show_all()
+    response = dialog.run()
+    password = entry.get_text() if response == Gtk.ResponseType.OK else None
+    dialog.destroy()
+    if password is None:
+        return None
+    return password
+
+
+def wifi_connect(ssid: str, *, secure: bool = False, parent: Gtk.Widget | None = None, done=None) -> None:
+    """Connect to SSID; prompt for password when the network looks secured."""
+    argv = ["nmcli", "device", "wifi", "connect", ssid]
+    if secure:
+        password = wifi_ask_password(parent, ssid)
+        if password is None:
+            if done:
+                done(False, "Cancelled.")
+            return
+        if password:
+            argv.extend(["password", password])
+    run_async(argv, done)
+
+
+class WifiPicker(Gtk.Box):
+    """Reusable Wi-Fi radio switch + scanned network list (popup and Settings)."""
+
+    def __init__(self, *, on_changed=None, show_switch: bool = True) -> None:
+        super().__init__(orientation=Gtk.Orientation.VERTICAL, spacing=10)
+        self.on_changed = on_changed
+        self._updating = False
+        self._parent_for_dialogs = self
+
+        if show_switch:
+            switch_row = Gtk.Box(spacing=10)
+            switch_row.pack_start(label("Wi-Fi", "fos-text", "fos-strong"), True, True, 0)
+            self.wifi_switch = add_classes(Gtk.Switch(), "fos-switch")
+            self.wifi_switch.set_valign(Gtk.Align.CENTER)
+            self.wifi_switch.connect("state-set", self._on_wifi_toggled)
+            switch_row.pack_end(self.wifi_switch, False, False, 0)
+            self.pack_start(switch_row, False, False, 0)
+        else:
+            self.wifi_switch = None
+
         self.status = label("", "fos-text", "fos-strong")
-        body.pack_start(self.status, False, False, 0)
+        self.pack_start(self.status, False, False, 0)
         self.message = label("", "fos-small", "fos-muted")
         self.message.set_line_wrap(True)
         self.message.set_no_show_all(True)
-        body.pack_start(self.message, False, False, 0)
+        self.pack_start(self.message, False, False, 0)
         self.list = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
-        body.pack_start(self.list, False, False, 0)
-        footer = add_classes(Gtk.Box(), "fos-card-footer")
-        settings = button("Network settings", variant="ghost", size="sm")
-        settings.connect("clicked", lambda _b: self._open_settings())
-        footer.pack_start(settings, False, False, 0)
-        frame.pack_start(footer, False, False, 0)
-        self._updating = False
+        self.pack_start(self.list, False, False, 0)
+        actions = Gtk.Box(spacing=8)
+        refresh_btn = button("Refresh", variant="outline", size="sm")
+        refresh_btn.connect("clicked", lambda _b: self.refresh(rescan=True))
+        actions.pack_start(refresh_btn, False, False, 0)
+        self.pack_start(actions, False, False, 0)
 
-    def refresh(self) -> None:
+    def set_dialog_parent(self, widget: Gtk.Widget) -> None:
+        self._parent_for_dialogs = widget
+
+    def refresh(self, *, rescan: bool = False) -> None:
         _icon, text = network_state()
         self.status.set_text(text)
         enabled = wifi_enabled()
-        self._updating = True
-        self.wifi_switch.set_sensitive(enabled is not None)
-        self.wifi_switch.set_active(bool(enabled))
-        self._updating = False
+        if self.wifi_switch is not None:
+            self._updating = True
+            self.wifi_switch.set_sensitive(enabled is not None)
+            self.wifi_switch.set_active(bool(enabled))
+            self._updating = False
         clear(self.list)
-        if enabled:
-            networks = wifi_networks()
+        if enabled is None:
+            self.list.pack_start(
+                label("Wi-Fi is not available (NetworkManager / nmcli).", "fos-small", "fos-muted"),
+                False,
+                False,
+                0,
+            )
+        elif not enabled:
+            self.list.pack_start(label("Wi-Fi is off.", "fos-small", "fos-muted"), False, False, 0)
+        else:
+            networks = wifi_networks(rescan=rescan)
             if not networks:
-                self.list.pack_start(label("No Wi-Fi networks found.", "fos-small", "fos-muted"), False, False, 0)
+                self.list.pack_start(
+                    label("No Wi-Fi networks found. Try Refresh.", "fos-small", "fos-muted"),
+                    False,
+                    False,
+                    0,
+                )
             for network in networks:
                 self.list.pack_start(self._network_row(network), False, False, 0)
         self.list.show_all()
-        self.shell.update_status()
-        self.relayout()
+        if self.on_changed:
+            self.on_changed()
 
     def _network_row(self, network: dict) -> Gtk.Button:
         widget = button(variant="secondary" if network["active"] else "ghost")
@@ -261,10 +337,11 @@ class NetworkPopup(Popup):
             row.pack_end(icon("network-wireless-encrypted-symbolic", 12), False, False, 0)
         widget.add(row)
         if not network["active"]:
-            widget.connect("clicked", lambda _b: self._connect(network["ssid"]))
+            widget.connect("clicked", lambda _b, n=network: self._connect(n))
         return widget
 
-    def _connect(self, ssid: str) -> None:
+    def _connect(self, network: dict) -> None:
+        ssid = network["ssid"]
         self._show_message(f"Connecting to {ssid}…")
 
         def done(ok: bool, output: str) -> None:
@@ -273,24 +350,58 @@ class NetworkPopup(Popup):
             else:
                 detail = output.strip().splitlines()[-1] if output.strip() else "The connection failed."
                 self._show_message(detail)
-            self.refresh()
+            self.refresh(rescan=False)
 
-        run_async(["nmcli", "device", "wifi", "connect", ssid], done)
+        wifi_connect(
+            ssid,
+            secure=bool(network.get("secure")),
+            parent=self._parent_for_dialogs,
+            done=done,
+        )
 
     def _show_message(self, text: str) -> None:
         self.message.set_text(text)
         self.message.show()
-        self.relayout()
 
     def _on_wifi_toggled(self, _switch, state: bool) -> bool:
         if self._updating:
             return False
-        run_async(["nmcli", "radio", "wifi", "on" if state else "off"], lambda _ok, _out: self.refresh())
+        run_async(
+            ["nmcli", "radio", "wifi", "on" if state else "off"],
+            lambda _ok, _out: self.refresh(rescan=bool(state)),
+        )
         return False
+
+
+class NetworkPopup(Popup):
+    def __init__(self, shell) -> None:
+        super().__init__(width=340)
+        self.shell = shell
+        frame = add_classes(Gtk.Box(orientation=Gtk.Orientation.VERTICAL), "fos-card")
+        self.add(frame)
+        frame.pack_start(popup_header("Network"), False, False, 0)
+        body = add_classes(Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10), "fos-card-content")
+        frame.pack_start(body, True, True, 0)
+        self.picker = WifiPicker(on_changed=self._on_picker_changed, show_switch=True)
+        self.picker.set_dialog_parent(self)
+        body.pack_start(self.picker, False, False, 0)
+        footer = add_classes(Gtk.Box(), "fos-card-footer")
+        settings = button("Network settings", variant="ghost", size="sm")
+        settings.connect("clicked", lambda _b: self._open_settings())
+        footer.pack_start(settings, False, False, 0)
+        frame.pack_start(footer, False, False, 0)
+
+    def refresh(self) -> None:
+        self.picker.refresh(rescan=True)
+        self.relayout()
+
+    def _on_picker_changed(self) -> None:
+        self.shell.update_status()
+        self.relayout()
 
     def _open_settings(self) -> None:
         self.dismiss()
-        appmod.spawn(["nm-connection-editor"])
+        self.shell.open_settings("network")
 
 
 # Clock

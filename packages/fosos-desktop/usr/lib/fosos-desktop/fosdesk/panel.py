@@ -12,7 +12,7 @@ from gi.repository import Gdk, GdkX11, GLib, Gtk, Wnck  # noqa: F401 (GdkX11 ena
 
 from . import apps as appmod
 from .indicators import battery_present, brightness_available
-from .ui import BRAND, add_classes, badge, button, icon, label, separator, set_class, start_icon
+from .ui import BRAND, add_classes, badge, button, clear, icon, label, separator, set_class, start_icon
 
 HEIGHT = 48
 SKIP_TYPES = (Wnck.WindowType.DESKTOP, Wnck.WindowType.DOCK, Wnck.WindowType.SPLASHSCREEN)
@@ -309,9 +309,22 @@ class Panel(Gtk.Window):
         self.network_button = None
         self.bell_button = None
         self.unread_dot = None
+        self.tray_box = None
+        self.tray_sep = None
 
         if is_primary:
-            # Status cluster → one Quick Settings hub (Win+A).
+            # Status Notifier tray (left of Quick Settings cluster).
+            self.tray_box = Gtk.Box(spacing=2)
+            self.tray_box.set_no_show_all(True)
+            self.tray_box.hide()
+            row.pack_start(self.tray_box, False, False, 0)
+            self.tray_sep = separator()
+            self.tray_sep.set_no_show_all(True)
+            self.tray_sep.hide()
+            row.pack_start(self.tray_sep, False, False, 4)
+
+            # Status cluster: volume/battery/brightness → Quick Settings (Win+A);
+            # network icon opens the Wi-Fi / connections flyout.
             open_qs = lambda b: self.shell.toggle_popup("quicksettings", b)
             if battery_present():
                 self.battery_button = button(
@@ -334,9 +347,11 @@ class Panel(Gtk.Window):
             row.pack_start(self.volume_button, False, False, 0)
 
             self.network_button = button(
-                icon_name="network-wireless-symbolic", size="icon-sm", tooltip="Quick settings"
+                icon_name="network-wireless-symbolic", size="icon-sm", tooltip="Network"
             )
-            self.network_button.connect("clicked", open_qs)
+            self.network_button.connect(
+                "clicked", lambda b: self.shell.toggle_popup("network", b)
+            )
             row.pack_start(self.network_button, False, False, 0)
 
             # Bell + clock → Notification Center (calendar + history, Win+N).
@@ -413,6 +428,26 @@ class Panel(Gtk.Window):
             else:
                 self.bell_overlay.hide()
 
+    def rebuild_tray(self) -> None:
+        """Refresh Status Notifier icons on the primary panel."""
+        if self.tray_box is None:
+            return
+        from .tray import build_tray_button
+
+        clear(self.tray_box)
+        watcher = getattr(self.shell, "tray_watcher", None)
+        items = list(watcher.items.values()) if watcher is not None else []
+        if not items:
+            self.tray_box.hide()
+            if self.tray_sep is not None:
+                self.tray_sep.hide()
+            return
+        for item in items:
+            self.tray_box.pack_start(build_tray_button(item), False, False, 0)
+        self.tray_box.show_all()
+        if self.tray_sep is not None:
+            self.tray_sep.show()
+
     # Geometry
 
     def area(self) -> Gdk.Rectangle:
@@ -429,13 +464,14 @@ class Panel(Gtk.Window):
 
     def popup_anchors(self) -> dict[str, Gtk.Widget]:
         anchors = {"clock": self.clock_button, "notifications": self.clock_button}
-        qs = self.volume_button or self.network_button or self.battery_button or self.brightness_button
+        qs = self.volume_button or self.battery_button or self.brightness_button or self.network_button
         if qs is not None:
             anchors["quicksettings"] = qs
             anchors["volume"] = qs
-            anchors["network"] = qs
             anchors["battery"] = qs
             anchors["brightness"] = qs
+        if self.network_button is not None:
+            anchors["network"] = self.network_button
         if self.bell_button is not None:
             anchors["notifications"] = self.bell_button
         return anchors

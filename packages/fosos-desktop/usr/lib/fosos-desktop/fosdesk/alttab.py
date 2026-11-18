@@ -14,6 +14,8 @@ from .panel import HEIGHT, SKIP_TYPES, x_timestamp
 from .ui import add_classes, clear, icon, label, set_class
 
 MAX_ITEMS = 12
+ICON_PX = 48
+TILE_WIDTH = 112
 
 
 def switchable_windows(screen: Wnck.Screen) -> list[Wnck.Window]:
@@ -38,19 +40,26 @@ class AltTabSwitcher(Gtk.Window):
         self.set_skip_pager_hint(True)
         self.set_keep_above(True)
         add_classes(self, "fos-root", "fos-popup")
-        self.add_events(Gdk.EventMask.KEY_PRESS_MASK | Gdk.EventMask.KEY_RELEASE_MASK)
+        self.add_events(
+            Gdk.EventMask.KEY_PRESS_MASK
+            | Gdk.EventMask.KEY_RELEASE_MASK
+            | Gdk.EventMask.BUTTON_PRESS_MASK
+        )
         self.connect("key-press-event", self._on_key_press)
         self.connect("key-release-event", self._on_key_release)
+        self.connect("button-press-event", self._on_button_press)
 
         self.frame = add_classes(Gtk.Box(orientation=Gtk.Orientation.VERTICAL), "fos-card", "fos-alttab")
         self.add(self.frame)
-        body = add_classes(Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10), "fos-card-content")
+        body = add_classes(Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12), "fos-card-content")
         self.frame.pack_start(body, False, False, 0)
-        self.row = Gtk.Box(spacing=8)
+        self.row = Gtk.Box(spacing=10)
         self.row.set_halign(Gtk.Align.CENTER)
         body.pack_start(self.row, False, False, 0)
-        self.caption = label("", "fos-text", xalign=0.5, ellipsize=True)
+        self.caption = label("", "fos-text", "fos-strong", xalign=0.5, ellipsize=True)
         body.pack_start(self.caption, False, False, 0)
+        self.caption_sub = label("", "fos-small", "fos-muted", xalign=0.5, ellipsize=True)
+        body.pack_start(self.caption_sub, False, False, 0)
 
         self.windows: list[Wnck.Window] = []
         self.index = 0
@@ -85,7 +94,9 @@ class AltTabSwitcher(Gtk.Window):
         self.index = (self.index + direction) % len(self.windows)
         self._refresh_selection()
 
-    def hide_switcher(self) -> None:
+    def hide_switcher(self, activate: bool = False) -> None:
+        if activate and self.windows:
+            self._activate(self.windows[self.index % len(self.windows)])
         if self._grabbed:
             Gdk.Display.get_default().get_default_seat().ungrab()
             self._grabbed = False
@@ -99,14 +110,14 @@ class AltTabSwitcher(Gtk.Window):
         for index, window in enumerate(self.windows):
             item = add_classes(Gtk.Button(), "fos-btn", "ghost", "fos-alttab-item")
             item.set_can_focus(False)
-            box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
-            box.set_size_request(88, -1)
+            box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
+            box.set_size_request(TILE_WIDTH, -1)
             pixbuf = window.get_icon()
             if pixbuf is not None:
-                scaled = pixbuf.scale_simple(32, 32, GdkPixbuf.InterpType.BILINEAR)
+                scaled = pixbuf.scale_simple(ICON_PX, ICON_PX, GdkPixbuf.InterpType.BILINEAR)
                 image = Gtk.Image.new_from_pixbuf(scaled)
             else:
-                image = icon("application-x-executable-symbolic", 32)
+                image = icon("application-x-executable-symbolic", ICON_PX)
             box.pack_start(image, False, False, 0)
             title = label(window.get_name() or "Window", "fos-small", xalign=0.5, ellipsize=True)
             box.pack_start(title, False, False, 0)
@@ -124,12 +135,24 @@ class AltTabSwitcher(Gtk.Window):
         for index, item in enumerate(self._items):
             selected = index == self.index
             set_class(item, "default", selected)
+            set_class(item, "fos-alttab-selected", selected)
             set_class(item, "ghost", not selected)
         window = self.windows[self.index]
         self.caption.set_text(window.get_name() or "Window")
+        screen = Wnck.Screen.get_default()
+        if screen.get_workspace_count() > 1:
+            ws = window.get_workspace()
+            number = (ws.get_number() + 1) if ws is not None else 1
+            self.caption_sub.set_text(f"Desktop {number}")
+            self.caption_sub.show()
+        else:
+            self.caption_sub.set_text("")
+            self.caption_sub.hide()
 
     def _show_centered(self) -> None:
         self.show_all()
+        if Wnck.Screen.get_default().get_workspace_count() <= 1:
+            self.caption_sub.hide()
         display = Gdk.Display.get_default()
         monitor = display.get_primary_monitor() or display.get_monitor(0)
         area = monitor.get_geometry()
@@ -153,12 +176,7 @@ class AltTabSwitcher(Gtk.Window):
 
     def _pick(self, index: int) -> None:
         self.index = index
-        self._activate_selected()
-
-    def _activate_selected(self) -> None:
-        if self.windows:
-            self._activate(self.windows[self.index])
-        self.hide_switcher()
+        self.hide_switcher(activate=True)
 
     def _activate(self, window: Wnck.Window) -> None:
         stamp = x_timestamp(self.shell.panel) if self.shell.panel is not None else int(GLib.get_monotonic_time() / 1000)
@@ -167,13 +185,19 @@ class AltTabSwitcher(Gtk.Window):
             workspace.activate(stamp)
         window.activate(stamp)
 
+    def _on_button_press(self, _widget, event: Gdk.EventButton) -> bool:
+        # Click on empty chrome / outside children dismisses without switching.
+        if event.window == self.get_window():
+            self.hide_switcher(activate=False)
+            return True
+        return False
+
     def _on_key_press(self, _widget, event: Gdk.EventKey) -> bool:
         key = event.keyval
         state = event.state
-        if key in (Gdk.KEY_Escape, Gdk.KEY_ISO_Left_Tab) and not (state & Gdk.ModifierType.SHIFT_MASK):
-            if key == Gdk.KEY_Escape:
-                self.hide_switcher()
-                return True
+        if key == Gdk.KEY_Escape:
+            self.hide_switcher()
+            return True
         if key == Gdk.KEY_Tab:
             direction = -1 if state & Gdk.ModifierType.SHIFT_MASK else 1
             self.index = (self.index + direction) % max(len(self.windows), 1)
@@ -185,12 +209,12 @@ class AltTabSwitcher(Gtk.Window):
             self._refresh_selection()
             return True
         if key in (Gdk.KEY_Return, Gdk.KEY_KP_Enter, Gdk.KEY_space):
-            self._activate_selected()
+            self.hide_switcher(activate=True)
             return True
         return True
 
     def _on_key_release(self, _widget, event: Gdk.EventKey) -> bool:
         if event.keyval in (Gdk.KEY_Alt_L, Gdk.KEY_Alt_R, Gdk.KEY_Meta_L, Gdk.KEY_Meta_R):
-            self._activate_selected()
+            self.hide_switcher(activate=True)
             return True
         return False

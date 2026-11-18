@@ -33,7 +33,21 @@ Wayland compositor, and FosOS does not build one at this stage.
   user via PAM; works with nobody on the console). FosOS-branded login chrome,
   TLS negotiate, Desktop `.rdp` helper. Off until enabled in Settings →
   Remote Desktop.
+- Start search supports clear, Esc-clears-first, and arrow/Enter selection.
+  Home shows Pinned and Recommended with All apps under the scroller; the
+  footer is Account (left) and Power (right).
+- Edge snap shows a zone preview while dragging; Super+arrows use the panel
+  work area and restore snapped sizes on Super+Down. CardWindow titlebars
+  offer a context menu and maximize right-click → snap layouts.
+- Quick Settings (Win+A) is a 2×2 tile grid including Focus assist; Notification
+  Center supports per-app Mute; toast timers pause on hover.
+- Taskbar network icon (and QS Wi-Fi / Network…) opens a Network flyout for
+  scan/join; Settings → Network embeds the same Wi-Fi picker.
+- Super+V opens clipboard history (text). The taskbar hosts a Status Notifier
+  tray for nm-applet and other SNI apps.
 - `fosos-lock` is the screen locker (`xss-lock` on idle / before suspend).
+- `gnome-keyring-daemon` provides the Secret Service (PAM unlock at login)
+  for Cursor/Electron and other credential stores.
 
 On Hyper-V Gen2 the image blacklists `hyperv_fb` and uses `hyperv_drm`
 (modesetting / DRM FB) so the desktop does not paint then freeze mouse and
@@ -64,13 +78,14 @@ Revisit Wayland when the shell is stable for daily use.
 | Super+X | Quick links |
 | Super+A | Quick settings |
 | Super+N | Notification center |
+| Super+V | Clipboard history |
 | Super+R | Run |
 | Super+E | Files |
 | Ctrl+Alt+T | Terminal |
 | Super+I | Settings |
 | Super+L | Lock |
 | Super+D | Show desktop (also far-right taskbar strip) |
-| Super+↑ / ↓ / ← / → | Maximize / restore or minimize / tile left / right |
+| Super+↑ / ↓ / ← / → | Maximize / restore-from-snap then minimize / tile left / right |
 | Super+Z | Snap layouts (right-click maximize also) |
 | Super+Tab | Task View (desktops + windows; taskbar button) |
 | Ctrl+Super+← / → | Previous / next virtual desktop |
@@ -102,4 +117,9 @@ richer About). **UI improvements 1.4.0** replace the taskbar desktop pager
 with a Task View button and Show Desktop strip, snap desktop icons to a
 grid, and polish Files search / folder background menus. **1.5.0** added
 bidirectional RDP (FreeRDP shadow). **1.6.0** replaces inbound hosting with
-xrdp (separate FosOS Desktop session + `fosos-remote` client).
+xrdp (separate FosOS Desktop session + `fosos-remote` client). **1.7.0**
+polishes Start search, keyboard launch, All apps placement, and the
+Account + Power footer. **1.8.0** adds snap zone previews, restore-from-snap,
+CardWindow titlebar menus, and clearer Alt+Tab selection. **1.9.0** deepens
+Quick Settings (Focus assist tile, 2×2 grid) and per-app notification mutes.
+**1.10.0** adds Super+V clipboard history and a Status Notifier tray.

@@ -205,6 +205,12 @@ button.fos-btn.row {
   padding: 8px;
 }
 
+button.fos-btn.fos-start-selected,
+button.fos-btn.tile.fos-start-selected {
+  background-color: alpha(@fos_fg, 0.12);
+  border-color: @fos_ring;
+}
+
 /* Brand mark: Dawn Aperture logo (image) */
 .fos-mark {
   background-color: transparent;
@@ -343,19 +349,38 @@ button.fos-btn.fos-qs-tile {
   padding: 10px 6px;
 }
 
+/* Status Notifier tray icons on the panel */
+button.fos-btn.fos-tray-icon {
+  min-width: 28px;
+  min-height: 28px;
+  padding: 4px;
+}
+
 /* Alt+Tab switcher */
 .fos-alttab {
   padding: 4px;
 }
 
 button.fos-btn.fos-alttab-item {
-  min-width: 96px;
-  min-height: 88px;
-  padding: 10px 8px;
+  min-width: 112px;
+  min-height: 108px;
+  padding: 12px 10px;
 }
 
-button.fos-btn.fos-alttab-item.default {
-  outline: 1px solid @fos_ring;
+button.fos-btn.fos-alttab-item.default,
+button.fos-btn.fos-alttab-item.fos-alttab-selected {
+  background-color: alpha(@fos_fg, 0.12);
+  outline: 2px solid @fos_ring;
+}
+
+/* Edge-snap zone preview while dragging */
+.fos-snap-zone {
+  background-color: transparent;
+}
+
+.fos-snap-zone-fill {
+  background-color: alpha(@fos_ring, 0.28);
+  border: 2px solid @fos_ring;
 }
 
 /* Snap layouts (Win+Z) */

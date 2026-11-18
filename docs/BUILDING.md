@@ -18,8 +18,13 @@ The build script removes live-build's generated configuration directories
 before every build. Tracked FosOS package lists and included files are kept.
 
 The first images target amd64 machines that boot using UEFI. They are hybrid
-ISOs: the same ISO boots in a virtual machine and can be written directly to a
-USB drive for a live session. Legacy BIOS boot is out of scope.
+ISOs (`--binary-images iso-hybrid --bootloaders "grub-pc grub-efi"`): the same
+file boots in a VM and can be written with Balena Etcher or `dd` to USB.
+`grub-pc` is included so the ISO carries an MBR/partition table Etcher
+expects; supported hardware remains UEFI-only (legacy BIOS is not a test
+target). After a build, `file output/FosOS-trixie-amd64.iso` should mention
+`DOS/MBR boot sector`. If Etcher says “Missing partition table”, the image
+is not hybrid — rebuild; do not Continue past that warning for laptop USB.
 
 ## Prerequisites
 
@@ -96,8 +101,11 @@ output/FosOS-trixie-amd64.iso
   remove, and repair
 - Firefox ESR as the preinstalled browser
 - NetworkManager with Wi-Fi powersave disabled, PipeWire audio, Bluetooth,
-  power defaults, archive utility, screenshot tool, firmware, and a recovery
-  console on Ctrl+Alt+F2
+  power defaults, archive utility, screenshot tool, and a recovery console
+  on Ctrl+Alt+F2
+- Laptop Wi-Fi firmware from `non-free-firmware` (`firmware-iwlwifi`,
+  Realtek/Atheros/Broadcom/MediaTek/misc, plus `wireless-regdb`); listed
+  explicitly because `--firmware-chroot` stays false
 - No XFCE login session; no Git, Node.js, Docker, compilers, language SDKs,
   Chrome, or other development stack by default
 
@@ -108,7 +116,7 @@ go to testing first. The keyboard layout default on the live image is US; the
 installer asks again for the installed system.
 
 Boot the image in Hyper-V before writing it to a USB drive. See
-[the testing guide](TESTING.md). After a Phase 7 rebuild, record the ISO
+[the testing guide](TESTING.md). After a release rebuild, record the ISO
 byte size in [ISO-SIZE.md](ISO-SIZE.md).
 
 ## Package archive

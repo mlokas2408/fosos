@@ -47,8 +47,8 @@ LB_ZSYNC="true"
 LB_BUILD_WITH_CHROOT="true"
 
 # $LB_DEBIAN_INSTALLER: set debian-installer
-# (Default: false)
-LB_DEBIAN_INSTALLER="false"
+# (Default: false; live-build now prefers none over false)
+LB_DEBIAN_INSTALLER="none"
 
 # $LB_DEBIAN_INSTALLER_DISTRIBUTION: set debian-installer suite
 # (Default: empty)

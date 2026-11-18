@@ -56,14 +56,9 @@ fi
 
 cd "$work_dir"
 
-# lb clean removes the previous chroot and ISO. It keeps cache/ unless --purge
-# is passed. Generated config directories are removed below so a previous host
-# cannot change this build.
-lb clean
-
-# lb clean intentionally preserves generated config files. Remove only those
-# generated directories so every build starts with the options below, rather
-# than inheriting a previous host-specific live-build configuration.
+# Drop generated live-build config before reconfigure so a previous host
+# cannot change this build, and so a stale LB_DEBIAN_INSTALLER=false is gone
+# before lb clean.
 rm -rf -- \
   "$work_dir/config/binary" \
   "$work_dir/config/bootstrap" \
@@ -83,26 +78,37 @@ stage_deb "$repo_root" fosos-installer "$work_dir/config/packages.chroot" >/dev/
 stage_deb "$repo_root" fosos-welcome "$work_dir/config/packages.chroot" >/dev/null
 stage_deb "$repo_root" fosos-desktop "$work_dir/config/packages.chroot" >/dev/null
 
-lb config noauto \
-  --architectures amd64 \
-  --archive-areas "main contrib non-free-firmware" \
-  --apt-recommends false \
-  --binary-images iso-hybrid \
-  --bootloaders grub-efi \
-  --bootappend-live "boot=live components hostname=fosos nottyautologin splash" \
-  --distribution "$suite" \
-  --firmware-binary false \
-  --firmware-chroot false \
-  --ignore-system-defaults \
-  --iso-application "FosOS" \
-  --iso-volume "FOSOS_LIVE" \
-  --mirror-binary "https://deb.debian.org/debian/" \
-  --mirror-binary-security "https://security.debian.org/debian-security/" \
-  --mirror-bootstrap "https://deb.debian.org/debian/" \
-  --mirror-chroot "https://deb.debian.org/debian/" \
-  --mirror-chroot-security "https://security.debian.org/debian-security/" \
-  --initsystem systemd \
-  --mode debian
+# Configure with debian-installer none before clean (avoids deprecated false),
+# then clean, then configure again — lb clean clears the config stage marker
+# that lb build requires.
+fosos_lb_config() {
+  lb config noauto \
+    --architectures amd64 \
+    --archive-areas "main contrib non-free-firmware" \
+    --apt-recommends false \
+    --binary-images iso-hybrid \
+    --bootloaders "grub-pc grub-efi" \
+    --bootappend-live "boot=live components hostname=fosos nottyautologin splash" \
+    --debian-installer none \
+    --distribution "$suite" \
+    --firmware-binary false \
+    --firmware-chroot false \
+    --ignore-system-defaults \
+    --iso-application "FosOS" \
+    --iso-volume "FOSOS_LIVE" \
+    --mirror-binary "https://deb.debian.org/debian/" \
+    --mirror-binary-security "https://security.debian.org/debian-security/" \
+    --mirror-bootstrap "https://deb.debian.org/debian/" \
+    --mirror-chroot "https://deb.debian.org/debian/" \
+    --mirror-chroot-security "https://security.debian.org/debian-security/" \
+    --initsystem systemd \
+    --mode debian
+}
+
+fosos_lb_config
+# Removes previous chroot/ISO; keeps cache/ unless --purge is passed.
+lb clean
+fosos_lb_config
 
 lb build
 
@@ -119,4 +125,17 @@ if ! cp "$iso_path" "$target"; then
   echo "The usual ISO path was busy. Built $target" >&2
 else
   echo "Built $target"
+fi
+
+# Etcher and USB dd need a hybrid MBR/GPT. Plain El Torito ISOs boot in Hyper-V
+# as a DVD but warn "Missing partition table" and break live-medium mounts.
+iso_probe="$(file -b "$target" 2>/dev/null || true)"
+if ! printf '%s\n' "$iso_probe" | grep -Eqi 'DOS/MBR|partition|boot sector'; then
+  cat >&2 <<EOF
+WARNING: $target does not look like a hybrid ISO ($iso_probe).
+Balena Etcher will warn about a missing partition table; USB live install may fail.
+Expected live-build iso-hybrid with bootloaders "grub-pc grub-efi".
+EOF
+else
+  echo "Hybrid check OK: $iso_probe"
 fi

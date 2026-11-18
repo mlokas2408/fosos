@@ -202,17 +202,18 @@ xdotool key ctrl+q 2>/dev/null
 pkill -f fosos-settings
 sleep 1
 
-# Coordinates assume the 1366x768 screen above and the default Start menu layout.
+# Coordinates assume the 1366x768 screen above and the 1.7.0 Start layout
+# (All apps under the home scroller; Account left / Power right in footer).
 fosos-shell --toggle-start
 sleep 1
-xdotool mousemove 327 295 click 1
+xdotool mousemove 370 634 click 1
 sleep 1
 shot 09-all-apps
 xdotool key Escape
 sleep 0.5
 fosos-shell --toggle-start
 sleep 1
-xdotool mousemove 388 687 click 1
+xdotool mousemove 388 691 click 1
 sleep 1
 shot 10-power
 xdotool key Escape

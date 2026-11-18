@@ -45,6 +45,24 @@ def bluetooth_powered() -> bool | None:
     return False
 
 
+def _focus_assist_on() -> bool:
+    from .settings_pages import load_kv, truthy
+
+    prefs = load_kv("notifications", {"dnd": "0"})
+    return truthy(prefs.get("dnd"), False)
+
+
+def _set_focus_assist(enabled: bool) -> None:
+    from .settings_pages import load_kv, save_kv
+
+    prefs = load_kv(
+        "notifications",
+        {"dnd": "0", "toasts": "1", "timeout": "6000", "muted_apps": ""},
+    )
+    prefs["dnd"] = "1" if enabled else "0"
+    save_kv("notifications", prefs)
+
+
 class QuickSettings(Popup):
     def __init__(self, shell) -> None:
         super().__init__(width=360)
@@ -58,21 +76,30 @@ class QuickSettings(Popup):
         body = add_classes(Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=16), "fos-card-content")
         frame.pack_start(body, True, True, 0)
 
-        self.tiles = Gtk.Box(spacing=8)
-        self.tiles.set_homogeneous(True)
+        # 2×2 tile grid: Wi-Fi | Bluetooth / Focus assist | Mute
+        self.tiles = Gtk.Grid()
+        self.tiles.set_column_homogeneous(True)
+        self.tiles.set_row_homogeneous(True)
+        self.tiles.set_column_spacing(8)
+        self.tiles.set_row_spacing(8)
         body.pack_start(self.tiles, False, False, 0)
 
         self.wifi_tile = self._toggle_tile("network-wireless-symbolic", "Wi-Fi")
         self.wifi_tile.connect("clicked", lambda _b: self._toggle_wifi())
-        self.tiles.pack_start(self.wifi_tile, True, True, 0)
+        self.tiles.attach(self.wifi_tile, 0, 0, 1, 1)
 
         self.bt_tile = self._toggle_tile("bluetooth-active-symbolic", "Bluetooth")
         self.bt_tile.connect("clicked", lambda _b: self._toggle_bluetooth())
-        self.tiles.pack_start(self.bt_tile, True, True, 0)
+        self.tiles.attach(self.bt_tile, 1, 0, 1, 1)
+
+        self.focus_tile = self._toggle_tile("preferences-system-notifications-symbolic", "Focus assist")
+        self.focus_tile.set_tooltip_text("Focus assist — hide toast popups")
+        self.focus_tile.connect("clicked", lambda _b: self._toggle_focus())
+        self.tiles.attach(self.focus_tile, 0, 1, 1, 1)
 
         self.mute_tile = self._toggle_tile("audio-volume-high-symbolic", "Mute")
         self.mute_tile.connect("clicked", lambda _b: self._toggle_mute())
-        self.tiles.pack_start(self.mute_tile, True, True, 0)
+        self.tiles.attach(self.mute_tile, 1, 1, 1, 1)
 
         # Volume
         vol_block = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
@@ -161,9 +188,19 @@ class QuickSettings(Popup):
         wifi = wifi_enabled()
         self._set_tile_active(self.wifi_tile, bool(wifi), wifi is not None)
 
-        bt = bluetooth_powered()
-        self.bt_tile.set_visible(bluetooth_available())
-        self._set_tile_active(self.bt_tile, bool(bt), bt is not None)
+        bt_avail = bluetooth_available()
+        self.bt_tile.set_visible(bt_avail)
+        if bt_avail:
+            bt = bluetooth_powered()
+            self._set_tile_active(self.bt_tile, bool(bt), bt is not None)
+        else:
+            self._set_tile_active(self.bt_tile, False, False)
+
+        focus_on = _focus_assist_on()
+        self._set_tile_active(self.focus_tile, focus_on, True)
+        self.focus_tile.set_tooltip_text(
+            "Focus assist on — toast popups hidden" if focus_on else "Focus assist — hide toast popups"
+        )
 
         state = read_volume()
         if state is None:
@@ -182,7 +219,6 @@ class QuickSettings(Popup):
             icon_name = volume_icon(level, muted)
             self.vol_icon.get_child().set_from_icon_name(icon_name, Gtk.IconSize.MENU)
             self._set_tile_active(self.mute_tile, muted, True)
-            # Update mute tile icon label area via tooltip
             self.mute_tile.set_tooltip_text("Unmute" if muted else "Mute")
 
         level = read_brightness()
@@ -229,14 +265,21 @@ class QuickSettings(Popup):
         run(["wpctl", "set-mute", "@DEFAULT_AUDIO_SINK@", "toggle"])
         self.refresh()
 
+    def _toggle_focus(self) -> None:
+        _set_focus_assist(not _focus_assist_on())
+        self.refresh()
+
+    def _open_network_popup(self) -> None:
+        self.dismiss()
+        for panel in self.shell.panels:
+            anchor = panel.network_button or panel.volume_button or panel.clock_button
+            if anchor is not None:
+                self.shell.toggle_popup("network", anchor, panel)
+                return
+
     def _toggle_wifi(self) -> None:
-        enabled = wifi_enabled()
-        if enabled is None:
-            return
-        run_async(
-            ["nmcli", "radio", "wifi", "off" if enabled else "on"],
-            lambda _ok, _out: self.refresh(),
-        )
+        # Open the network flyout (list + switch). Radio toggle lives there.
+        self._open_network_popup()
 
     def _toggle_bluetooth(self) -> None:
         powered = bluetooth_powered()
@@ -256,8 +299,7 @@ class QuickSettings(Popup):
         self.shell.open_settings()
 
     def _open_network(self) -> None:
-        self.dismiss()
-        appmod.spawn(["nm-connection-editor"])
+        self._open_network_popup()
 
     def _open_sound(self) -> None:
         self.dismiss()

@@ -1,283 +1,187 @@
-# FosOS ISO testing
+# FosOS testing
 
-Development images are built in Debian WSL and tested in Hyper-V. A release
-image is built again on the dedicated Debian VM, then put through the same
-Hyper-V check before it is written to USB. See [the build guide](BUILDING.md).
+Aligned to the current product (`fosos-desktop` **1.12.0**). Development
+images are built in Debian WSL and tested in Hyper-V. A release image is
+built again on the dedicated Debian 13 VM, then put through the same soak
+before USB. See [BUILDING.md](BUILDING.md).
 
-## Hyper-V smoke test
+## How to record results
 
-1. In Hyper-V Manager, create a Generation 2 virtual machine with 4 GB RAM and
+1. Copy [SOAK-LOG.md](SOAK-LOG.md) to a dated file, for example
+   `docs/soak-logs/2026-11-18-hyperv.md` (create the folder if needed), **or**
+   edit [SOAK-LOG.md](SOAK-LOG.md) in place for a single working copy.
+2. Fill the header (ISO path, builder, machine, date, tester).
+3. For each row set **Status** to one of:
+   - `pass` — behaved as described
+   - `fail` — wrong or broken; **Comment** must say what you saw
+   - `skip` — not run (no hardware, no second monitor, etc.); optional note
+4. Leave Comment empty on passes unless useful.
+5. When fixing bugs, filter the log for `fail` and work those IDs first.
+   After a fix, re-run only the failed IDs (and close dependents) on a fresh
+   boot or install as needed.
 
-   two virtual processors. Add a virtual hard disk when you want to install.
-2. Attach `output/FosOS-trixie-amd64.iso` as a virtual DVD. Add a virtual hard
+Test **IDs** below match the columns in the soak log. Do not renumber IDs
+casually; append new ones at the end of a section if the product grows.
 
-   disk of at least 16 GB when you want to test installation.
-3. In the VM firmware settings, turn off Secure Boot and put the DVD drive
+## Credentials
 
-   first in the boot order. Hyper-V Generation 2 enables Secure Boot by
-     default, and this live image is not set up to boot with it.
-4. Start the VM and boot into the live environment.
-5. On the GRUB menu, confirm the Dawn Aperture splash, **FosOS** title,
+| Context | Account | Password |
+| --- | --- | --- |
+| Live image | `user` | `live` (also for `sudo` / TTY) |
+| Installed system | Account created in Calamares | As chosen |
 
-   dark menu styling, and a **FosOS Live** entry. Press Enter (or wait ~8s).
-6. Confirm the live image autologins to **FosOS Desktop** (taskbar, Start,
+Live image autologins to **FosOS Desktop** via LightDM. Root stays locked.
+Console auto-login is off so a TTY does not steal the graphical session.
 
-   drawn wallpaper) and that **mouse and keyboard work** (Hyper-V must use
-     `hyperv_drm`, not a frozen `hyperv_fb` session). Verify Firefox, Files,
-     Terminal, screenshot tool, network, audio, shutdown, and restart.
-   If input is dead but the desktop paints, rebuild with the Hyper-V DRM
-     hook (`module_blacklist=hyperv_fb`); from a TTY check `cat /proc/fb`
-     for `hyperv_drm`.
-7. Sign out once and confirm the greeter is the two-column FosOS Sign in
+## Headless desktop check (before Hyper-V)
 
-   screen (not the old Greybird GTK greeter). Confirm the bottom-right
-     power button offers Shut down, Restart, and Suspend. Sign back in as `user`.
-8. Press Ctrl+Alt+F2 and confirm the recovery console accepts the live
-
-   account. Ctrl+Alt+F7 returns to the desktop.
-
-The live image automatically signs in Debian Live's temporary `user` account
-through LightDM. The password is `live`, for `sudo` and the recovery console.
-Console auto-login is intentionally disabled, preventing a TTY login path from
-interrupting the graphical session. Installation removes that automatic login
-and creates the account chosen in the installer. The root account stays
-locked; the new account can use `sudo`.
-
-## Install test
-
-1. Boot the live image with a virtual hard disk attached.
-2. Choose **Install FosOS**. Pick a language, keyboard, disk, and account.
-
-   Erase the disk for a first install. Encryption is optional.
-3. When the installer finishes, restart, detach the ISO, and boot the disk.
-4. Sign in as the account you created. The FosOS greeter must show the
-
-   two-column Sign in layout, and the session default must be
-     **FosOS Desktop**. Welcome should show the network status. Install updates
-     if the network is up, open the guide, then finish setup.
-5. To reinstall, boot the ISO again and erase the disk.
-
-Firefox is the only browser. The installer does not offer another one.
-
-## FosOS Desktop session
-
-FosOS Desktop is the only full desktop session. FosOS Recovery and text
-consoles are the fallback. See [FosOS Desktop](DESKTOP.md) and
-[RECOVERY.md](RECOVERY.md).
-
-Before booting a VM, run the headless check in Debian WSL:
+On Debian 13 WSL, from the repository root:
 
 ```bash
 sudo bash scripts/test-desktop.sh
 ```
 
-Review the screenshots in `output/desktop/`. Then, in Hyper-V:
+Review screenshots in `output/desktop/`. This does not replace the Hyper-V
+soak; it catches shell crashers and layout regressions early.
 
-1. Boot the live image. It must autologin to **FosOS Desktop**.
-2. Check the taskbar, the Start menu (Super+Space), search, All apps, and the
+## Hyper-V setup
 
-   Files, Terminal, Firefox and Settings pins.
-3. Open and minimize windows from the taskbar. Use Alt+Tab and Super+Left.
-4. Switch workspaces with Super+1…4, Ctrl+Win+Left/Right, or Task View
-   (Win+Tab / taskbar button). Move a window with Super+Shift+2 and
-   confirm it leaves the taskbar on Desktop 1. There must be no numbered
-   1–4 pager buttons on the taskbar.
-5. Press Super+L. Unlock with the account password (`live` on the live
+1. Generation 2 VM, ~4 GB RAM, 2 vCPUs. Attach a ≥16 GB VHD when testing install.
+2. Attach `output/FosOS-trixie-amd64.iso` as DVD; boot DVD first.
+3. **Secure Boot off** until roadmap Secure Boot work lands (Gen2 defaults on).
+4. Prefer `hyperv_drm` (image blacklists `hyperv_fb`). If the desktop paints
+   but mouse/keyboard are dead, check TTY / rebuild with the DRM hook; see
+   [RECOVERY.md](RECOVERY.md).
 
-   image). Confirm Start > Lock and the Power menu Lock entry also lock
-     the session.
-6. Run `notify-send Test "Hello"` in a terminal. The popup appears above the
+## Suites
 
-   taskbar and stays in the bell menu.
-7. Check the volume slider, the network menu and the calendar. On a laptop,
+Run **A** on every image. Run **B** when testing install. Run **C–J** on
+live and again on an installed system before a release tag. Mark each ID in
+the soak log.
 
-   confirm battery and brightness icons appear and their menus work.
-8. Open Settings. Each tile opens its tool. About shows the system details.
-9. Sign out from the Start menu. Sign in to **FosOS Recovery** and confirm a
+### A — Boot and greeter
 
-   terminal opens under Openbox. Sign out and return to **FosOS Desktop**.
-     Also check Ctrl+Alt+F2 for a text console.
+| ID | Check |
+| --- | --- |
+| A01 | GRUB: Dawn Aperture splash, FosOS title, dark menu, **FosOS Live** entry |
+| A02 | Live boots and autologins to **FosOS Desktop** (taskbar, Start, wallpaper) |
+| A03 | Mouse and keyboard work in the live session |
+| A04 | Sign out → greeter is two-column FosOS Sign in (not gtk-greeter / Greybird) |
+| A05 | Greeter has no session picker (always Desktop); no Xfce Session entry |
+| A06 | Greeter power menu: Shut down, Restart, Suspend |
+| A07 | Sign in as `user` / `live` returns to FosOS Desktop |
+| A08 | Ctrl+Alt+F2 TTY accepts `user` / `live`; Ctrl+Alt+F7 returns to desktop |
 
-On a machine with two monitors, confirm a taskbar on each display and that
-windows appear on the taskbar for the monitor they sit on.
+### B — Install
 
-On an installed system, repeat the checks with the installed account.
+| ID | Check |
+| --- | --- |
+| B01 | **Install FosOS** (Calamares): language, keyboard, disk, optional encryption, account |
+| B02 | After reboot (ISO detached): greeter Sign in; default session FosOS Desktop |
+| B03 | Welcome shows network status; can open guide / updates; finish setup |
+| B04 | Installed account can `sudo`; root remains locked |
 
-## Phase 6 / 7 soak checklist
+### C — Taskbar, Start, tray, clipboard
 
-Run this on a Hyper-V (or hardware) install before shipping a release ISO.
-After Phase 7, rebuild the ISO first, then record its size in
-[ISO-SIZE.md](ISO-SIZE.md).
+| ID | Check |
+| --- | --- |
+| C01 | Taskbar: Start, Task View button (no numbered 1–4 pager), pins, status cluster, clock, Show Desktop strip |
+| C02 | Super tap / Super+Space / Alt+F1 opens Start |
+| C03 | Start search: clear (×); Esc clears then dismisses; finds app, settings panel, recent file |
+| C04 | Start: Down/Up highlight + Enter launch; All apps under home with A–Z; Account left / Power right |
+| C05 | Start Account menu: home, Lock, Sign out; Power confirm (Shut down / Restart / Suspend / Lock) |
+| C06 | Taskbar: pin/unpin, drag reorder survives restart, middle-click opens new window |
+| C07 | Taskbar right-click empty → Taskbar settings; Show Desktop strip = Win+D |
+| C08 | Super+V clipboard history: several copies listed; pick pastes; Clear all empties |
+| C09 | Status Notifier tray left of Quick Settings (e.g. nm-applet); left-click activates |
 
-- [x] Fresh login to FosOS Desktop (live and installed)
-- [x] FosOS greeter two-column Sign in with no session picker (always Desktop)
-- [x] Greeter / lock bottom-right power menu (Shut down, Restart, Suspend)
-- [x] Lock and unlock (Super+L, idle lock if practical)
-- [ ] Display settings (`arandr`) change and apply
-- [x] Settings: keyboard, mouse, default apps, power panels
-- [ ] Screenshot: Print / Shift+Print → file under Pictures
-- [x] Multi-monitor: panel per display, windows on the correct taskbar
-- [x] Network connect / disconnect from the panel menu
-- [ ] Audio volume and mute
-- [ ] Notifications (`notify-send`) and the bell menu
-- [x] Shutdown, reboot, and suspend / resume
-- [x] `fos update` / `fos upgrade` (or `apt`) of FosOS packages
-- [ ] Failed-session recovery: kill `fosos-shell` until the recovery terminal
-  ```
-  appears, run `fosos-shell`, then verify **FosOS Recovery** and a TTY
-  ```
-- [x] Greeter is fosos-greeter (not gtk-greeter) and has no Xfce Session entry
-- [ ] Post–Phase 7 ISO size recorded in [ISO-SIZE.md](ISO-SIZE.md)
-- [ ] Rollback path in [RECOVERY.md](RECOVERY.md) reviewed
+### D — Windows, snap, multitasking
 
-## Phase 8 muscle-memory checklist
+| ID | Check |
+| --- | --- |
+| D01 | Super+E / Super+I / Ctrl+Alt+T / Super+L / Super+R / Super+X work |
+| D02 | Alt+Tab: larger selected tile; Esc cancels without switch; release Alt focuses |
+| D03 | Super+↑ maximize; Super+←/→ tile above panel; Super+↓ restore-from-snap then minimize |
+| D04 | Drag to edge/corner: zone preview then half/quarter; top edge maximizes |
+| D05 | Win+Z snap layouts; remaining regions fill on next focus; Clear assist works |
+| D06 | CardWindow titlebar right-click: Restore / Minimize / Maximize / Snap layouts / Close |
+| D07 | Maximize button right-click opens snap layouts |
+| D08 | Win+Tab Task View: four desktops; click window to switch; Esc closes |
+| D09 | Move window to Desktop N (Task View or taskbar app menu); Super+1…4 / Ctrl+Win+←/→ |
+| D10 | Super+Shift+S / Shift+Print region capture; Print full → under Pictures |
+| D11 | Taskbar: focused single window toggles minimize; multi-window cycles |
 
-- [ ] Super tap opens Start; Super+E / Super+I / Super+L still work
-- [ ] Super+R Run launches a command or app; Escape closes
-- [ ] Super+X quick links (Terminal, Files, Settings, Run, Lock, power)
-- [ ] Alt+Tab shows icon+title switcher; release Alt focuses the selection
-- [ ] Super+Shift+S (and Shift+Print) captures a region
-- [ ] Drag a window titlebar to the top edge maximizes; drag down restores
-- [ ] Taskbar: one window minimizes when focused; several windows cycle
+### E — Quick Settings and notifications
 
-## Phase 9 taskbar / Start checklist
+| ID | Check |
+| --- | --- |
+| E01 | Volume / battery / brightness open Quick Settings; Win+A same; **network icon** opens Network flyout |
+| E02 | 2×2 tiles: Wi-Fi, Bluetooth, Focus assist, Mute; volume and brightness sliders; Wi-Fi tile opens Network flyout |
+| E03 | QS footers: Settings / Sound… / Network… (Network… → flyout with scan/join) |
+| E03b | Network flyout / Settings → Network: list SSIDs, join WPA2 with password dialog; icon shows connected |
+| E04 | Focus assist hides new toasts; history still in Win+N |
+| E05 | `notify-send Test "Hello"` toast above panel; hover pauses expire |
+| E06 | Win+N / clock / bell: calendar + history; Clear all; click item focuses app when possible |
+| E07 | Mute / Unmute on a history card suppresses that app’s toasts only |
 
-- [ ] Taskbar right-click: Pin / Unpin, Open new window, Close window(s)
-- [ ] Drag pinned taskbar icons to reorder; order survives restart
-- [ ] Middle-click a pinned/running app opens another window
-- [ ] Start search finds an app, a settings panel, and a recent file
-- [ ] Recommended shows recent files/folders; All apps has A–Z headings
-- [ ] Account button menu: home, Lock, Sign out
+### F — Files and desktop
 
-## Phase 10 Quick Settings / Notification Center checklist
+| ID | Check |
+| --- | --- |
+| F01 | Files: Ctrl+C/X/V, multi-select, Delete → Recycle Bin, restore |
+| F02 | Files: F2, Alt+Up, Ctrl+L; Search keeps focus; Esc clears Search |
+| F03 | Files context menus (item vs empty folder); drag into folders |
+| F04 | Desktop icons (Home, Computer, Files, Recycle Bin); grid snap; no overlap; restart keeps place |
+| F05 | Desktop right-click: Refresh, Auto arrange, Display, Personalize, New folder, Open Files/Terminal |
+| F06 | Personalize single-click vs double-click; Reset icon positions + F5 |
 
-- [ ] Click volume, network, battery or brightness → one Quick Settings panel
-- [ ] Wi-Fi / Bluetooth / mute tiles and volume / brightness sliders work
-- [ ] Win+A opens Quick Settings; Settings / Sound… / Network… footers work
-- [ ] Clock or bell opens calendar + notification history
-- [ ] Win+N opens Notification Center; Clear all clears history and toasts
-- [ ] Click a history item focuses / activates the related app when possible
-- [ ] `notify-send` still shows a toast popup
+### G — Settings and theme
 
-## Phase 11 Files Explorer checklist
+| ID | Check |
+| --- | --- |
+| G01 | Settings card chrome (min/max/close) matches Files |
+| G02 | Wallpaper Apply refreshes desktop; Taskbar toggles Task View / clock date / bell |
+| G03 | Notifications: Focus assist + per-app mute list after apps have notified |
+| G04 | Keyboard, mouse, default apps, power panels; Display (`arandr`) apply |
+| G05 | Updates / About / Storage sensible; Check/Install updates open Terminal with `fos …` |
+| G06 | Theme: Welcome `--again`, greeter/lock card tokens, shared 16px popup padding |
 
-- [ ] Ctrl+C / Ctrl+X / Ctrl+V copy, cut and paste between folders
-- [ ] Ctrl+click and Shift+click multi-select; Ctrl+A selects all
-- [ ] Delete moves to Recycle Bin; restore from Recycle Bin works
-- [ ] Sidebar and desktop Recycle Bin open the trash folder
-- [ ] F2 renames; Alt+Up goes up; Ctrl+L edits the path
-- [ ] Context menu: Open with, Properties, Copy path, Open Terminal here
-- [ ] Drag files onto a folder or into another Files window / listing
+### H — Remote Desktop
 
-## Improvements Phase 6 Files search & menus
+| ID | Check |
+| --- | --- |
+| H01 | Settings → Remote Desktop off by default; enable → pkexec → IP, port 3389, separate session |
+| H02 | Desktop `FosOS-Remote-Desktop.rdp` helper appears on enable |
+| H03 | Windows mstsc: cert once → FosOS xrdp login → separate FosOS Desktop (not console share) |
+| H04 | Second local user RDP works; console/greeter unaffected |
+| H05 | Disable refuses new connections; `fosos-remote` connects out to another RDP host |
 
-- [ ] Typing in Search filters the current folder without losing the caret
-- [ ] Esc clears Search; Ctrl+F / F3 focuses Search; clear (×) icon works
-- [ ] Right-click empty folder area: Paste, New folder, Open Terminal here,
-      Refresh, Properties (not an item menu)
-- [ ] Right-click a selected file/folder opens the item menu for that
-      selection without navigating away
-- [ ] Click empty listing space clears the selection
+### I — Recovery and session health
 
-## Phase 12 desktop checklist
+| ID | Check |
+| --- | --- |
+| I01 | Sign out → FosOS Recovery session: Openbox + terminal |
+| I02 | Kill `fosos-shell` until recovery terminal; can restart shell / use Recovery / TTY |
+| I03 | Shutdown, reboot, suspend/resume (VM or hardware) |
+| I04 | Multi-monitor (if available): panel per display; windows on correct taskbar |
 
-- [ ] Right-click empty desktop: Refresh, Auto arrange icons, Display
-      settings, Personalize, New folder, Open Files here, Open Terminal here
-- [ ] New folder creates under `~/Desktop` and opens Files there
-- [ ] Icons: Home, Computer, Files, Recycle Bin; drag and restart keeps place
-- [ ] Personalize → single-click opens icons with one click; double-click mode
-      still needs two clicks
-- [ ] Reset icon positions + Refresh / F5 re-stacks the default column
-- [ ] Win+D Show Desktop and Dawn Aperture watermark still work
+### J — Packages, release, USB
 
-## Improvements Phase 5 desktop icon grid
+| ID | Check |
+| --- | --- |
+| J01 | Installed: `fos update` / `fos upgrade` (or apt) of FosOS packages |
+| J02 | ISO byte size recorded in [ISO-SIZE.md](ISO-SIZE.md) after rebuild |
+| J03 | Release ISO built on dedicated Debian 13 VM (not WSL-only) and re-soaked in Hyper-V |
+| J04 | USB UEFI smoke: network, display, keyboard/touchpad, audio, suspend, boot/reboot on disposable media only |
+| J05 | Laptop Wi-Fi: `wlan*` present (`ip link`); scan shows SSIDs; join WPA2 via tray/QS or Settings; reconnect after suspend if practical |
 
-- [ ] Dragging an icon snaps to the nearest free grid cell on release
-- [ ] Dropping onto another icon moves to the nearest empty cell (no overlap)
-- [ ] Restart keeps snapped positions; Auto arrange packs the default column
-- [ ] Reset icon positions still produces a clean grid column
+## Release gate
 
-## Phase 13 multitasking checklist
+Before tagging a release:
 
-- [ ] Win+Z opens snap layouts; picking a cell tiles the focused window
-- [ ] After placing one region, focusing another window fills the next region
-- [ ] Right-click the titlebar maximize button opens the same layouts picker
-- [ ] Win+Tab shows Task View with all four desktops and their windows
-- [ ] Click a window in Task View to switch; Escape closes
-- [ ] Right-click a Task View window → Move to Desktop N
-- [ ] Taskbar app right-click → Move to → Desktop N (single-window groups)
-- [ ] Drag window to left/right edge → half; to a corner → quarter; top → max
+1. Rebuild on the dedicated Debian 13 VM ([BUILDING.md](BUILDING.md)).
+2. Complete a soak log with no open `fail` rows (or explicitly accepted skips).
+3. Record ISO size in [ISO-SIZE.md](ISO-SIZE.md).
+4. Note the result against [RELEASE-NOTES.md](RELEASE-NOTES.md).
 
-## Improvements Phase 1 taskbar desktops
-
-- [ ] No numbered 1–4 desktop buttons on the taskbar
-- [ ] Task View button after Start toggles Win+Tab overview (Settings can hide it)
-- [ ] Ctrl+Win+Left / Right switches previous / next desktop; Super+1…4 still jump
-- [ ] Far-right Show Desktop strip toggles the same action as Win+D
-- [ ] Right-click empty taskbar opens Taskbar settings
-
-## Phase 14 Settings checklist
-
-- [ ] Settings → Wallpaper changes the drawn desktop theme; Apply refreshes
-- [ ] Taskbar toggles hide/show Task View button, clock date, notification bell
-- [ ] Notifications → Do not disturb hides toasts; history still in Win+N
-- [ ] Display / Sound / Network / Bluetooth pages open the system tools
-- [ ] Updates shows last refresh, upgradable estimate, reboot required when set
-- [ ] Check for updates / Install updates open a Terminal with `fos …`
-- [ ] About lists storage mounts; Storage page matches
-- [ ] Default apps includes PDF, Archives, Images
-
-## Theme alignment checklist
-
-- [ ] Settings uses the same flat card title bar (min / max / close) as Files
-- [ ] Files: Properties, Open with, rename, confirm, and alerts use fos-card dialogs
-- [ ] Notepad: Open / Save as / unsaved-changes dialogs use fos-card chrome
-- [ ] Double-click a `.deb` → Install Package confirm / progress / result are themed
-- [ ] `fosos-welcome --again` shows Dawn mark, card header/footer, fos-btn actions
-- [ ] Start, Quick links, Run, Alt+Tab, Snap layouts, Quick Settings share 16px card padding
-- [ ] Greeter / lock form pane matches `@fos_card` (no off-token grey)
-
-## Remote Desktop checklist
-
-- [ ] Settings → Remote Desktop shows enable toggle (off by default)
-- [ ] Enable with nobody else using the console (or at greeter) → pkexec → status
-      shows IP, port 3389, “any local user”, separate session (xrdp)
-- [ ] Desktop gets `FosOS-Remote-Desktop.rdp` helper
-- [ ] From Windows `mstsc`: certificate warning (accept once) → FosOS-branded
-      xrdp login → sign in as any local user (live: `user` / `live`)
-- [ ] After login: **separate** FosOS Desktop session (not the console screen);
-      mouse/keyboard work; Full Screen usable
-- [ ] Sign in as a second local account works while the first remains valid
-- [ ] Local LightDM greeter / console session stays unaffected
-- [ ] Disable → new connections refused; `systemctl is-active xrdp` is inactive
-- [ ] `fosos-remote`: Connect out to Windows / Ubuntu RDP hosts
-
-## Package upgrade
-
-On an installed system with a network connection:
-
-```bash
-fos update
-fos upgrade
-```
-
-`fos remove fosos-cli` removes the helper and leaves APT in place.
-`fos install fosos-cli` puts it back. If a package install stops halfway,
-`fos repair` finishes or undoes it. A package is published to testing first.
-Promote it only after this upgrade path has been tried, then let `fos upgrade`
-take it from stable.
-
-## Release check
-
-Before tagging a release, rebuild the ISO on the dedicated Debian 13 VM and
-repeat the Hyper-V smoke test and Phase 6 soak with that image. Do not publish
-an ISO that was built only in WSL. Record the result against
-[RELEASE-NOTES.md](RELEASE-NOTES.md).
-
-## Physical USB smoke test
-
-After the release image passes in Hyper-V, write the hybrid ISO to a
-disposable USB stick using Rufus or Balena Etcher. Boot it in UEFI mode and
-test networking, display output, keyboard, touchpad, audio, suspend, and
-boot/reboot behavior. Never test the installer against a disk containing
-data you need.
+Do not publish an ISO that was built only in WSL.

@@ -14,9 +14,10 @@ from gi.repository import Gdk, Gio, Gtk, Pango
 from . import apps as appmod
 from .popup import Popup
 from .settings import PANELS, panel_available
-from .ui import BRAND, add_classes, badge, brand_title, button, clear, kbd, label, mark, tile
+from .ui import BRAND, add_classes, badge, brand_title, button, clear, kbd, label, mark, set_class, tile
 
 WIDTH = 420
+HOME_SCROLL = 320
 
 
 def relative_day(timestamp: float) -> str:
@@ -66,6 +67,10 @@ class StartMenu(Popup):
         self.shell = shell
         self.all_apps: list[appmod.App] = []
         self._search_launch = None
+        self._nav_items: list[tuple[Gtk.Widget, callable]] = []
+        self._nav_index = -1
+        self._home_scroller: Gtk.ScrolledWindow | None = None
+        self._all_scroller: Gtk.ScrolledWindow | None = None
 
         frame = add_classes(Gtk.Box(orientation=Gtk.Orientation.VERTICAL), "fos-card")
         self.add(frame)
@@ -88,10 +93,12 @@ class StartMenu(Popup):
         frame.pack_start(content, True, True, 0)
 
         self.search = add_classes(Gtk.Entry(), "fos-input")
-        self.search.set_placeholder_text("Search apps, settings, files")
+        self.search.set_placeholder_text("Type here to search")
         self.search.set_icon_from_icon_name(Gtk.EntryIconPosition.PRIMARY, "system-search-symbolic")
         self.search.connect("changed", self._on_search_changed)
         self.search.connect("activate", self._on_search_activate)
+        self.search.connect("icon-press", self._on_search_icon)
+        self.search.connect("key-press-event", self._on_search_key)
         self.focus_widget = self.search
         content.pack_start(self.search, False, False, 0)
 
@@ -101,10 +108,20 @@ class StartMenu(Popup):
         self.stack.set_interpolate_size(True)
         content.pack_start(self.stack, True, True, 0)
 
+        home_page = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
         self.home = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=20)
-        self.stack.add_named(self.home, "home")
+        self._home_scroller = self._scroller(self.home, HOME_SCROLL)
+        home_page.pack_start(self._home_scroller, True, True, 0)
+        all_apps_row = Gtk.Box()
+        all_apps_btn = button("All apps", variant="ghost", size="sm")
+        all_apps_btn.connect("clicked", lambda _b: self.show_all_apps())
+        all_apps_row.pack_end(all_apps_btn, False, False, 0)
+        home_page.pack_start(all_apps_row, False, False, 0)
+        self.stack.add_named(home_page, "home")
+
         self.results_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
-        self.stack.add_named(self._scroller(self.results_box, 320), "results")
+        self.stack.add_named(self._scroller(self.results_box, HOME_SCROLL), "results")
+
         self.all_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
         all_page = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
         all_header = Gtk.Box()
@@ -113,7 +130,8 @@ class StartMenu(Popup):
         back.connect("clicked", lambda _b: self.show_home())
         all_header.pack_end(back, False, False, 0)
         all_page.pack_start(all_header, False, False, 0)
-        all_page.pack_start(self._scroller(self.all_box, 320), True, True, 0)
+        self._all_scroller = self._scroller(self.all_box, HOME_SCROLL)
+        all_page.pack_start(self._all_scroller, True, True, 0)
         self.stack.add_named(all_page, "all")
 
         footer = add_classes(Gtk.Box(spacing=4), "fos-card-footer")
@@ -126,15 +144,14 @@ class StartMenu(Popup):
         user.set_tooltip_text("Account: home, lock, sign out")
         user.connect("button-press-event", self._on_user_press)
         footer.pack_start(user, False, False, 0)
-        for icon_name, tooltip, handler in (
-            ("system-shutdown-symbolic", "Power", self._on_power),
-            ("system-log-out-symbolic", "Sign out", self._on_sign_out),
-            ("system-lock-screen-symbolic", "Lock", self._on_lock),
-            ("preferences-system-symbolic", "Settings", self._on_settings),
-        ):
-            action = button(icon_name=icon_name, variant="outline", size="icon-sm", tooltip=tooltip)
-            action.connect("clicked", handler)
-            footer.pack_end(action, False, False, 0)
+        power = button(
+            icon_name="system-shutdown-symbolic",
+            variant="outline",
+            size="icon-sm",
+            tooltip="Power",
+        )
+        power.connect("clicked", self._on_power)
+        footer.pack_end(power, False, False, 0)
         frame.pack_start(footer, False, False, 0)
 
         self.confirm_revealer = Gtk.Revealer()
@@ -152,18 +169,58 @@ class StartMenu(Popup):
         scroller.add(child)
         return scroller
 
+    def _scroll_to_top(self, scroller: Gtk.ScrolledWindow | None) -> None:
+        if scroller is None:
+            return
+        adj = scroller.get_vadjustment()
+        if adj is not None:
+            adj.set_value(adj.get_lower())
+
+    def _ensure_visible(self, widget: Gtk.Widget) -> None:
+        page = self.stack.get_visible_child_name()
+        scroller = None
+        if page == "home":
+            scroller = self._home_scroller
+        elif page == "results":
+            child = self.stack.get_visible_child()
+            if isinstance(child, Gtk.ScrolledWindow):
+                scroller = child
+        elif page == "all":
+            scroller = self._all_scroller
+        if scroller is None:
+            return
+        child = scroller.get_child()
+        adj = scroller.get_vadjustment()
+        if child is None or adj is None:
+            return
+        coords = widget.translate_coordinates(child, 0, 0)
+        if coords is None:
+            return
+        _x, y = coords
+        alloc = widget.get_allocation()
+        top = adj.get_value()
+        bottom = top + adj.get_page_size()
+        height = max(alloc.height, 1)
+        if y < top:
+            adj.set_value(y)
+        elif y + height > bottom:
+            adj.set_value(max(adj.get_lower(), y + height - adj.get_page_size()))
+
     # Opening
 
     def open(self, x: int, bottom: int, monitor: Gdk.Rectangle) -> None:
         self.all_apps = self.shell.app_cache(refresh=True)
         self.search.set_text("")
+        self._update_clear_icon()
         self._search_launch = None
+        self._clear_nav()
         self.confirm_revealer.set_reveal_child(False)
         self.show_home()
         self.show_at(x, bottom, monitor)
 
     def show_home(self) -> None:
         clear(self.home)
+        self._clear_nav()
         pinned = self.shell.pinned.apps()
 
         section = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
@@ -171,15 +228,22 @@ class StartMenu(Popup):
         head.pack_start(label("Pinned", "fos-label"), True, True, 0)
         count = "1 app" if len(pinned) == 1 else f"{len(pinned)} apps"
         head.pack_end(label(count, "fos-small", "fos-muted"), False, False, 0)
-        all_button = button("All apps", variant="ghost", size="sm")
-        all_button.connect("clicked", lambda _b: self.show_all_apps())
-        head.pack_end(all_button, False, False, 6)
         section.pack_start(head, False, False, 0)
 
-        grid = Gtk.Grid(column_spacing=8, row_spacing=8, column_homogeneous=True)
-        for index, app in enumerate(pinned):
-            grid.attach(self._pinned_tile(app), index % 3, index // 3, 1, 1)
-        section.pack_start(grid, False, False, 0)
+        if not pinned:
+            section.pack_start(
+                label("Pin apps from All apps", "fos-text", "fos-muted"),
+                False,
+                False,
+                0,
+            )
+        else:
+            grid = Gtk.Grid(column_spacing=8, row_spacing=8, column_homogeneous=True)
+            for index, app in enumerate(pinned):
+                tile_btn = self._pinned_tile(app)
+                grid.attach(tile_btn, index % 3, index // 3, 1, 1)
+                self._register_nav(tile_btn, lambda a=app: self._launch(a))
+            section.pack_start(grid, False, False, 0)
         self.home.pack_start(section, False, False, 0)
 
         recommended = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
@@ -189,16 +253,20 @@ class StartMenu(Popup):
         if not recent:
             recent = [Path.home()]
         for path in recent:
-            rows.pack_start(self._path_row(path), False, False, 0)
+            row = self._path_row(path)
+            rows.pack_start(row, False, False, 0)
+            self._register_nav(row, lambda p=path: self._open(p))
         recommended.pack_start(rows, False, False, 0)
         self.home.pack_start(recommended, False, False, 0)
 
         self.home.show_all()
+        self._scroll_to_top(self._home_scroller)
         self.stack.set_visible_child_name("home")
         self.relayout()
 
     def show_all_apps(self) -> None:
         clear(self.all_box)
+        self._clear_nav()
         current = None
         for app in self.all_apps:
             key = letter_key(app.name)
@@ -208,8 +276,12 @@ class StartMenu(Popup):
                 header.set_margin_top(8 if self.all_box.get_children() else 0)
                 header.set_margin_bottom(2)
                 self.all_box.pack_start(header, False, False, 0)
-            self.all_box.pack_start(self._app_row(app, pin_toggle=True), False, False, 0)
+            row = self._app_row(app, pin_toggle=True)
+            self.all_box.pack_start(row, False, False, 0)
+            launch_btn = row.get_children()[0]
+            self._register_nav(launch_btn, lambda a=app: self._launch(a))
         self.all_box.show_all()
+        self._scroll_to_top(self._all_scroller)
         self.stack.set_visible_child_name("all")
         self.relayout()
 
@@ -289,13 +361,15 @@ class StartMenu(Popup):
         row.pack_start(texts, True, True, 0)
         widget.add(row)
         widget.connect("clicked", lambda _b: self._launch(app))
+        if not pin_toggle:
+            return widget
+        outer = Gtk.Box(spacing=4)
         outer.pack_start(widget, True, True, 0)
-        if pin_toggle:
-            pinned = self.shell.pinned.contains(app.id)
-            toggle = button("Unpin" if pinned else "Pin", variant="ghost", size="sm")
-            toggle.set_valign(Gtk.Align.CENTER)
-            toggle.connect("clicked", lambda _b: self._toggle_pin(app))
-            outer.pack_end(toggle, False, False, 0)
+        pinned = self.shell.pinned.contains(app.id)
+        toggle = button("Unpin" if pinned else "Pin", variant="ghost", size="sm")
+        toggle.set_valign(Gtk.Align.CENTER)
+        toggle.connect("clicked", lambda _b: self._toggle_pin(app))
+        outer.pack_end(toggle, False, False, 0)
         return outer
 
     def _settings_row(self, title: str, desc: str, icon_name: str, action: dict) -> Gtk.Button:
@@ -321,7 +395,90 @@ class StartMenu(Popup):
             box.pack_start(child, False, False, 0)
         return box
 
+    # Navigation
+
+    def _clear_nav(self) -> None:
+        for widget, _action in self._nav_items:
+            set_class(widget, "fos-start-selected", False)
+        self._nav_items = []
+        self._nav_index = -1
+
+    def _register_nav(self, widget: Gtk.Widget, action: callable) -> None:
+        self._nav_items.append((widget, action))
+
+    def _set_nav_index(self, index: int) -> None:
+        if not self._nav_items:
+            self._nav_index = -1
+            return
+        if self._nav_index >= 0 and self._nav_index < len(self._nav_items):
+            set_class(self._nav_items[self._nav_index][0], "fos-start-selected", False)
+        self._nav_index = max(-1, min(index, len(self._nav_items) - 1))
+        if self._nav_index >= 0:
+            widget, _action = self._nav_items[self._nav_index]
+            set_class(widget, "fos-start-selected", True)
+            self._ensure_visible(widget)
+
+    def _move_nav(self, delta: int) -> bool:
+        if not self._nav_items:
+            return False
+        if self._nav_index < 0:
+            next_index = 0 if delta > 0 else len(self._nav_items) - 1
+        else:
+            next_index = self._nav_index + delta
+            if next_index < 0:
+                self._set_nav_index(-1)
+                if self.focus_widget is not None:
+                    self.focus_widget.grab_focus()
+                return True
+            if next_index >= len(self._nav_items):
+                next_index = len(self._nav_items) - 1
+        self._set_nav_index(next_index)
+        return True
+
+    def _activate_nav(self) -> bool:
+        if 0 <= self._nav_index < len(self._nav_items):
+            _widget, action = self._nav_items[self._nav_index]
+            action()
+            return True
+        return False
+
+    def _on_search_key(self, _entry: Gtk.Entry, event: Gdk.EventKey) -> bool:
+        if event.keyval in (Gdk.KEY_Down, Gdk.KEY_KP_Down):
+            return self._move_nav(1)
+        if event.keyval in (Gdk.KEY_Up, Gdk.KEY_KP_Up):
+            return self._move_nav(-1)
+        return False
+
+    def _on_key_press(self, _widget, event: Gdk.EventKey) -> bool:
+        if event.keyval == Gdk.KEY_Escape:
+            if self.search.get_text().strip():
+                self.search.set_text("")
+                return True
+            self.dismiss()
+            return True
+        if event.keyval in (Gdk.KEY_Down, Gdk.KEY_KP_Down):
+            return self._move_nav(1)
+        if event.keyval in (Gdk.KEY_Up, Gdk.KEY_KP_Up):
+            return self._move_nav(-1)
+        if event.keyval in (Gdk.KEY_Return, Gdk.KEY_KP_Enter):
+            if self.search.has_focus():
+                return False
+            if self._activate_nav():
+                return True
+        return False
+
     # Search
+
+    def _update_clear_icon(self) -> None:
+        if self.search.get_text():
+            self.search.set_icon_from_icon_name(Gtk.EntryIconPosition.SECONDARY, "edit-clear-symbolic")
+        else:
+            self.search.set_icon_from_icon_name(Gtk.EntryIconPosition.SECONDARY, None)
+
+    def _on_search_icon(self, _entry: Gtk.Entry, position: Gtk.EntryIconPosition, _event) -> None:
+        if position == Gtk.EntryIconPosition.SECONDARY:
+            self.search.set_text("")
+            self.search.grab_focus()
 
     def _settings_matches(self, query: str) -> list[tuple]:
         query = query.strip().lower()
@@ -336,13 +493,14 @@ class StartMenu(Popup):
         return matches[:6]
 
     def _on_search_changed(self, entry: Gtk.Entry) -> None:
+        self._update_clear_icon()
         query = entry.get_text()
         if not query.strip():
             self._search_launch = None
-            self.stack.set_visible_child_name("home")
-            self.relayout()
+            self.show_home()
             return
         clear(self.results_box)
+        self._clear_nav()
         apps = appmod.search_apps(query, self.all_apps)[:8]
         settings = self._settings_matches(query)
         files = appmod.search_paths(query, limit=6)
@@ -361,30 +519,35 @@ class StartMenu(Popup):
             self.results_box.pack_start(empty, False, False, 8)
         else:
             if apps:
-                self.results_box.pack_start(
-                    self._section("Apps", [self._app_row(app) for app in apps]),
-                    False,
-                    False,
-                    0,
-                )
+                app_rows = []
+                for app in apps:
+                    row = self._app_row(app)
+                    app_rows.append(row)
+                    self._register_nav(row, lambda a=app: self._launch(a))
+                self.results_box.pack_start(self._section("Apps", app_rows), False, False, 0)
             if settings:
-                rows = [
-                    self._settings_row(title, desc, icon_name, action)
-                    for _group, title, desc, icon_name, action in settings
-                ]
+                rows = []
+                for _group, title, desc, icon_name, action in settings:
+                    row = self._settings_row(title, desc, icon_name, action)
+                    rows.append(row)
+                    self._register_nav(row, lambda a=action: self._open_settings(a))
                 self.results_box.pack_start(self._section("Settings", rows), False, False, 0)
             if files:
-                self.results_box.pack_start(
-                    self._section("Files", [self._path_row(path) for path in files]),
-                    False,
-                    False,
-                    0,
-                )
+                file_rows = []
+                for path in files:
+                    row = self._path_row(path)
+                    file_rows.append(row)
+                    self._register_nav(row, lambda p=path: self._open(p))
+                self.results_box.pack_start(self._section("Files", file_rows), False, False, 0)
         self.results_box.show_all()
         self.stack.set_visible_child_name("results")
+        if self._nav_items:
+            self._set_nav_index(0)
         self.relayout()
 
     def _on_search_activate(self, _entry: Gtk.Entry) -> None:
+        if self._activate_nav():
+            return
         if self._search_launch is None:
             return
         kind, payload = self._search_launch
@@ -429,10 +592,6 @@ class StartMenu(Popup):
         menu.show_all()
         menu.popup_at_pointer(event)
         return True
-
-    def _on_settings(self, _button) -> None:
-        self.dismiss()
-        self.shell.open_settings()
 
     def _on_lock(self, _button) -> None:
         self.dismiss()

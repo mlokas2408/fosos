@@ -50,20 +50,33 @@ On the live image the account is `user` / password `live`.
 ## Installer: filesystem.squashfs does not exist
 
 Calamares expects `/run/live/medium/live/filesystem.squashfs`. On some USB
-boots Debian live-boot only mounts the stick at `/lib/live/mount/medium`.
-`fosos-installer` 1.0.1+ fixes this automatically. On an older live image,
-before Install FosOS:
+boots Debian live-boot only mounts the stick at `/lib/live/mount/medium`
+(or leaves `/run/live/medium` empty/wrong). `fosos-installer` **1.0.2+**
+fixes this in `fosos-calamares` before Calamares starts.
+
+**On the live laptop right now** (account `user` / `live`), before Install
+FosOS again:
 
 ```bash
-# Live account: user / live
 ls /lib/live/mount/medium/live/filesystem.squashfs
+# If that path is missing, the USB write is wrong — remake with Etcher/dd.
+
 sudo mkdir -p /run/live/medium
+# If something is already mounted there but incomplete:
+findmnt /run/live/medium && sudo umount /run/live/medium
 sudo mount --bind /lib/live/mount/medium /run/live/medium
 ls /run/live/medium/live/filesystem.squashfs
 ```
 
-Then start Install FosOS again. Prefer writing the hybrid ISO with Balena
-Etcher or `dd`; Rufus in “ISO mode” can break the live layout.
+Then start **Install FosOS** again (do not launch plain `calamares`).
+
+Prefer writing the hybrid ISO with Balena Etcher or `dd`. Rufus in
+**ISO mode** can break the live layout; use **DD image mode** if you use Rufus.
+
+If **Etcher** shows **Missing partition table** when you select the ISO, that
+image is not hybrid (older builds used `grub-efi` only). Rebuild with
+`scripts/build-iso.sh` (bootloaders `grub-pc grub-efi`), confirm
+`file …iso` mentions `DOS/MBR`, then flash again — do not rely on Continue.
 
 ## Settings freezes when enabling Remote Desktop
 

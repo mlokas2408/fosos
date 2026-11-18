@@ -21,6 +21,7 @@ Record the result in the table below (and in release notes when tagging).
 | Pre–Phase 7 baseline (repo `output/`) | 2026-11-15 | 879394816 | ~839 | Existing ISO before 7c packaging cleanup; may still include Phase 6/7a content depending when it was built |
 | Post–Phase 7c (WSL rebuild) | 2026-11-16 | 854405120 | ~815 | 7a–7c package list; `fosos-desktop` 1.3.5; `fosos-theme` 0.6.0 (no greybird/elementary); Dawn Aperture GRUB; −24 MiB vs baseline |
 | Post–1.6.0 xrdp host (WSL) | 2026-11-17 | 886945792 | ~846 | `fosos-desktop` 1.6.0; xrdp + xorgxrdp replace freerdp3-shadow; +~31 MiB vs Phase 7c |
+| Post–Wi-Fi firmware (WSL) | 2026-11-18 | 1002768384 | ~956 | Hybrid `grub-pc grub-efi`; non-free Wi-Fi firmware + `wireless-regdb`; +~110 MiB vs 1.6.0 row |
 
 ## What was removed from the image path
 
@@ -85,5 +86,5 @@ will offset some of that reduction — compare before/after 1.6.0 explicitly.
 
 ## Soak
 
-After the rebuild, run the Phase 7 soak in [TESTING.md](TESTING.md)
+After the rebuild, run the soak in [TESTING.md](TESTING.md) / [SOAK-LOG.md](SOAK-LOG.md)
 (Recovery session + TTY, no Xfce Session entry).

@@ -1,38 +1,81 @@
-"""Drag a window to screen edges/corners to snap (Win-like)."""
+"""Drag a window to screen edges/corners to snap (Win-like), with zone preview."""
 
 from __future__ import annotations
 
 import gi
 
 gi.require_version("Gdk", "3.0")
+gi.require_version("Gtk", "3.0")
 gi.require_version("Wnck", "3.0")
-from gi.repository import Gdk, GLib, Wnck
+from gi.repository import Gdk, GLib, Gtk, Wnck
 
 from .panel import HEIGHT, SKIP_TYPES
-from .snaplayouts import Slot, apply_slot, work_area_for_point
+from .snaplayouts import (
+    BOTTOM_LEFT,
+    BOTTOM_RIGHT,
+    LEFT,
+    RIGHT,
+    TOP_LEFT,
+    TOP_RIGHT,
+    Slot,
+    apply_slot,
+    remember_normal_geometry,
+    slot_rect,
+    work_area_for_point,
+)
+from .ui import add_classes, load_css
 
 TOP_EDGE_PX = 12
 SIDE_EDGE_PX = 16
 CORNER_PX = 48
 POLL_MS = 50
 
-# Named slots for edge/corner release targets.
-TOP = Slot(0, 0, 1, 1, "Maximize")  # special-cased
-LEFT = Slot(0, 0, 0.5, 1, "Left")
-RIGHT = Slot(0.5, 0, 0.5, 1, "Right")
-TOP_LEFT = Slot(0, 0, 0.5, 0.5, "Top left")
-TOP_RIGHT = Slot(0.5, 0, 0.5, 0.5, "Top right")
-BOTTOM_LEFT = Slot(0, 0.5, 0.5, 0.5, "Bottom left")
-BOTTOM_RIGHT = Slot(0.5, 0.5, 0.5, 0.5, "Bottom right")
+
+class SnapZoneOverlay(Gtk.Window):
+    """Translucent rectangle showing the pending snap target."""
+
+    def __init__(self) -> None:
+        super().__init__(type=Gtk.WindowType.POPUP)
+        self.set_type_hint(Gdk.WindowTypeHint.POPUP_MENU)
+        self.set_accept_focus(False)
+        self.set_resizable(False)
+        self.set_skip_taskbar_hint(True)
+        self.set_skip_pager_hint(True)
+        self.set_keep_above(True)
+        self.set_decorated(False)
+        screen = self.get_screen()
+        visual = screen.get_rgba_visual() if screen is not None else None
+        if visual is not None and screen.is_composited():
+            self.set_visual(visual)
+            self.set_app_paintable(True)
+        add_classes(self, "fos-root", "fos-snap-zone")
+        self._box = add_classes(Gtk.EventBox(), "fos-snap-zone-fill")
+        self.add(self._box)
+        self._box.show()
+
+    def show_rect(self, x: int, y: int, w: int, h: int) -> None:
+        load_css()
+        self.resize(max(1, w), max(1, h))
+        self.move(x, y)
+        if not self.get_visible():
+            self.show_all()
+        else:
+            self.present()
+
+    def hide_zone(self) -> None:
+        if self.get_visible():
+            self.hide()
 
 
 class EdgeSnap:
-    """Poll pointer button state; on left-button release near an edge, snap."""
+    """Poll pointer button state; preview zones while dragging; snap on release."""
 
     def __init__(self) -> None:
         self._was_pressed = False
         self._disp = None
         self._root = None
+        self._overlay = SnapZoneOverlay()
+        self._zone_key: str | None = None
         try:
             from Xlib import X
             from Xlib import display as xdisplay
@@ -52,15 +95,25 @@ class EdgeSnap:
         except Exception:
             return True
         pressed = bool(pointer.mask & self._X.Button1Mask)
-        if self._was_pressed and not pressed:
-            self._maybe_snap(pointer.root_x, pointer.root_y)
+        root_x, root_y = pointer.root_x, pointer.root_y
+        if pressed:
+            self._update_preview(root_x, root_y)
+        elif self._was_pressed:
+            self._overlay.hide_zone()
+            self._zone_key = None
+            self._maybe_snap(root_x, root_y)
+        else:
+            self._overlay.hide_zone()
+            self._zone_key = None
         self._was_pressed = pressed
         return True
 
-    def _maybe_snap(self, root_x: int, root_y: int) -> None:
+    def _target_at(
+        self, root_x: int, root_y: int
+    ) -> tuple[str, Slot | None, bool, Gdk.Rectangle] | None:
         display = Gdk.Display.get_default()
         if display is None:
-            return
+            return None
         monitor = display.get_monitor_at_point(root_x, root_y)
         if monitor is None:
             monitor = display.get_primary_monitor() or display.get_monitor(0)
@@ -70,48 +123,76 @@ class EdgeSnap:
         near_left = root_x <= geom.x + SIDE_EDGE_PX
         near_right = root_x >= geom.x + geom.width - SIDE_EDGE_PX
         near_top = root_y <= geom.y + TOP_EDGE_PX
-        # Bottom edge is above the panel strip.
         near_bottom = root_y >= geom.y + geom.height - HEIGHT - SIDE_EDGE_PX
         near_top_corner = root_y <= geom.y + CORNER_PX
         near_bottom_corner = root_y >= geom.y + geom.height - HEIGHT - CORNER_PX
 
-        slot: Slot | None = None
-        maximize = False
         if near_left and near_top_corner:
-            slot = TOP_LEFT
-        elif near_right and near_top_corner:
-            slot = TOP_RIGHT
-        elif near_left and near_bottom_corner:
-            slot = BOTTOM_LEFT
-        elif near_right and near_bottom_corner:
-            slot = BOTTOM_RIGHT
-        elif near_top and not near_left and not near_right:
-            maximize = True
-        elif near_left:
-            slot = LEFT
-        elif near_right:
-            slot = RIGHT
-        elif near_bottom:
-            # Bottom edge alone does nothing (show-desktop territory).
-            return
-        else:
-            return
+            return ("top-left", TOP_LEFT, False, work)
+        if near_right and near_top_corner:
+            return ("top-right", TOP_RIGHT, False, work)
+        if near_left and near_bottom_corner:
+            return ("bottom-left", BOTTOM_LEFT, False, work)
+        if near_right and near_bottom_corner:
+            return ("bottom-right", BOTTOM_RIGHT, False, work)
+        if near_top and not near_left and not near_right:
+            return ("maximize", None, True, work)
+        if near_left:
+            return ("left", LEFT, False, work)
+        if near_right:
+            return ("right", RIGHT, False, work)
+        if near_bottom:
+            return None
+        return None
 
+    def _drag_window_ok(self) -> Wnck.Window | None:
         screen = Wnck.Screen.get_default()
         screen.force_update()
         window = screen.get_active_window()
         if window is None:
-            return
+            return None
         if window.is_skip_tasklist() or window.get_window_type() in SKIP_TYPES:
-            return
+            return None
         _x, _y, _w, height = window.get_geometry()
         if height <= HEIGHT + 8:
+            return None
+        return window
+
+    def _update_preview(self, root_x: int, root_y: int) -> None:
+        if self._drag_window_ok() is None:
+            self._overlay.hide_zone()
+            self._zone_key = None
+            return
+        target = self._target_at(root_x, root_y)
+        if target is None:
+            self._overlay.hide_zone()
+            self._zone_key = None
+            return
+        key, slot, maximize, work = target
+        if key == self._zone_key and self._overlay.get_visible():
+            return
+        self._zone_key = key
+        if maximize:
+            self._overlay.show_rect(work.x, work.y, work.width, work.height)
+        else:
+            assert slot is not None
+            x, y, w, h = slot_rect(work, slot)
+            self._overlay.show_rect(x, y, w, h)
+
+    def _maybe_snap(self, root_x: int, root_y: int) -> None:
+        target = self._target_at(root_x, root_y)
+        if target is None:
+            return
+        _key, slot, maximize, work = target
+        window = self._drag_window_ok()
+        if window is None:
             return
 
         stamp = int(GLib.get_monotonic_time() / 1000)
         if maximize:
             if window.is_maximized():
                 return
+            remember_normal_geometry(window)
             window.maximize()
             window.activate(stamp)
             return

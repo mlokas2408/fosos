@@ -46,11 +46,29 @@ lxpolkit
 sudo
 xarchiver
 firmware-linux
+# Laptop Wi-Fi: free firmware-linux is not enough. Explicit non-free-firmware
+# blobs (Intel/Realtek/Atheros/Broadcom/MediaTek/misc). live-build keeps
+# --firmware-chroot false so these must be listed here.
+firmware-iwlwifi
+firmware-realtek
+firmware-atheros
+firmware-brcm80211
+firmware-mediatek
+firmware-misc-nonfree
+wireless-regdb
 # Calamares formats the UEFI system partition with mkfs.fat (dosfstools).
 dosfstools
 # Applies /etc/default/keyboard to the text consoles. Without it, a layout
 # chosen in the installer (for example Croatian) never reaches Ctrl+Alt+F2.
 console-setup
+# initramfs prefers zstd when present; without it update-initramfs warns and
+# falls back to gzip.
+zstd
+# bootappend-live uses splash → plymouth. APT recommends are off, so ship the
+# label plugin and themes explicitly (avoids label-pango.so / themes warnings).
+plymouth
+plymouth-label
+plymouth-themes
 
 # Remote Desktop (RDP). Inbound Windows-like host via xrdp (separate session);
 # outbound client via FreeRDP. Off until Settings → Remote Desktop enables it.

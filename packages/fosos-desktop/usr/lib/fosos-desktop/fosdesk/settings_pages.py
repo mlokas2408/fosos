@@ -508,18 +508,23 @@ def build_taskbar(status_cb) -> Gtk.Box:
 
 
 def build_notifications(status_cb) -> Gtk.Box:
+    from .notifications import muted_app_names
+
     root = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=16)
     root.pack_start(
-        pack_header("Notifications", "Toasts, quiet hours, and Notification Center history."),
+        pack_header("Notifications", "Focus assist, toasts, and per-app mutes."),
         False,
         False,
         0,
     )
-    prefs = load_kv("notifications", {"dnd": "0", "toasts": "1", "timeout": "5000"})
+    prefs = load_kv(
+        "notifications",
+        {"dnd": "0", "toasts": "1", "timeout": "5000", "muted_apps": ""},
+    )
 
-    dnd = Gtk.CheckButton(label="Do not disturb (hide toast popups)")
-    dnd.set_active(truthy(prefs.get("dnd"), False))
-    root.pack_start(dnd, False, False, 0)
+    focus = Gtk.CheckButton(label="Focus assist (hide toast popups)")
+    focus.set_active(truthy(prefs.get("dnd"), False))
+    root.pack_start(focus, False, False, 0)
 
     toasts = Gtk.CheckButton(label="Show toast popups for new notifications")
     toasts.set_active(truthy(prefs.get("toasts"), True))
@@ -539,13 +544,53 @@ def build_notifications(status_cb) -> Gtk.Box:
     row.pack_start(scale, True, True, 0)
     root.pack_start(row, False, False, 0)
 
+    root.pack_start(label("Apps", "fos-label"), False, False, 0)
+    apps_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
+    muted = muted_app_names(prefs)
+    app_names: set[str] = set(muted)
+    recent_path = CONFIG / "notification-apps"
+    if recent_path.is_file():
+        try:
+            for line in recent_path.read_text(encoding="utf-8").splitlines():
+                name = line.strip()
+                if name:
+                    app_names.add(name)
+        except OSError:
+            pass
+
+    app_checks: list[tuple[str, Gtk.CheckButton]] = []
+    if not app_names:
+        apps_box.pack_start(
+            label(
+                "Apps that send notifications will appear here. You can also mute from Notification Center.",
+                "fos-small",
+                "fos-muted",
+            ),
+            False,
+            False,
+            0,
+        )
+    else:
+        for name in sorted(app_names, key=str.lower):
+            check = Gtk.CheckButton(label=f"Mute toasts from {name}")
+            check.set_active(any(name.lower() == m.lower() for m in muted))
+            apps_box.pack_start(check, False, False, 0)
+            app_checks.append((name, check))
+    root.pack_start(apps_box, False, False, 0)
+
     def apply(_button=None) -> None:
+        if app_checks:
+            muted_list = [name for name, check in app_checks if check.get_active()]
+            muted_value = "|".join(sorted(muted_list, key=str.lower))
+        else:
+            muted_value = prefs.get("muted_apps", "")
         save_kv(
             "notifications",
             {
-                "dnd": "1" if dnd.get_active() else "0",
+                "dnd": "1" if focus.get_active() else "0",
                 "toasts": "1" if toasts.get_active() else "0",
                 "timeout": str(int(scale.get_value() * 1000)),
+                "muted_apps": muted_value,
             },
         )
         _request_shell_reload()
@@ -556,7 +601,8 @@ def build_notifications(status_cb) -> Gtk.Box:
     root.pack_start(apply_btn, False, False, 0)
 
     tip = label(
-        "History still appears in Notification Center (Win+N) while Do not disturb is on.",
+        "History still appears in Notification Center (Win+N) while Focus assist is on. "
+        "Per-app mute hides that app’s toast popups only.",
         "fos-small",
         "fos-muted",
     )
@@ -611,13 +657,45 @@ def build_sound(status_cb) -> Gtk.Box:
 
 
 def build_network(status_cb) -> Gtk.Box:
-    return build_tool_page(
-        "Network",
-        "Wi-Fi, wired, and VPN connections via NetworkManager.",
-        ["nm-connection-editor"],
-        "Open network connections",
-        status_cb,
+    from . import apps as appmod
+    from .indicators import WifiPicker
+
+    root = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=16)
+    root.pack_start(
+        pack_header("Network", "Turn Wi-Fi on, join a network, or manage saved connections."),
+        False,
+        False,
+        0,
     )
+    card = add_classes(Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10), "fos-card")
+    card.set_border_width(12)
+    picker = WifiPicker(
+        on_changed=lambda: status_cb("Network status updated."),
+        show_switch=True,
+    )
+    picker.set_dialog_parent(root)
+    card.pack_start(picker, False, False, 0)
+    root.pack_start(card, False, False, 0)
+
+    def open_advanced(_button=None) -> None:
+        if appmod.spawn(["nm-connection-editor"]):
+            status_cb("Opened advanced network connections.")
+        else:
+            status_cb("nm-connection-editor is not available.")
+
+    advanced = button("Advanced connections…", variant="outline", size="sm")
+    advanced.connect("clicked", open_advanced)
+    root.pack_start(advanced, False, False, 0)
+    tip = label(
+        "Use Advanced for VPN, bridges, and saved profiles. Everyday Wi-Fi is above.",
+        "fos-small",
+        "fos-muted",
+    )
+    tip.set_line_wrap(True)
+    root.pack_start(tip, False, False, 0)
+    picker.refresh(rescan=True)
+    status_cb("Network settings.")
+    return root
 
 
 def build_bluetooth(status_cb) -> Gtk.Box:

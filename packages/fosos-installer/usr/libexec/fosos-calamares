@@ -15,19 +15,31 @@ fi
 CALAMARES_MEDIUM=/run/live/medium
 CALAMARES_SQUASHFS="$CALAMARES_MEDIUM/live/filesystem.squashfs"
 
+squashfs_ready() {
+	# Require a real file (or symlink that resolves). Dangling -L alone is not OK.
+	[ -f "$CALAMARES_SQUASHFS" ]
+}
+
 find_live_squashfs() {
 	for candidate in \
 		"$CALAMARES_SQUASHFS" \
-		/lib/live/mount/medium/live/filesystem.squashfs; do
+		/lib/live/mount/medium/live/filesystem.squashfs \
+		/lib/live/mount/findiso/live/filesystem.squashfs \
+		/run/live/medium/live/filesystem.squashfs \
+		/cdrom/live/filesystem.squashfs; do
 		if [ -f "$candidate" ]; then
 			printf '%s\n' "$candidate"
 			return 0
 		fi
 	done
-	# Case-insensitive fallback (FAT-copied media can uppercase names).
-	for medium in "$CALAMARES_MEDIUM" /lib/live/mount/medium; do
+	# Case-insensitive / shallow fallback (FAT-copied media can uppercase names).
+	for medium in \
+		"$CALAMARES_MEDIUM" \
+		/lib/live/mount/medium \
+		/lib/live/mount/findiso \
+		/cdrom; do
 		[ -d "$medium" ] || continue
-		found=$(find "$medium" -maxdepth 2 -type f -iname 'filesystem.squashfs' 2>/dev/null | head -n 1)
+		found=$(find "$medium" -maxdepth 3 -type f \( -iname 'filesystem.squashfs' -o -iname 'filesystem.squash' \) 2>/dev/null | head -n 1)
 		if [ -n "$found" ] && [ -f "$found" ]; then
 			printf '%s\n' "$found"
 			return 0
@@ -36,40 +48,91 @@ find_live_squashfs() {
 	return 1
 }
 
+bind_lib_live_medium() {
+	# Prefer binding the real live medium onto the path Calamares hardcodes.
+	src_medium=/lib/live/mount/medium
+	if [ ! -f "$src_medium/live/filesystem.squashfs" ]; then
+		return 1
+	fi
+	mkdir -p "$CALAMARES_MEDIUM"
+	if findmnt -n "$CALAMARES_MEDIUM" >/dev/null 2>&1; then
+		if squashfs_ready; then
+			return 0
+		fi
+		# Mounted but missing squashfs (empty or wrong mount). Replace carefully.
+		echo "FosOS installer: replacing incomplete $CALAMARES_MEDIUM with $src_medium" >&2
+		umount "$CALAMARES_MEDIUM" 2>/dev/null || umount -l "$CALAMARES_MEDIUM" 2>/dev/null || true
+	fi
+	if ! findmnt -n "$CALAMARES_MEDIUM" >/dev/null 2>&1; then
+		mount --bind "$src_medium" "$CALAMARES_MEDIUM" || return 1
+	fi
+	squashfs_ready
+}
+
+symlink_squashfs() {
+	src=$1
+	# Only when Calamares medium path is not an existing mount.
+	if findmnt -n "$CALAMARES_MEDIUM" >/dev/null 2>&1; then
+		return 1
+	fi
+	mkdir -p "$CALAMARES_MEDIUM/live"
+	# Drop a dangling leftover before recreating.
+	rm -f "$CALAMARES_SQUASHFS"
+	ln -sfn "$src" "$CALAMARES_SQUASHFS" || return 1
+	squashfs_ready
+}
+
 ensure_calamares_squashfs() {
-	if [ -f "$CALAMARES_SQUASHFS" ] || [ -L "$CALAMARES_SQUASHFS" ]; then
+	if squashfs_ready; then
 		return 0
 	fi
+
+	# Remove dangling symlink that would fool a -L check.
+	if [ -L "$CALAMARES_SQUASHFS" ] && [ ! -f "$CALAMARES_SQUASHFS" ]; then
+		echo "FosOS installer: removing dangling $CALAMARES_SQUASHFS" >&2
+		rm -f "$CALAMARES_SQUASHFS"
+	fi
+
 	src=$(find_live_squashfs) || {
-		echo "FosOS installer: live filesystem.squashfs not found under /run/live or /lib/live." >&2
-		echo "Confirm the USB was written as a hybrid ISO (Balena Etcher / dd), not ISO-mode Rufus." >&2
+		echo "FosOS installer: live filesystem.squashfs not found under /run/live, /lib/live, or /cdrom." >&2
+		echo "Confirm the USB was written as a hybrid ISO (Balena Etcher / dd), not Rufus ISO mode." >&2
+		echo "Debug: findmnt | grep live; ls -la /lib/live/mount/medium /run/live/medium 2>&1 | head" >&2
 		return 1
 	}
+	echo "FosOS installer: using live image at $src" >&2
+
 	if [ "$src" = "$CALAMARES_SQUASHFS" ]; then
 		return 0
 	fi
 
-	# Prefer binding the real live medium onto the path Calamares hardcodes.
-	# Never unmount an existing /run/live/medium — live-boot may own it.
-	if [ -d /lib/live/mount/medium/live ] \
-		&& [ -f /lib/live/mount/medium/live/filesystem.squashfs ]; then
+	if bind_lib_live_medium; then
+		return 0
+	fi
+
+	# If squashfs lives under findiso/cdrom, bind that medium root when possible.
+	src_dir=$(dirname "$(dirname "$src")")
+	if [ -f "$src_dir/live/filesystem.squashfs" ] || [ -f "$src" ]; then
 		mkdir -p "$CALAMARES_MEDIUM"
-		if ! findmnt -n "$CALAMARES_MEDIUM" >/dev/null 2>&1; then
-			mount --bind /lib/live/mount/medium "$CALAMARES_MEDIUM" || return 1
+		if findmnt -n "$CALAMARES_MEDIUM" >/dev/null 2>&1 && ! squashfs_ready; then
+			umount "$CALAMARES_MEDIUM" 2>/dev/null || umount -l "$CALAMARES_MEDIUM" 2>/dev/null || true
 		fi
-		if [ -f "$CALAMARES_SQUASHFS" ] || [ -L "$CALAMARES_SQUASHFS" ]; then
+		if ! findmnt -n "$CALAMARES_MEDIUM" >/dev/null 2>&1; then
+			# Bind the parent that contains live/ if that matches layout.
+			if [ -d "$src_dir/live" ]; then
+				mount --bind "$src_dir" "$CALAMARES_MEDIUM" 2>/dev/null || true
+			fi
+		fi
+		if squashfs_ready; then
 			return 0
 		fi
 	fi
 
-	# Writable /run tree: symlink the squashfs file to the expected path.
-	if ! findmnt -n "$CALAMARES_MEDIUM" >/dev/null 2>&1; then
-		mkdir -p "$CALAMARES_MEDIUM/live"
-		ln -sfn "$src" "$CALAMARES_SQUASHFS" || return 1
+	if symlink_squashfs "$src"; then
 		return 0
 	fi
 
 	echo "FosOS installer: found $src but could not expose $CALAMARES_SQUASHFS" >&2
+	echo "Try manually: sudo mount --bind /lib/live/mount/medium /run/live/medium" >&2
 	return 1
 }
 
@@ -80,12 +143,12 @@ ensure_calamares_squashfs || exit 1
 # leftover partitions (for example the EFI partition from a failed attempt).
 # Unmount real disks first, and never the disk the live system is using.
 live_disk=""
-for live_mount in /run/live/medium /lib/live/mount/medium; do
+for live_mount in /run/live/medium /lib/live/mount/medium /lib/live/mount/findiso; do
 	live_src=$(findmnt -n -o SOURCE "$live_mount" 2>/dev/null || true)
 	[ -n "$live_src" ] || continue
 	live_disk=$(lsblk -no PKNAME "$live_src" 2>/dev/null || true)
 	if [ -z "$live_disk" ]; then
-		live_disk=$(basename "$live_src" | sed 's/[0-9]*$//')
+		live_disk=$(basename "$live_src" | sed 's/[0-9]*$//;s/p$//')
 	fi
 	break
 done

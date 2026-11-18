@@ -1,5 +1,63 @@
 # FosOS release notes
 
+## FosOS 1.12.0 — OS keyring (Secret Service)
+
+- Session starts `gnome-keyring-daemon` (secrets / pkcs11 / ssh) and exports
+  sockets to D-Bus so Cursor, Electron, and libsecret clients work
+- Depends on `gnome-keyring`, `libpam-gnome-keyring`, and `libsecret-1-0`
+  so LightDM can unlock the login keyring with the user password
+
+## FosOS 1.11.0 — Wi-Fi network flyout and Settings
+
+- Taskbar network icon opens a Network flyout (radio switch, scan, join with
+  password prompt) instead of only Quick Settings
+- Quick Settings Wi-Fi tile and “Network…” open the same flyout
+- Settings → Network embeds the Wi-Fi list; Advanced still opens
+  `nm-connection-editor`
+- Status icon treats `connected (…)` nmcli states as online
+
+## ISO — laptop Wi-Fi firmware
+
+- Live image ships Debian `non-free-firmware` Wi-Fi blobs: `firmware-iwlwifi`,
+  `firmware-realtek`, `firmware-atheros`, `firmware-brcm80211`,
+  `firmware-mediatek`, `firmware-misc-nonfree`, plus `wireless-regdb`
+- Fixes bare-metal installs where the adapter never appeared or could not
+  scan because only free `firmware-linux` was present
+
+## FosOS 1.10.0 — Clipboard history and Status Notifier tray
+
+- Super+V clipboard history popup (text snippets, Clear all, paste via
+  Ctrl+V inject); history persisted under `~/.config/fosos-desktop/`
+- Status Notifier tray on the taskbar (SNI host); nm-applet and other
+  StatusNotifierItem apps appear left of Quick Settings
+
+## FosOS 1.9.0 — Notifications and Quick Settings depth
+
+- Quick Settings 2×2 tiles: Wi-Fi, Bluetooth, Focus assist, Mute
+- Focus assist naming (was Do not disturb); toggle from Win+A or Settings
+- Per-app toast mutes in Settings and Mute/Unmute on Notification Center cards
+- Toast timers pause while the pointer is over a popup; stack restacks on resize
+
+## FosOS 1.8.0 — Window chrome and snap feedback
+
+- Edge snap: translucent zone preview while dragging to edges/corners/top
+- Win+Left/Right tile to work area (above panel); Win+Down restores from
+  maximize or snap, then minimizes; Win+Up maximizes with geometry memory
+- CardWindow titlebar: right-click menu (Restore / Minimize / Maximize /
+  Snap layouts… / Close); maximize right-click opens snap layouts
+- Alt+Tab: larger tiles, stronger selection, Desktop N caption when
+  multiple workspaces; Esc / click-chrome dismiss without switching
+
+## FosOS 1.7.0 — Start menu and search polish
+
+- Search: “Type here to search”, clear (×) icon, Esc clears query before
+  dismissing; Down/Up highlight results and pinned/recommended rows; Enter
+  launches the selection
+- Home: Pinned (count only) and Recommended; All apps fixed under the home
+  scroller; empty pinned hint; home body scrolls at a fixed height
+- Footer: Account (home / Lock / Sign out) on the left, Power only on the
+  right (Settings via pin or search)
+
 ## FosOS 1.6.1 — xrdp session start + login chrome
 
 - Remove obsolete `ip=` from the Xorg session stanza (xrdp 0.10 uses a
@@ -11,6 +69,24 @@
   clears `XDG_RUNTIME_DIR`)
 - FosOS-branded RDP login: Dawn Aperture banner (“FosOS / Sign in”), dark
   square card, borderless field (`scripts/_gen_xrdp_logo.py`)
+
+## ISO build — hybrid bootloaders for Etcher/USB
+
+- `build-iso.sh` now uses `--bootloaders "grub-pc grub-efi"` with
+  `iso-hybrid` so the ISO has an MBR/partition table
+- Avoids Balena Etcher “Missing partition table” and broken
+  `/run/live/medium` mounts on real USB installs
+- Post-build `file` probe warns if the output is not hybrid
+- `--debian-installer none` (replaces deprecated `false`)
+- Live image includes `zstd`, `plymouth`, `plymouth-label`, and
+  `plymouth-themes` to clear initramfs/splash build warnings
+
+## FosOS installer 1.0.2 — harder live squashfs bind for USB
+
+- Replace incomplete/empty `/run/live/medium` mounts before Calamares starts
+- Ignore dangling symlinks; search findiso/cdrom fallbacks
+- Fixes laptop USB installs that still hit unpackfs “filesystem.squashfs
+  does not exist” after 1.0.1
 
 ## FosOS installer 1.0.1 — live squashfs path for USB install
 

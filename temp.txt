@@ -1,4 +1,6 @@
-Installing or configuring fosos should not ask for password, not even in terminal when using sudo, is this possible?
+Installing apps or configuring fosos should not ask for password, not even in terminal when using sudo, is this possible?
+
+Install wizard Install step, no images in slider, generate 3 or 4 images to show during installations.
 
 
 

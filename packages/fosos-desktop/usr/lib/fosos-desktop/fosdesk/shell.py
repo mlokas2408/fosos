@@ -13,9 +13,11 @@ from gi.repository import Gdk, Gio, GLib, Gtk, Wnck
 
 from . import apps as appmod
 from .alttab import AltTabSwitcher
+from .clipboard import ClipboardHistory, ClipboardPopup
 from .desktop import Desktop
 from .edgesnap import EdgeSnap
 from .indicators import (
+    NetworkPopup,
     battery_state,
     brightness_icon,
     network_state,
@@ -29,9 +31,17 @@ from .popup import Popup
 from .quicklinks import QuickLinks
 from .quicksettings import QuickSettings
 from .run import RunDialog
-from .snaplayouts import SnapLayouts, move_window_to_workspace
+from .snaplayouts import (
+    SnapLayouts,
+    move_window_to_workspace,
+    snap_down,
+    snap_left,
+    snap_maximize,
+    snap_right,
+)
 from .startmenu import StartMenu
 from .taskview import TaskView
+from .tray import StatusNotifierWatcher
 from .ui import add_classes, button, load_css
 
 APP_ID = "org.fosos.Shell"
@@ -88,16 +98,21 @@ class Shell(Gtk.Application):
         self.snap_layouts = SnapLayouts(self)
         self.task_view = TaskView(self)
         self.quick_settings = QuickSettings(self)
+        self.network_popup = NetworkPopup(self)
         self.notification_center = NotificationCenter(self)
+        self.clipboard_history = ClipboardHistory()
+        self.clipboard_popup = ClipboardPopup(self)
+        self.tray_watcher = StatusNotifierWatcher(self)
         self.popups = {
             "start": self.start_menu,
             "quicklinks": self.quick_links,
             "quicksettings": self.quick_settings,
+            "network": self.network_popup,
             "clock": self.notification_center,
             "notifications": self.notification_center,
-            # Aliases so status icons and old --toggle-popup names open the hubs.
+            "clipboard": self.clipboard_popup,
+            # Aliases so volume/battery/brightness icons open Quick Settings.
             "volume": self.quick_settings,
-            "network": self.quick_settings,
             "battery": self.quick_settings,
             "brightness": self.quick_settings,
         }
@@ -135,12 +150,22 @@ class Shell(Gtk.Application):
             self.cycle_alt_tab(-1 if direction == "prev" else 1)
         elif "--snap-layouts" in args:
             self.toggle_snap_layouts()
+        elif "--snap-left" in args:
+            snap_left()
+        elif "--snap-right" in args:
+            snap_right()
+        elif "--snap-down" in args:
+            snap_down()
+        elif "--snap-maximize" in args:
+            snap_maximize()
         elif "--task-view" in args:
             self.toggle_task_view()
         elif "--quick-settings" in args:
             self.toggle_quick_settings()
         elif "--notification-center" in args:
             self.toggle_notification_center()
+        elif "--clipboard-history" in args:
+            self.toggle_clipboard_history()
         elif "--toggle-popup" in args:
             index = args.index("--toggle-popup")
             name = args[index + 1] if index + 1 < len(args) else ""
@@ -193,6 +218,9 @@ class Shell(Gtk.Application):
             self.panel = self.panels[0]
             self.panel.is_primary = True
         self.update_status()
+        for panel in self.panels:
+            if hasattr(panel, "rebuild_tray"):
+                panel.rebuild_tray()
 
     def _place_panels(self) -> None:
         for panel in self.panels:
@@ -244,7 +272,10 @@ class Shell(Gtk.Application):
         for panel in self.panels:
             panel.rebuild_tasks()
 
-    def open_settings(self) -> None:
+    def open_settings(self, page: str | None = None) -> None:
+        if page:
+            if appmod.spawn(["fosos-settings", "--builtin", page]):
+                return
         app = appmod.load_app("fosos-settings.desktop")
         if app is None or not app.launch():
             appmod.spawn(["fosos-settings"])
@@ -385,6 +416,9 @@ class Shell(Gtk.Application):
             return
         anchor = panel.clock_button
         self.toggle_popup("clock", anchor, panel)
+
+    def toggle_clipboard_history(self) -> None:
+        self.clipboard_popup.open_near_panel()
 
     def show_desktop_menu(self, x: int, y: int) -> None:
         self.close_popups()

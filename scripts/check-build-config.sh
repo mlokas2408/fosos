@@ -274,6 +274,39 @@ if ! grep -q 'config: shellprocess_prepare.conf' "$settings_conf" \
   exit 1
 fi
 
+if ! grep -qE -- '--bootloaders "grub-pc grub-efi"' "$repo_root/scripts/build-iso.sh"; then
+  echo 'build-iso.sh must use --bootloaders "grub-pc grub-efi" for hybrid USB (Etcher).' >&2
+  exit 1
+fi
+if ! grep -qE -- '--binary-images iso-hybrid' "$repo_root/scripts/build-iso.sh"; then
+  echo "build-iso.sh must use --binary-images iso-hybrid." >&2
+  exit 1
+fi
+if ! grep -qE -- '--debian-installer none' "$repo_root/scripts/build-iso.sh"; then
+  echo "build-iso.sh must use --debian-installer none (not deprecated false)." >&2
+  exit 1
+fi
+for pkg in zstd plymouth plymouth-label plymouth-themes; do
+  if ! grep -qx "$pkg" "$repo_root/build/live-build/config/package-lists/fosos-base.list.chroot"; then
+    echo "fosos-base.list.chroot must list $pkg (splash/initramfs warnings)." >&2
+    exit 1
+  fi
+done
+for pkg in \
+  firmware-linux \
+  firmware-iwlwifi \
+  firmware-realtek \
+  firmware-atheros \
+  firmware-brcm80211 \
+  firmware-mediatek \
+  firmware-misc-nonfree \
+  wireless-regdb; do
+  if ! grep -qx "$pkg" "$repo_root/build/live-build/config/package-lists/fosos-base.list.chroot"; then
+    echo "fosos-base.list.chroot must list $pkg (laptop Wi-Fi firmware)." >&2
+    exit 1
+  fi
+done
+
 bash -n "$repo_root/scripts/build-iso.sh"
 bash -n "$repo_root/scripts/check-build-config.sh"
 bash -n "$repo_root/scripts/stage-deb.sh"
@@ -284,6 +317,14 @@ sh -n "$repo_root/packages/fosos-installer/usr/bin/calamares-install-fosos"
 sh -n "$repo_root/packages/fosos-installer/usr/libexec/fosos-calamares"
 sh -n "$repo_root/packages/fosos-installer/usr/libexec/fosos-grub-install"
 sh -n "$repo_root/packages/fosos-cli/usr/bin/fos"
+if ! grep -q 'gnome-keyring-daemon --start' "$repo_root/packages/fosos-desktop/usr/bin/fosos-session"; then
+  echo "fosos-session must start gnome-keyring-daemon for the OS keyring / Secret Service." >&2
+  exit 1
+fi
+if ! grep -qE 'gnome-keyring|libpam-gnome-keyring' "$repo_root/packages/fosos-desktop/DEBIAN/control"; then
+  echo "fosos-desktop must Depend on gnome-keyring and libpam-gnome-keyring." >&2
+  exit 1
+fi
 sh -n "$repo_root/packages/fosos-desktop/usr/bin/fosos-session"
 sh -n "$repo_root/packages/fosos-desktop/usr/bin/fosos-recovery-session"
 sh -n "$repo_root/packages/fosos-desktop/usr/libexec/fosos-shell-recovery"

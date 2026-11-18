@@ -56,16 +56,75 @@ MAX_POPUPS = 4
 HISTORY_LIMIT = 50
 
 
+_NOTIF_DEFAULTS = {
+    "dnd": "0",
+    "toasts": "1",
+    "timeout": str(DEFAULT_TIMEOUT_MS),
+    "muted_apps": "",
+}
+
+
 def _notification_prefs() -> dict[str, str]:
     from .settings_pages import load_kv
 
-    return load_kv("notifications", {"dnd": "0", "toasts": "1", "timeout": str(DEFAULT_TIMEOUT_MS)})
+    return load_kv("notifications", dict(_NOTIF_DEFAULTS))
 
 
 def _pref_true(prefs: dict[str, str], key: str, default: bool) -> bool:
     from .settings_pages import truthy
 
     return truthy(prefs.get(key), default)
+
+
+def muted_app_names(prefs: dict[str, str] | None = None) -> set[str]:
+    prefs = prefs or _notification_prefs()
+    raw = prefs.get("muted_apps", "") or ""
+    return {part.strip() for part in raw.split("|") if part.strip()}
+
+
+def is_app_muted(app_name: str, prefs: dict[str, str] | None = None) -> bool:
+    name = (app_name or "").strip()
+    if not name:
+        return False
+    muted = muted_app_names(prefs)
+    return name in muted or name.lower() in {m.lower() for m in muted}
+
+
+def set_app_muted(app_name: str, muted: bool) -> None:
+    from .settings_pages import save_kv
+
+    name = (app_name or "").strip()
+    if not name:
+        return
+    prefs = _notification_prefs()
+    current = muted_app_names(prefs)
+    # Normalize case-insensitive membership.
+    current = {m for m in current if m.lower() != name.lower()}
+    if muted:
+        current.add(name)
+    prefs["muted_apps"] = "|".join(sorted(current, key=str.lower))
+    save_kv("notifications", prefs)
+
+
+def remember_notification_app(app_name: str) -> None:
+    """Track apps that have notified so Settings can offer per-app mutes."""
+    from .settings_pages import CONFIG
+
+    name = (app_name or "").strip()
+    if not name:
+        return
+    path = CONFIG / "notification-apps"
+    try:
+        CONFIG.mkdir(parents=True, exist_ok=True)
+        existing: list[str] = []
+        if path.is_file():
+            existing = [line.strip() for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
+        lower = {item.lower() for item in existing}
+        if name.lower() not in lower:
+            existing.append(name)
+            path.write_text("\n".join(existing[-40:]) + "\n", encoding="utf-8")
+    except OSError:
+        pass
 
 
 def toast_timeout_ms(note_timeout: int, urgency: int) -> int:
@@ -122,7 +181,14 @@ class Notification:
         self.time = GLib.DateTime.new_now_local()
 
 
-def notification_card(note: Notification, on_close=None, on_action=None, on_click=None, compact=False) -> Gtk.Widget:
+def notification_card(
+    note: Notification,
+    on_close=None,
+    on_action=None,
+    on_click=None,
+    on_mute=None,
+    compact=False,
+) -> Gtk.Widget:
     card = add_classes(Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6), "fos-card", "fos-notification")
     if note.urgency >= 2:
         add_classes(card, "critical")
@@ -130,6 +196,16 @@ def notification_card(note: Notification, on_close=None, on_action=None, on_clic
     head.pack_start(notification_icon(note.app_icon, note.hints), False, False, 0)
     head.pack_start(label(note.app_name, "fos-small", "fos-muted", ellipsize=True), True, True, 0)
     head.pack_start(label(note.time.format("%H:%M"), "fos-small", "fos-muted"), False, False, 0)
+    if on_mute is not None:
+        muted = is_app_muted(note.app_name)
+        mute_btn = button(
+            "Unmute" if muted else "Mute",
+            variant="ghost",
+            size="sm",
+            tooltip="Show toasts from this app again" if muted else "Hide toast popups from this app",
+        )
+        mute_btn.connect("clicked", lambda _b: on_mute(not muted))
+        head.pack_start(mute_btn, False, False, 0)
     if on_close is not None:
         close = button(icon_name="window-close-symbolic", size="icon-xs", tooltip="Dismiss")
         add_classes(close, "close")
@@ -189,8 +265,14 @@ class NotificationPopup(Gtk.Window):
         self.set_size_request(POPUP_WIDTH, -1)
         add_classes(self, "fos-root", "fos-popup")
         events = Gtk.EventBox()
-        events.add_events(Gdk.EventMask.BUTTON_PRESS_MASK)
+        events.add_events(
+            Gdk.EventMask.BUTTON_PRESS_MASK
+            | Gdk.EventMask.ENTER_NOTIFY_MASK
+            | Gdk.EventMask.LEAVE_NOTIFY_MASK
+        )
         events.connect("button-press-event", self._on_press)
+        events.connect("enter-notify-event", self._on_enter)
+        events.connect("leave-notify-event", self._on_leave)
         events.add(
             notification_card(
                 note,
@@ -200,20 +282,53 @@ class NotificationPopup(Gtk.Window):
         )
         self.add(events)
         self.timer = 0
+        self._timeout_ms = 0
+        self._paused = False
+        self._stack_idle = 0
+        self.connect("size-allocate", self._on_size_allocate)
 
     def start_timer(self) -> None:
-        timeout = toast_timeout_ms(self.note.timeout, self.note.urgency)
-        if timeout > 0:
-            self.timer = GLib.timeout_add(timeout, self._expire)
+        self._timeout_ms = toast_timeout_ms(self.note.timeout, self.note.urgency)
+        self._arm_timer()
 
     def stop_timer(self) -> None:
         if self.timer:
             GLib.source_remove(self.timer)
             self.timer = 0
 
+    def _arm_timer(self) -> None:
+        self.stop_timer()
+        if self._paused or self._timeout_ms <= 0:
+            return
+        self.timer = GLib.timeout_add(self._timeout_ms, self._expire)
+
     def _expire(self) -> bool:
         self.timer = 0
         self.server.close(self.note.id, EXPIRED)
+        return False
+
+    def _on_enter(self, _widget, event: Gdk.EventCrossing) -> bool:
+        if event.detail == Gdk.NotifyType.INFERIOR:
+            return False
+        self._paused = True
+        self.stop_timer()
+        return False
+
+    def _on_leave(self, _widget, event: Gdk.EventCrossing) -> bool:
+        if event.detail == Gdk.NotifyType.INFERIOR:
+            return False
+        self._paused = False
+        self._arm_timer()
+        return False
+
+    def _on_size_allocate(self, _widget, _allocation) -> None:
+        if self._stack_idle:
+            return
+        self._stack_idle = GLib.idle_add(self._restack_idle)
+
+    def _restack_idle(self) -> bool:
+        self._stack_idle = 0
+        self.server.stack()
         return False
 
     def _on_press(self, _widget, event: Gdk.EventButton) -> bool:
@@ -312,6 +427,7 @@ class NotificationCenter(Popup):
             self.server,
             on_activate=self._activate,
             on_forget=self._forget,
+            on_mute=self._mute_app,
         )
         self.items.show_all()
         self.relayout()
@@ -319,6 +435,10 @@ class NotificationCenter(Popup):
     def _forget(self, note: Notification) -> None:
         if note in self.server.history:
             self.server.history.remove(note)
+        self.refresh()
+
+    def _mute_app(self, note: Notification, muted: bool) -> None:
+        set_app_muted(note.app_name, muted)
         self.refresh()
 
     def _clear(self) -> None:
@@ -330,7 +450,13 @@ class NotificationCenter(Popup):
         self.server.activate_note(note)
 
 
-def _fill_notification_items(container: Gtk.Box, server: "NotificationServer", on_activate, on_forget) -> None:
+def _fill_notification_items(
+    container: Gtk.Box,
+    server: "NotificationServer",
+    on_activate,
+    on_forget,
+    on_mute=None,
+) -> None:
     if not server.history:
         empty = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
         empty.set_margin_top(12)
@@ -346,6 +472,7 @@ def _fill_notification_items(container: Gtk.Box, server: "NotificationServer", o
                 on_close=(lambda n=note: on_forget(n)) if on_forget else None,
                 on_action=(lambda key, n=note: server.invoke(n.id, key)),
                 on_click=(lambda n=note: on_activate(n)) if on_activate else None,
+                on_mute=(lambda muted, n=note: on_mute(n, muted)) if on_mute else None,
                 compact=True,
             ),
             False,
@@ -404,6 +531,7 @@ class NotificationServer:
             if not replaces_id:
                 self.next_id += 1
         note = Notification(nid, app_name, app_icon, summary, body, actions, hints, timeout)
+        remember_notification_app(note.app_name)
         if not hints.get("transient"):
             self.history = [n for n in self.history if n.id != nid]
             self.history.append(note)
@@ -412,7 +540,11 @@ class NotificationServer:
             if self.shell.panel is not None:
                 self.shell.panel.set_unread(True)
         prefs = _notification_prefs()
-        show_toast = _pref_true(prefs, "toasts", True) and not _pref_true(prefs, "dnd", False)
+        show_toast = (
+            _pref_true(prefs, "toasts", True)
+            and not _pref_true(prefs, "dnd", False)
+            and not is_app_muted(note.app_name, prefs)
+        )
         if show_toast:
             popup = NotificationPopup(self, note)
             self.popups[nid] = popup

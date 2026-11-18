@@ -115,8 +115,69 @@ def target_window(screen: Wnck.Screen | None = None) -> Wnck.Window | None:
     return None
 
 
+# Last floating geometry before a snap/maximize, keyed by XID.
+_NORMAL_GEOM: dict[int, tuple[int, int, int, int]] = {}
+_SNAP_TOLERANCE = 24
+
+# Edge/corner slots shared with EdgeSnap and keyboard tiling.
+LEFT = Slot(0, 0, 0.5, 1, "Left")
+RIGHT = Slot(0.5, 0, 0.5, 1, "Right")
+TOP_LEFT = Slot(0, 0, 0.5, 0.5, "Top left")
+TOP_RIGHT = Slot(0.5, 0, 0.5, 0.5, "Top right")
+BOTTOM_LEFT = Slot(0, 0.5, 0.5, 0.5, "Bottom left")
+BOTTOM_RIGHT = Slot(0.5, 0.5, 0.5, 0.5, "Bottom right")
+EDGE_SLOTS: tuple[Slot, ...] = (LEFT, RIGHT, TOP_LEFT, TOP_RIGHT, BOTTOM_LEFT, BOTTOM_RIGHT)
+
+
+def remember_normal_geometry(window: Wnck.Window) -> None:
+    """Store floating size before snap/maximize (skip if already snapped/max)."""
+    if window.is_maximized():
+        return
+    if is_snapped(window):
+        return
+    xid = window.get_xid()
+    _NORMAL_GEOM[xid] = window.get_geometry()
+    _prune_geometry_cache()
+
+
+def _prune_geometry_cache() -> None:
+    screen = Wnck.Screen.get_default()
+    screen.force_update()
+    alive = {w.get_xid() for w in screen.get_windows()}
+    for xid in list(_NORMAL_GEOM):
+        if xid not in alive:
+            del _NORMAL_GEOM[xid]
+
+
+def is_snapped(window: Wnck.Window, area: Gdk.Rectangle | None = None) -> bool:
+    """True when geometry matches an edge or Win+Z layout slot."""
+    if window.is_maximized():
+        return False
+    area = area or work_area_for_window(window)
+    x, y, w, h = window.get_geometry()
+    slots: list[Slot] = list(EDGE_SLOTS)
+    for layout in LAYOUTS:
+        slots.extend(layout.slots)
+    seen: set[tuple[float, float, float, float]] = set()
+    for slot in slots:
+        key = (slot.x, slot.y, slot.w, slot.h)
+        if key in seen:
+            continue
+        seen.add(key)
+        sx, sy, sw, sh = slot_rect(area, slot)
+        if (
+            abs(x - sx) <= _SNAP_TOLERANCE
+            and abs(y - sy) <= _SNAP_TOLERANCE
+            and abs(w - sw) <= _SNAP_TOLERANCE
+            and abs(h - sh) <= _SNAP_TOLERANCE
+        ):
+            return True
+    return False
+
+
 def apply_slot(window: Wnck.Window, slot: Slot, area: Gdk.Rectangle | None = None) -> None:
     area = area or work_area_for_window(window)
+    remember_normal_geometry(window)
     x, y, w, h = slot_rect(area, slot)
     if window.is_maximized():
         window.unmaximize()
@@ -131,6 +192,82 @@ def apply_slot(window: Wnck.Window, slot: Slot, area: Gdk.Rectangle | None = Non
         | Wnck.WindowMoveResizeMask.HEIGHT
     )
     window.set_geometry(gravity, mask, x, y, w, h)
+
+
+def restore_normal_geometry(window: Wnck.Window) -> bool:
+    """Restore saved floating geometry. Returns True if restored."""
+    xid = window.get_xid()
+    geom = _NORMAL_GEOM.get(xid)
+    if window.is_maximized():
+        window.unmaximize()
+        return True
+    if geom is None:
+        # Fallback: centered ~60% of work area.
+        area = work_area_for_window(window)
+        w = max(320, int(area.width * 0.6))
+        h = max(240, int(area.height * 0.6))
+        x = area.x + (area.width - w) // 2
+        y = area.y + (area.height - h) // 2
+        geom = (x, y, w, h)
+    if window.is_minimized():
+        stamp = int(GLib.get_monotonic_time() / 1000)
+        window.activate(stamp)
+    gravity = Wnck.WindowGravity.STATIC
+    mask = (
+        Wnck.WindowMoveResizeMask.X
+        | Wnck.WindowMoveResizeMask.Y
+        | Wnck.WindowMoveResizeMask.WIDTH
+        | Wnck.WindowMoveResizeMask.HEIGHT
+    )
+    x, y, w, h = geom
+    window.set_geometry(gravity, mask, x, y, w, h)
+    return True
+
+
+def snap_left(window: Wnck.Window | None = None) -> None:
+    window = window or target_window()
+    if window is None:
+        return
+    apply_slot(window, LEFT)
+    stamp = int(GLib.get_monotonic_time() / 1000)
+    window.activate(stamp)
+
+
+def snap_right(window: Wnck.Window | None = None) -> None:
+    window = window or target_window()
+    if window is None:
+        return
+    apply_slot(window, RIGHT)
+    stamp = int(GLib.get_monotonic_time() / 1000)
+    window.activate(stamp)
+
+
+def snap_down(window: Wnck.Window | None = None) -> None:
+    """Win+Down: unmaximize / unsnap, else minimize."""
+    window = window or target_window()
+    if window is None:
+        return
+    stamp = int(GLib.get_monotonic_time() / 1000)
+    if window.is_maximized():
+        remember_normal_geometry(window)  # no-op when maximized; Openbox keeps size
+        window.unmaximize()
+        window.activate(stamp)
+        return
+    if is_snapped(window):
+        restore_normal_geometry(window)
+        window.activate(stamp)
+        return
+    window.minimize()
+
+
+def snap_maximize(window: Wnck.Window | None = None) -> None:
+    window = window or target_window()
+    if window is None:
+        return
+    remember_normal_geometry(window)
+    stamp = int(GLib.get_monotonic_time() / 1000)
+    window.maximize()
+    window.activate(stamp)
 
 
 def move_window_to_workspace(window: Wnck.Window, index: int) -> None:

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import subprocess
+
 import gi
 
 gi.require_version("Gdk", "3.0")
@@ -60,6 +62,7 @@ class CardWindow(Gtk.ApplicationWindow):
         add_classes(self.close_btn, "close")
         self.min_btn.connect("clicked", lambda _b: self.iconify())
         self.max_btn.connect("clicked", lambda _b: self.toggle_maximize())
+        self.max_btn.connect("button-press-event", self._on_max_press)
         self.close_btn.connect("clicked", lambda _b: self.close())
         for btn in (self.min_btn, self.max_btn, self.close_btn):
             self.header.pack_start(btn, False, False, 0)
@@ -103,6 +106,45 @@ class CardWindow(Gtk.ApplicationWindow):
         else:
             self.maximize()
 
+    def _open_snap_layouts(self) -> None:
+        try:
+            subprocess.Popen(
+                ["fosos-shell", "--snap-layouts"],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
+        except OSError:
+            pass
+
+    def _popup_title_menu(self, event: Gdk.EventButton) -> None:
+        menu = Gtk.Menu()
+        restore = Gtk.MenuItem(label="Restore")
+        restore.set_sensitive(self._maximized)
+        restore.connect("activate", lambda _i: self.unmaximize())
+        menu.append(restore)
+        minimize = Gtk.MenuItem(label="Minimize")
+        minimize.connect("activate", lambda _i: self.iconify())
+        menu.append(minimize)
+        maximize = Gtk.MenuItem(label="Maximize")
+        maximize.set_sensitive(not self._maximized)
+        maximize.connect("activate", lambda _i: self.maximize())
+        menu.append(maximize)
+        snap = Gtk.MenuItem(label="Snap layouts…")
+        snap.connect("activate", lambda _i: self._open_snap_layouts())
+        menu.append(snap)
+        menu.append(Gtk.SeparatorMenuItem())
+        close = Gtk.MenuItem(label="Close")
+        close.connect("activate", lambda _i: self.close())
+        menu.append(close)
+        menu.show_all()
+        menu.popup_at_pointer(event)
+
+    def _on_max_press(self, _button, event: Gdk.EventButton) -> bool:
+        if event.button == 3:
+            self._open_snap_layouts()
+            return True
+        return False
+
     def _on_window_state(self, _window, event: Gdk.EventWindowState) -> bool:
         self._maximized = bool(event.new_window_state & Gdk.WindowState.MAXIMIZED)
         child = self.max_btn.get_child()
@@ -114,9 +156,13 @@ class CardWindow(Gtk.ApplicationWindow):
                 name = "window-restore-symbolic"
             child.set_from_icon_name(name, Gtk.IconSize.MENU)
             child.set_pixel_size(14)
+        self.max_btn.set_tooltip_text("Restore" if self._maximized else "Maximize")
         return False
 
     def _on_header_press(self, _widget, event: Gdk.EventButton) -> bool:
+        if event.button == 3:
+            self._popup_title_menu(event)
+            return True
         if event.button != 1:
             return False
         # Gtk.Button children consume their own presses; remaining header clicks drag.
