@@ -147,6 +147,7 @@ class QuickSettings(Popup):
         power = Gtk.Box(spacing=8)
         for text, icon_name, action in (
             ("Lock", "system-lock-screen-symbolic", "lock"),
+            ("Sign out", "system-log-out-symbolic", "logout"),
             ("Suspend", "system-suspend-symbolic", "suspend"),
         ):
             btn = button(text, icon_name=icon_name, variant="outline", size="sm")

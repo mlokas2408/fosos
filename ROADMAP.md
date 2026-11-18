@@ -33,7 +33,7 @@ Debian supplies the kernel, drivers, libraries, and optional software.
 The `mockup/` directory is a visual reference only. Do not build, ship, or
 import it.
 
-## Current baseline (`fosos-desktop` 1.12.0)
+## Current baseline (`fosos-desktop` 1.12.1)
 
 - Live and installable Debian-based ISO with Calamares and FosOS APT keyring
 - FosOS Desktop as the only full session; Recovery + TTY documented

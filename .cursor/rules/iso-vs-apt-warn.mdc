@@ -1,0 +1,56 @@
+---
+description: Warn when changes need a new ISO vs apt publish to testing
+alwaysApply: true
+---
+
+# ISO vs APT delivery warnings
+
+After finishing a change set (or when summarizing work), classify how it
+ships and **warn the user explicitly**. Do not assume they will rebuild or
+upgrade unless they say so.
+
+## APT only → publish testing + upgrade
+
+Touches under `packages/` (e.g. `fosos-desktop`, `fosos-cli`, `fosos-theme`,
+`fosos-installer`, `fosos-welcome`, `fosos-archive-keyring`) and nothing in
+the ISO build tree.
+
+Warn with wording like:
+
+> **APT:** publish these packages to **testing** (Actions → APT publish, or
+> `sudo bash scripts/apt-archive.sh publish`), then on the machine run
+> `sudo fos update && sudo fos upgrade` (or `apt update && apt upgrade`).
+
+Name the packages that changed when known.
+
+## New ISO required
+
+Touches live image / builder inputs, for example:
+
+- `build/live-build/config/` (package lists, hooks, includes, bootloaders)
+- `scripts/build-iso.sh`, `scripts/check-build-config.sh`, `scripts/stage-deb.sh`
+- Greeter/live-only assets that only land via image rebuild
+- Firmware / package-list changes meant for the live or installed image seed
+
+Warn with wording like:
+
+> **ISO:** this needs a **new ISO** (`sudo bash scripts/build-iso.sh` per
+> `docs/BUILDING.md`). An apt upgrade on an existing install is not enough
+> for this change.
+
+## Both
+
+If both trees changed, give **both** warnings. Note that `packages/` also
+ships inside the ISO via staged `.deb`s, so a full install-media test still
+needs a rebuild even when apt covers upgrades on existing systems.
+
+## Neither
+
+Docs-only, `.cursor/`, or repo meta with no package/ISO impact: no delivery
+warning.
+
+## Do not
+
+- Run publish, promote, or ISO build unless the user asks
+- Promote testing → stable unless the user asks
+- Skip the warning because the change “looks small”

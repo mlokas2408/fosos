@@ -1,5 +1,12 @@
 # FosOS release notes
 
+## FosOS 1.12.1 — Taskbar status cluster and Sign out
+
+- Volume and network (with battery/brightness) open one Quick Settings pane
+- Taskbar keyboard layout selector (US / PL / …); Settings Apply refreshes it
+- Quick Settings adds Sign out beside Lock and Suspend
+- Start account Sign out no longer no-ops when the account menu steals the grab
+
 ## FosOS 1.12.0 — OS keyring (Secret Service)
 
 - Session starts `gnome-keyring-daemon` (secrets / pkcs11 / ssh) and exports

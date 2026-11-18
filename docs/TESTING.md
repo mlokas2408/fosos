@@ -1,6 +1,6 @@
 # FosOS testing
 
-Aligned to the current product (`fosos-desktop` **1.12.0**). Development
+Aligned to the current product (`fosos-desktop` **1.12.1**). Development
 images are built in Debian WSL and tested in Hyper-V. A release image is
 built again on the dedicated Debian 13 VM, then put through the same soak
 before USB. See [BUILDING.md](BUILDING.md).

@@ -28,9 +28,12 @@ class Popup(Gtk.Window):
         self.add_events(Gdk.EventMask.BUTTON_PRESS_MASK | Gdk.EventMask.KEY_PRESS_MASK)
         self.connect("button-press-event", self._on_button_press)
         self.connect("key-press-event", self._on_key_press)
-        self.connect("grab-broken-event", lambda *_args: self.dismiss())
+        self.connect("grab-broken-event", self._on_grab_broken)
         self.on_dismiss = None
         self._grabbed = False
+        # Set True while a child Gtk.Menu is open so a stolen seat grab
+        # does not dismiss this popup (Start account menu, etc.).
+        self._hold_grab = False
         self.focus_widget = None
 
     def show_at(self, x: int, bottom: int, monitor: Gdk.Rectangle) -> None:
@@ -77,12 +80,20 @@ class Popup(Gtk.Window):
     def dismiss(self) -> None:
         if not self.get_visible():
             return
+        self._hold_grab = False
         if self._grabbed:
             Gdk.Display.get_default().get_default_seat().ungrab()
             self._grabbed = False
         self.hide()
         if self.on_dismiss is not None:
             self.on_dismiss()
+
+    def _on_grab_broken(self, _widget, _event) -> bool:
+        if self._hold_grab:
+            self._grabbed = False
+            return True
+        self.dismiss()
+        return True
 
     def _on_button_press(self, _widget, event: Gdk.EventButton) -> bool:
         window = self.get_window()

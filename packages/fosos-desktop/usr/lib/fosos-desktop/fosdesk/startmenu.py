@@ -9,7 +9,7 @@ import gi
 
 gi.require_version("Gdk", "3.0")
 gi.require_version("Gtk", "3.0")
-from gi.repository import Gdk, Gio, Gtk, Pango
+from gi.repository import Gdk, Gio, GLib, Gtk, Pango
 
 from . import apps as appmod
 from .popup import Popup
@@ -579,6 +579,8 @@ class StartMenu(Popup):
     def _on_user_press(self, _button, event: Gdk.EventButton) -> bool:
         if event.button not in (1, 3):
             return False
+        # Keep Start open while the account menu steals the seat grab.
+        self._hold_grab = True
         menu = Gtk.Menu()
         home = Gtk.MenuItem(label="Open home folder")
         home.connect("activate", lambda _i: self._open(Path.home()))
@@ -589,9 +591,15 @@ class StartMenu(Popup):
         sign = Gtk.MenuItem(label="Sign out…")
         sign.connect("activate", lambda _i: self._on_sign_out(None))
         menu.append(sign)
+        menu.connect("deactivate", lambda *_a: self._on_account_menu_closed())
         menu.show_all()
         menu.popup_at_pointer(event)
         return True
+
+    def _on_account_menu_closed(self) -> None:
+        self._hold_grab = False
+        if self.get_visible():
+            GLib.idle_add(self._grab)
 
     def _on_lock(self, _button) -> None:
         self.dismiss()
@@ -614,6 +622,11 @@ class StartMenu(Popup):
         self.relayout()
 
     def _on_sign_out(self, _button) -> None:
+        # Account Gtk.Menu can dismiss Start via grab-broken; fall back to
+        # logging out directly so Sign out never silently no-ops.
+        if not self.get_visible():
+            self.shell.end_session("logout")
+            return
         self._confirm(
             "Sign out of FosOS Desktop?",
             [
