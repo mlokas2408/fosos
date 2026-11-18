@@ -123,6 +123,46 @@ def apply_layout(layout: str) -> bool:
     return subprocess.run(["setxkbmap", layout], check=False).returncode == 0
 
 
+def layout_display_code(code: str | None = None) -> str:
+    """Short taskbar label for a layout (US, PL, ARA, …)."""
+    raw = (code if code is not None else current_layout()) or "us"
+    return raw.strip().split(",")[0].upper()[:3] or "US"
+
+
+def panel_layout_choices() -> list[tuple[str, str]]:
+    """Layouts offered from the taskbar selector (saved + a few commons)."""
+    current = current_layout()
+    prefs = load_kv("keyboard", {})
+    codes: list[str] = []
+    listed = prefs.get("layouts", "")
+    if listed.strip():
+        codes = [part.strip() for part in listed.split(",") if part.strip()]
+    saved = prefs.get("layout", "").strip()
+    if saved and saved not in codes:
+        codes.insert(0, saved)
+    if current and current not in codes:
+        codes.insert(0, current)
+    for code, _name in COMMON_LAYOUTS[:8]:
+        if code not in codes:
+            codes.append(code)
+    names = dict(COMMON_LAYOUTS)
+    return [(code, names.get(code, code)) for code in codes]
+
+
+def persist_layout(layout: str) -> bool:
+    """Apply a layout and remember it in ~/.config/fosos-desktop/keyboard."""
+    if not apply_layout(layout):
+        return False
+    prefs = load_kv("keyboard", {"layout": "us", "delay": "600", "rate": "25"})
+    prefs["layout"] = layout
+    listed = [part.strip() for part in prefs.get("layouts", "").split(",") if part.strip()]
+    if layout not in listed:
+        listed.insert(0, layout)
+        prefs["layouts"] = ",".join(listed)
+    save_kv("keyboard", prefs)
+    return True
+
+
 def current_repeat() -> tuple[int, int]:
     output = run(["xset", "q"]) or ""
     match = re.search(r"repeat delay:\s*(\d+)\s*repeat rate:\s*(\d+)", output)
@@ -228,13 +268,18 @@ def build_keyboard(status_cb) -> Gtk.Box:
 
     def apply(_button=None) -> None:
         code = combo.get_active_id() or "us"
-        apply_layout(code)
         apply_repeat(int(delay_scale.get_value()), int(rate_scale.get_value()))
-        CONFIG.mkdir(parents=True, exist_ok=True)
-        (CONFIG / "keyboard").write_text(
-            f"layout={code}\ndelay={int(delay_scale.get_value())}\nrate={int(rate_scale.get_value())}\n",
-            encoding="utf-8",
-        )
+        prefs = load_kv("keyboard", {"layout": "us", "delay": "600", "rate": "25"})
+        prefs["layout"] = code
+        prefs["delay"] = str(int(delay_scale.get_value()))
+        prefs["rate"] = str(int(rate_scale.get_value()))
+        listed = [part.strip() for part in prefs.get("layouts", "").split(",") if part.strip()]
+        if code not in listed:
+            listed.insert(0, code)
+            prefs["layouts"] = ",".join(listed)
+        save_kv("keyboard", prefs)
+        apply_layout(code)
+        _request_shell_reload()
         status_cb("Keyboard settings applied for this session.")
 
     apply_btn = button("Apply", variant="default")

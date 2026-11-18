@@ -307,6 +307,8 @@ class Panel(Gtk.Window):
         self.brightness_button = None
         self.volume_button = None
         self.network_button = None
+        self.keyboard_button = None
+        self.keyboard_label = None
         self.bell_button = None
         self.unread_dot = None
         self.tray_box = None
@@ -323,8 +325,8 @@ class Panel(Gtk.Window):
             self.tray_sep.hide()
             row.pack_start(self.tray_sep, False, False, 4)
 
-            # Status cluster: volume/battery/brightness → Quick Settings (Win+A);
-            # network icon opens the Wi-Fi / connections flyout.
+            # Status cluster (Win-like): volume/network/battery/brightness all open
+            # one Quick Settings pane. Network list stays reachable from QS → Network…
             open_qs = lambda b: self.shell.toggle_popup("quicksettings", b)
             if battery_present():
                 self.battery_button = button(
@@ -347,12 +349,20 @@ class Panel(Gtk.Window):
             row.pack_start(self.volume_button, False, False, 0)
 
             self.network_button = button(
-                icon_name="network-wireless-symbolic", size="icon-sm", tooltip="Network"
+                icon_name="network-wireless-symbolic", size="icon-sm", tooltip="Quick settings"
             )
-            self.network_button.connect(
-                "clicked", lambda b: self.shell.toggle_popup("network", b)
-            )
+            self.network_button.connect("clicked", open_qs)
             row.pack_start(self.network_button, False, False, 0)
+
+            # Keyboard layout selector (code like US / PL), then bell + clock.
+            self.keyboard_button = button(variant="ghost", tooltip="Keyboard layout")
+            add_classes(self.keyboard_button, "fos-kbd-layout")
+            self.keyboard_label = label("US", "fos-small", "fos-strong", xalign=0.5)
+            self.keyboard_button.add(self.keyboard_label)
+            self.keyboard_button.set_size_request(36, 36)
+            self.keyboard_button.connect("clicked", self._on_keyboard_clicked)
+            row.pack_start(self.keyboard_button, False, False, 0)
+            self.refresh_keyboard()
 
             # Bell + clock → Notification Center (calendar + history, Win+N).
             open_nc = lambda b: self.shell.toggle_popup("clock", b)
@@ -509,6 +519,50 @@ class Panel(Gtk.Window):
         self.shell.close_popups()
         self.shell.toggle_show_desktop()
         return True
+
+    def refresh_keyboard(self) -> None:
+        if self.keyboard_label is None:
+            return
+        from .settings_pages import current_layout, layout_display_code
+
+        code = current_layout()
+        self.keyboard_label.set_text(layout_display_code(code))
+        if self.keyboard_button is not None:
+            self.keyboard_button.set_tooltip_text(f"Keyboard layout ({code})")
+
+    def _on_keyboard_clicked(self, widget: Gtk.Button) -> None:
+        from .settings_pages import current_layout, panel_layout_choices, persist_layout
+
+        self.shell.close_popups()
+        menu = Gtk.Menu()
+        current = current_layout()
+        group = None
+        for code, name in panel_layout_choices():
+            item = Gtk.RadioMenuItem.new_with_label(group, f"{name} ({code})")
+            group = item.get_group()
+            item.set_active(code == current)
+            item.connect(
+                "toggled",
+                lambda i, c=code: self._set_keyboard_layout(c) if i.get_active() else None,
+            )
+            menu.append(item)
+        menu.append(Gtk.SeparatorMenuItem())
+        settings = Gtk.MenuItem(label="Keyboard settings")
+        settings.connect(
+            "activate",
+            lambda _i: appmod.spawn(["fosos-settings", "--builtin", "keyboard"]),
+        )
+        menu.append(settings)
+        menu.show_all()
+        menu.popup_at_widget(widget, Gdk.Gravity.NORTH_WEST, Gdk.Gravity.SOUTH_WEST, None)
+
+    def _set_keyboard_layout(self, code: str) -> None:
+        from .settings_pages import current_layout, persist_layout
+
+        if code == current_layout():
+            return
+        if persist_layout(code):
+            self.refresh_keyboard()
 
     def _on_panel_press(self, _widget, event: Gdk.EventButton) -> bool:
         if event.button != 3:
@@ -684,3 +738,4 @@ class Panel(Gtk.Window):
             self.set_battery_icon(*battery)
         if brightness is not None:
             self.set_brightness_icon(*brightness)
+        self.refresh_keyboard()

@@ -185,6 +185,13 @@ button.fos-btn.size-icon {
   padding: 0;
 }
 
+/* Taskbar keyboard layout code (US / PL / …) */
+button.fos-btn.fos-kbd-layout {
+  min-width: 36px;
+  padding-left: 6px;
+  padding-right: 6px;
+}
+
 button.fos-btn.size-icon-sm {
   min-width: 28px;
   min-height: 28px;

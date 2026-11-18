@@ -3,5 +3,7 @@ Installing apps or configuring fosos should not ask for password, not even in te
 Install wizard Install step, no images in slider, generate 3 or 4 images to show during installations.
 
 
+Task bar quick settings and icons not same as in windows, in windows i see speaker and network icon that opens one window,
+we also have keyboard selector and calendar.
 
-
+Desktop selector does not have icon like windows 11 has.

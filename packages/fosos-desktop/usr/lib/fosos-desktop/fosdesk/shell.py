@@ -111,7 +111,8 @@ class Shell(Gtk.Application):
             "clock": self.notification_center,
             "notifications": self.notification_center,
             "clipboard": self.clipboard_popup,
-            # Aliases so volume/battery/brightness icons open Quick Settings.
+            # Aliases so status-cluster icons open Quick Settings (Win+A).
+            # "network" stays NetworkPopup for QS → Network… / Wi-Fi tile.
             "volume": self.quick_settings,
             "battery": self.quick_settings,
             "brightness": self.quick_settings,
@@ -457,6 +458,7 @@ class Shell(Gtk.Application):
             self.desktop.refresh()
         for panel in self.panels:
             panel.apply_prefs()
+            panel.refresh_keyboard()
 
     def switch_workspace(self, index: int) -> None:
         screen = Wnck.Screen.get_default()
