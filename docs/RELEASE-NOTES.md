@@ -1,5 +1,21 @@
 # FosOS release notes
 
+## FosOS 1.13.0 — Split taskbar status flyouts
+
+- Taskbar icons open dedicated flyouts: Sound, Network & Bluetooth, Brightness,
+  Battery; keyboard layout menu unchanged
+- Clock / bell open a right-edge calendar + notifications panel (Focus assist
+  toggle in the footer)
+- Lock / Sign out / Suspend removed from Quick Settings (Start menu only);
+  Win+A still opens the tile + slider Quick Settings pane
+- Task View button uses a two-pane glyph like Windows 11 (not a generic grid)
+- Default taskbar pins: Files, Terminal, Settings, Firefox (Notepad / Remote
+  Desktop no longer pre-pinned)
+- Taskbar pins: no idle indicator; underline only while open; app icons larger
+  than the status-cluster icons
+- Desktop icons are full-size (48px) on the wallpaper, not small glyphs in a
+  bordered tile
+
 ## FosOS 1.12.1 — Taskbar status cluster and Sign out
 
 - Volume and network (with battery/brightness) open one Quick Settings pane

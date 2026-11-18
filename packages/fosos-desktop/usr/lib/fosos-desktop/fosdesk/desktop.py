@@ -15,7 +15,7 @@ from gi.repository import Gdk, GdkPixbuf, GLib, Gtk, Pango, PangoCairo
 
 from . import apps as appmod
 from .panel import HEIGHT as PANEL_HEIGHT
-from .ui import BRAND, DATA_DIR, add_classes, button, icon, label, set_class
+from .ui import BRAND, DATA_DIR, add_classes, button, full_icon, label, set_class
 
 try:
     from .wallpaper import draw_wallpaper
@@ -28,9 +28,10 @@ except ImportError:  # pragma: no cover - packaging fault; keep shell alive
 # Re-export for callers that still import draw_wallpaper from desktop.
 __all__ = ["Desktop", "DesktopIcon", "draw_brand", "draw_wallpaper", "desktop_dir", "load_desktop_prefs", "save_desktop_prefs"]
 
-ICON_W = 88
-ICON_H = 88
-ICON_GAP = 12
+ICON_W = 96
+ICON_H = 104
+ICON_GAP = 8
+ICON_PX = 48
 DEFAULT_MARGIN = 16
 POSITIONS_FILE = "desktop-icons"
 PREFS_FILE = "desktop"
@@ -239,20 +240,20 @@ class DesktopIcon(Gtk.EventBox):
             | Gdk.EventMask.BUTTON1_MOTION_MASK
             | Gdk.EventMask.POINTER_MOTION_MASK
         )
-        self.box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
+        self.box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
         self.box.set_size_request(ICON_W - 8, -1)
         add_classes(self.box, "fos-desktop-icon")
-        tile = Gtk.Box()
-        tile.set_halign(Gtk.Align.CENTER)
-        tile.pack_start(icon(icon_name, 18), True, True, 0)
-        add_classes(tile, "fos-desktop-tile")
-        self.box.pack_start(tile, False, False, 0)
+        # Full-size icon on the wallpaper — no bordered tile (Windows-like).
+        image = full_icon(icon_name, ICON_PX)
+        image.set_halign(Gtk.Align.CENTER)
+        add_classes(image, "fos-desktop-glyph")
+        self.box.pack_start(image, False, False, 0)
         text = label(title, "fos-desktop-label", xalign=0.5)
         text.set_justify(Gtk.Justification.CENTER)
         text.set_line_wrap(True)
         text.set_lines(2)
         text.set_ellipsize(Pango.EllipsizeMode.END)
-        text.set_max_width_chars(10)
+        text.set_max_width_chars(12)
         self.box.pack_start(text, False, False, 0)
         self.set_size_request(ICON_W, ICON_H)
         self.add(self.box)
@@ -343,15 +344,15 @@ class Desktop(Gtk.Window):
         self.selected: DesktopIcon | None = None
         self._prefs = load_desktop_prefs()
 
-        self._add_icon("home", "Home", "user-home-symbolic", lambda: self._open_folder(Path.home()))
-        self._add_icon("computer", "Computer", "drive-harddisk-symbolic", lambda: self._open_folder(Path("/")))
-        self._add_icon("files", "Files", "folder-symbolic", lambda: self._launch("fosos-files.desktop"))
-        self._add_icon("trash", "Recycle Bin", "user-trash-symbolic", lambda: self._open_trash())
+        self._add_icon("home", "Home", "user-home", lambda: self._open_folder(Path.home()))
+        self._add_icon("computer", "Computer", "computer", lambda: self._open_folder(Path("/")))
+        self._add_icon("files", "Files", "system-file-manager", lambda: self._launch("fosos-files.desktop"))
+        self._add_icon("trash", "Recycle Bin", "user-trash", lambda: self._open_trash())
         if appmod.is_live() and appmod.load_app("calamares-install-fosos.desktop"):
             self._add_icon(
                 "install",
                 "Install FosOS",
-                "system-software-install-symbolic",
+                "system-software-install",
                 lambda: self._launch("calamares-install-fosos.desktop"),
             )
 

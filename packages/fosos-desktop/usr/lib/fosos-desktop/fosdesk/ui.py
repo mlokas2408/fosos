@@ -86,6 +86,25 @@ def icon(name: str, size: int = 16) -> Gtk.Image:
     return image
 
 
+def full_icon(name: str, size: int = 48) -> Gtk.Image:
+    """Large themed icon for the desktop (prefer full-color over -symbolic)."""
+    theme = Gtk.IconTheme.get_default()
+    base = name[:-9] if name.endswith("-symbolic") else name
+    for candidate in (base, name, f"{base}-symbolic"):
+        if not theme.has_icon(candidate):
+            continue
+        try:
+            pixbuf = theme.load_icon(candidate, size, Gtk.IconLookupFlags.FORCE_SIZE)
+        except GLib.Error:
+            continue
+        if pixbuf is None:
+            continue
+        image = Gtk.Image.new_from_pixbuf(pixbuf)
+        image.set_pixel_size(size)
+        return image
+    return icon(name, size)
+
+
 def label(text: str = "", *classes: str, xalign: float = 0.0, ellipsize: bool = False) -> Gtk.Label:
     widget = Gtk.Label(label=text)
     widget.set_xalign(xalign)
@@ -162,6 +181,20 @@ def start_icon() -> Gtk.Grid:
         grid.attach(cell, index % 2, index // 2, 1, 1)
     add_classes(grid, "fos-start-icon")
     return grid
+
+
+def task_view_icon() -> Gtk.Box:
+    """Two side-by-side panes, like the Windows 11 Task View glyph."""
+    row = Gtk.Box(spacing=2)
+    row.set_halign(Gtk.Align.CENTER)
+    row.set_valign(Gtk.Align.CENTER)
+    for _ in range(2):
+        pane = Gtk.Box()
+        pane.set_size_request(6, 14)
+        add_classes(pane, "fos-taskview-pane")
+        row.pack_start(pane, False, False, 0)
+    add_classes(row, "fos-taskview-icon")
+    return row
 
 
 def brand_title(size_px: int = 14) -> Gtk.Label:

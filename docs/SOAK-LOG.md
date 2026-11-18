@@ -82,7 +82,7 @@ After the run, list every `fail` here for triage:
 
 | ID | Check | Status | Comment |
 | --- | --- | --- | --- |
-| E01 | Open Quick Settings / network flyout | | |
+| E01 | Open dedicated status flyouts / Win+A Quick Settings | | |
 | E02 | 2×2 tiles + sliders | | |
 | E03 | QS footers | | |
 | E03b | Wi-Fi scan/join UI | | |

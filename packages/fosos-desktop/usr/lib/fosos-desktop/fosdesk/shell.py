@@ -17,7 +17,10 @@ from .clipboard import ClipboardHistory, ClipboardPopup
 from .desktop import Desktop
 from .edgesnap import EdgeSnap
 from .indicators import (
+    BatteryPopup,
+    BrightnessPopup,
     NetworkPopup,
+    VolumePopup,
     battery_state,
     brightness_icon,
     network_state,
@@ -98,6 +101,9 @@ class Shell(Gtk.Application):
         self.snap_layouts = SnapLayouts(self)
         self.task_view = TaskView(self)
         self.quick_settings = QuickSettings(self)
+        self.volume_popup = VolumePopup(self)
+        self.battery_popup = BatteryPopup(self)
+        self.brightness_popup = BrightnessPopup(self)
         self.network_popup = NetworkPopup(self)
         self.notification_center = NotificationCenter(self)
         self.clipboard_history = ClipboardHistory()
@@ -107,15 +113,13 @@ class Shell(Gtk.Application):
             "start": self.start_menu,
             "quicklinks": self.quick_links,
             "quicksettings": self.quick_settings,
+            "volume": self.volume_popup,
+            "battery": self.battery_popup,
+            "brightness": self.brightness_popup,
             "network": self.network_popup,
             "clock": self.notification_center,
             "notifications": self.notification_center,
             "clipboard": self.clipboard_popup,
-            # Aliases so status-cluster icons open Quick Settings (Win+A).
-            # "network" stays NetworkPopup for QS → Network… / Wi-Fi tile.
-            "volume": self.quick_settings,
-            "battery": self.quick_settings,
-            "brightness": self.quick_settings,
         }
         self.start_menu.on_dismiss = lambda: self._set_start_open(False)
         self.desktop.show_all()

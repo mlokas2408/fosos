@@ -249,7 +249,7 @@ class Pinned:
             ids = [
                 "fosos-files.desktop",
                 "fosos-terminal.desktop",
-                "fosos-notepad.desktop",
+                "fosos-settings.desktop",
                 "firefox-esr.desktop",
             ]
         self.ids = [app_id for app_id in ids if load_app(app_id) is not None]

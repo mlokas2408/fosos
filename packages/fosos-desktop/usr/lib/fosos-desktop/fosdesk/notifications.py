@@ -377,14 +377,19 @@ class NotificationList(Popup):
         self.refresh()
 
 
+NC_WIDTH = 400
+NC_EDGE_GAP = 8
+
+
 class NotificationCenter(Popup):
-    """Clock / Win+N hub: calendar plus notification history."""
+    """Right-edge calendar + notification panel (Win+N / clock / bell)."""
 
     def __init__(self, shell) -> None:
-        super().__init__(width=POPUP_WIDTH + 40)
+        super().__init__(width=NC_WIDTH)
         self.shell = shell
         self.server = shell.notifications
-        frame = add_classes(Gtk.Box(orientation=Gtk.Orientation.VERTICAL), "fos-card")
+        self._focus_updating = False
+        frame = add_classes(Gtk.Box(orientation=Gtk.Orientation.VERTICAL), "fos-card", "fos-nc-panel")
         self.add(frame)
 
         header = add_classes(Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2), "fos-card-header")
@@ -407,13 +412,33 @@ class NotificationCenter(Popup):
         body.pack_start(notif_head, False, False, 0)
 
         self.items = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
-        scroller = Gtk.ScrolledWindow()
-        scroller.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
-        scroller.set_propagate_natural_height(True)
-        scroller.set_min_content_height(160)
-        scroller.set_max_content_height(280)
-        scroller.add(self.items)
-        body.pack_start(scroller, True, True, 0)
+        self.scroller = Gtk.ScrolledWindow()
+        self.scroller.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
+        self.scroller.set_vexpand(True)
+        self.scroller.set_propagate_natural_height(True)
+        self.scroller.set_min_content_height(220)
+        self.scroller.set_max_content_height(520)
+        self.scroller.add(self.items)
+        body.pack_start(self.scroller, True, True, 0)
+
+        footer = add_classes(Gtk.Box(spacing=10), "fos-card-footer")
+        footer.pack_start(label("Focus assist", "fos-text"), True, True, 0)
+        self.focus_switch = add_classes(Gtk.Switch(), "fos-switch")
+        self.focus_switch.set_valign(Gtk.Align.CENTER)
+        self.focus_switch.set_tooltip_text("Hide toast popups")
+        self.focus_switch.connect("state-set", self._on_focus_toggled)
+        footer.pack_end(self.focus_switch, False, False, 0)
+        frame.pack_start(footer, False, False, 0)
+
+    def show_at(self, x: int, bottom: int, monitor: Gdk.Rectangle) -> None:
+        """Dock to the monitor's right edge above the taskbar."""
+        right = monitor.x + monitor.width - self.width - NC_EDGE_GAP
+        available = max(320, bottom - monitor.y - NC_EDGE_GAP)
+        # Leave room for header/calendar/footer; grow the history list.
+        list_height = max(220, min(520, available - 320))
+        self.scroller.set_min_content_height(list_height)
+        self.scroller.set_max_content_height(list_height)
+        super().show_at(right, bottom, monitor)
 
     def refresh(self) -> None:
         now = GLib.DateTime.new_now_local()
@@ -430,7 +455,21 @@ class NotificationCenter(Popup):
             on_mute=self._mute_app,
         )
         self.items.show_all()
+        prefs = _notification_prefs()
+        self._focus_updating = True
+        self.focus_switch.set_active(_pref_true(prefs, "dnd", False))
+        self._focus_updating = False
         self.relayout()
+
+    def _on_focus_toggled(self, _switch: Gtk.Switch, state: bool) -> bool:
+        if self._focus_updating:
+            return False
+        from .settings_pages import load_kv, save_kv
+
+        prefs = load_kv("notifications", dict(_NOTIF_DEFAULTS))
+        prefs["dnd"] = "1" if state else "0"
+        save_kv("notifications", prefs)
+        return False
 
     def _forget(self, note: Notification) -> None:
         if note in self.server.history:

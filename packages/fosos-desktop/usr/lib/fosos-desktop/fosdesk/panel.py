@@ -12,7 +12,19 @@ from gi.repository import Gdk, GdkX11, GLib, Gtk, Wnck  # noqa: F401 (GdkX11 ena
 
 from . import apps as appmod
 from .indicators import battery_present, brightness_available
-from .ui import BRAND, add_classes, badge, button, clear, icon, label, separator, set_class, start_icon
+from .ui import (
+    BRAND,
+    add_classes,
+    badge,
+    button,
+    clear,
+    icon,
+    label,
+    separator,
+    set_class,
+    start_icon,
+    task_view_icon,
+)
 
 HEIGHT = 48
 SKIP_TYPES = (Wnck.WindowType.DESKTOP, Wnck.WindowType.DOCK, Wnck.WindowType.SPLASHSCREEN)
@@ -78,16 +90,20 @@ class TaskButton(Gtk.Box):
         else:
             name = window.get_class_group_name() or window.get_name()
             icon_name = None
+        # Pinned / running apps use a larger glyph than the status cluster.
         self.button = button(variant="ghost", size="icon", tooltip=name)
+        add_classes(self.button, "fos-task-btn")
         if icon_name:
-            self.button.add(icon(icon_name, 16))
+            self.button.add(icon(icon_name, 20))
         else:
-            self.button.add(icon("application-x-executable-symbolic", 16))
+            self.button.add(icon("application-x-executable-symbolic", 20))
         self.button.connect("clicked", self._on_clicked)
         self.button.connect("button-press-event", self._on_press)
         self.button.connect("button-release-event", self._on_release)
         self.indicator = Gtk.Box()
         self.indicator.set_halign(Gtk.Align.CENTER)
+        self.indicator.set_no_show_all(True)
+        self.indicator.hide()
         add_classes(self.indicator, "fos-indicator")
         self.pack_start(self.button, False, False, 0)
         self.pack_start(self.indicator, False, False, 0)
@@ -126,7 +142,12 @@ class TaskButton(Gtk.Box):
         set_class(self.button, "secondary", running and shown)
         set_class(self.button, "ghost", not (running and shown))
         set_class(self.indicator, "focused", focused and shown)
-        self.indicator.set_size_request(16 if running else 0, 2)
+        # Line only while the app is open — never a mark under idle pins.
+        if running:
+            self.indicator.set_size_request(22 if focused and shown else 18, 2)
+            self.indicator.show()
+        else:
+            self.indicator.hide()
         if self.app is None and self.lone_window is not None:
             self.button.set_tooltip_text(self.lone_window.get_name())
 
@@ -281,13 +302,9 @@ class Panel(Gtk.Window):
         self.start_button.connect("clicked", lambda _b: self.shell.toggle_start(self))
         row.pack_start(self.start_button, False, False, 0)
 
-        # Task View (Win+Tab) — replaces the numbered 1–4 workspace pager.
-        self.task_view_button = button(
-            variant="ghost",
-            size="icon",
-            tooltip="Task View",
-            icon_name="view-grid-symbolic",
-        )
+        # Task View (Win+Tab) — two-pane glyph like Windows 11 Task View.
+        self.task_view_button = button(variant="ghost", size="icon", tooltip="Task View")
+        self.task_view_button.add(task_view_icon())
         self.task_view_button.set_no_show_all(True)
         self.task_view_button.connect("clicked", lambda _b: self.shell.toggle_task_view())
         row.pack_start(self.task_view_button, False, False, 0)
@@ -325,33 +342,35 @@ class Panel(Gtk.Window):
             self.tray_sep.hide()
             row.pack_start(self.tray_sep, False, False, 4)
 
-            # Status cluster (Win-like): volume/network/battery/brightness all open
-            # one Quick Settings pane. Network list stays reachable from QS → Network…
-            open_qs = lambda b: self.shell.toggle_popup("quicksettings", b)
+            # Status cluster: each icon opens its own flyout (Win+A still opens Quick Settings).
             if battery_present():
                 self.battery_button = button(
-                    icon_name="battery-good-symbolic", size="icon-sm", tooltip="Quick settings"
+                    icon_name="battery-good-symbolic", size="icon-sm", tooltip="Battery"
                 )
-                self.battery_button.connect("clicked", open_qs)
+                self.battery_button.connect(
+                    "clicked", lambda b: self.shell.toggle_popup("battery", b)
+                )
                 row.pack_start(self.battery_button, False, False, 0)
 
             if brightness_available():
                 self.brightness_button = button(
-                    icon_name="display-brightness-symbolic", size="icon-sm", tooltip="Quick settings"
+                    icon_name="display-brightness-symbolic", size="icon-sm", tooltip="Brightness"
                 )
-                self.brightness_button.connect("clicked", open_qs)
+                self.brightness_button.connect(
+                    "clicked", lambda b: self.shell.toggle_popup("brightness", b)
+                )
                 row.pack_start(self.brightness_button, False, False, 0)
 
             self.volume_button = button(
-                icon_name="audio-volume-high-symbolic", size="icon-sm", tooltip="Quick settings"
+                icon_name="audio-volume-high-symbolic", size="icon-sm", tooltip="Sound"
             )
-            self.volume_button.connect("clicked", open_qs)
+            self.volume_button.connect("clicked", lambda b: self.shell.toggle_popup("volume", b))
             row.pack_start(self.volume_button, False, False, 0)
 
             self.network_button = button(
-                icon_name="network-wireless-symbolic", size="icon-sm", tooltip="Quick settings"
+                icon_name="network-wireless-symbolic", size="icon-sm", tooltip="Network & Bluetooth"
             )
-            self.network_button.connect("clicked", open_qs)
+            self.network_button.connect("clicked", lambda b: self.shell.toggle_popup("network", b))
             row.pack_start(self.network_button, False, False, 0)
 
             # Keyboard layout selector (code like US / PL), then bell + clock.
@@ -474,12 +493,13 @@ class Panel(Gtk.Window):
 
     def popup_anchors(self) -> dict[str, Gtk.Widget]:
         anchors = {"clock": self.clock_button, "notifications": self.clock_button}
-        qs = self.volume_button or self.battery_button or self.brightness_button or self.network_button
-        if qs is not None:
-            anchors["quicksettings"] = qs
-            anchors["volume"] = qs
-            anchors["battery"] = qs
-            anchors["brightness"] = qs
+        if self.volume_button is not None:
+            anchors["volume"] = self.volume_button
+            anchors["quicksettings"] = self.volume_button
+        if self.battery_button is not None:
+            anchors["battery"] = self.battery_button
+        if self.brightness_button is not None:
+            anchors["brightness"] = self.brightness_button
         if self.network_button is not None:
             anchors["network"] = self.network_button
         if self.bell_button is not None:

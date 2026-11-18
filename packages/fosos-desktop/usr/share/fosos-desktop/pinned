@@ -2,7 +2,5 @@
 # Each user's list is kept in ~/.config/fosos-desktop/pinned once changed.
 fosos-files.desktop
 fosos-terminal.desktop
-fosos-notepad.desktop
-firefox-esr.desktop
 fosos-settings.desktop
-fosos-remote.desktop
+firefox-esr.desktop

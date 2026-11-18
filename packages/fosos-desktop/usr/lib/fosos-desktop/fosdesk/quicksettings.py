@@ -1,8 +1,9 @@
-"""Win+A style Quick Settings: volume, brightness, Wi-Fi, Bluetooth, power."""
+"""Win+A Quick Settings: volume, brightness, Wi-Fi, Bluetooth, Focus assist.
+
+Taskbar status icons open dedicated popups instead; session actions live in Start.
+"""
 
 from __future__ import annotations
-
-import shutil
 
 import gi
 
@@ -13,6 +14,8 @@ from . import apps as appmod
 from .indicators import (
     battery_present,
     battery_state,
+    bluetooth_available,
+    bluetooth_powered,
     brightness_available,
     brightness_icon,
     network_state,
@@ -27,22 +30,6 @@ from .indicators import (
 )
 from .popup import Popup
 from .ui import add_classes, button, label, set_class, tile
-
-
-def bluetooth_available() -> bool:
-    return shutil.which("bluetoothctl") is not None
-
-
-def bluetooth_powered() -> bool | None:
-    if not bluetooth_available():
-        return None
-    output = run(["bluetoothctl", "show"])
-    if output is None:
-        return None
-    for line in output.splitlines():
-        if line.strip().startswith("Powered:"):
-            return line.strip().endswith("yes")
-    return False
 
 
 def _focus_assist_on() -> bool:
@@ -143,17 +130,6 @@ class QuickSettings(Popup):
         self.network_label = label("", "fos-small", "fos-muted")
         self.network_label.set_line_wrap(True)
         body.pack_start(self.network_label, False, False, 0)
-
-        power = Gtk.Box(spacing=8)
-        for text, icon_name, action in (
-            ("Lock", "system-lock-screen-symbolic", "lock"),
-            ("Sign out", "system-log-out-symbolic", "logout"),
-            ("Suspend", "system-suspend-symbolic", "suspend"),
-        ):
-            btn = button(text, icon_name=icon_name, variant="outline", size="sm")
-            btn.connect("clicked", lambda _b, a=action: self._power(a))
-            power.pack_start(btn, True, True, 0)
-        body.pack_start(power, False, False, 0)
 
         footer = add_classes(Gtk.Box(spacing=8), "fos-card-footer")
         settings = button("Settings", variant="ghost", size="sm")
@@ -290,10 +266,6 @@ class QuickSettings(Popup):
             ["bluetoothctl", "power", "off" if powered else "on"],
             lambda _ok, _out: self.refresh(),
         )
-
-    def _power(self, action: str) -> None:
-        self.dismiss()
-        self.shell.end_session(action)
 
     def _open_settings(self) -> None:
         self.dismiss()

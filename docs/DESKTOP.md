@@ -39,10 +39,12 @@ Wayland compositor, and FosOS does not build one at this stage.
 - Edge snap shows a zone preview while dragging; Super+arrows use the panel
   work area and restore snapped sizes on Super+Down. CardWindow titlebars
   offer a context menu and maximize right-click → snap layouts.
-- Quick Settings (Win+A) is a 2×2 tile grid including Focus assist; Notification
-  Center supports per-app Mute; toast timers pause on hover.
-- Taskbar network icon (and QS Wi-Fi / Network…) opens a Network flyout for
-  scan/join; Settings → Network embeds the same Wi-Fi picker.
+- Taskbar status icons open dedicated flyouts (Sound, Network & Bluetooth,
+  Brightness, Battery). Clock / bell open a right-edge calendar + notifications
+  panel with Focus assist; toast Mute is per-app; toast timers pause on hover.
+- Win+A Quick Settings keeps the 2×2 tile grid and sliders (no Lock / Sign out /
+  Suspend — those stay in Start). QS Wi-Fi / Network… still open the network
+  flyout; Settings → Network embeds the same Wi-Fi picker.
 - Super+V opens clipboard history (text). The taskbar hosts a Status Notifier
   tray for nm-applet and other SNI apps.
 - `fosos-lock` is the screen locker (`xss-lock` on idle / before suspend).

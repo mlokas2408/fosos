@@ -81,12 +81,12 @@ def volume_icon(level: int, muted: bool) -> str:
 
 class VolumePopup(Popup):
     def __init__(self, shell) -> None:
-        super().__init__(width=300)
+        super().__init__(width=320)
         self.shell = shell
         self._updating = False
         frame = add_classes(Gtk.Box(orientation=Gtk.Orientation.VERTICAL), "fos-card")
         self.add(frame)
-        frame.pack_start(popup_header("Volume"), False, False, 0)
+        frame.pack_start(popup_header("Sound"), False, False, 0)
         body = add_classes(Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12), "fos-card-content")
         frame.pack_start(body, True, True, 0)
         row = Gtk.Box(spacing=8)
@@ -373,35 +373,103 @@ class WifiPicker(Gtk.Box):
         return False
 
 
+def bluetooth_available() -> bool:
+    return shutil.which("bluetoothctl") is not None
+
+
+def bluetooth_powered() -> bool | None:
+    if not bluetooth_available():
+        return None
+    output = run(["bluetoothctl", "show"])
+    if output is None:
+        return None
+    for line in output.splitlines():
+        if line.strip().startswith("Powered:"):
+            return line.strip().endswith("yes")
+    return False
+
+
 class NetworkPopup(Popup):
+    """Network + Bluetooth flyout (taskbar network icon)."""
+
     def __init__(self, shell) -> None:
-        super().__init__(width=340)
+        super().__init__(width=360)
         self.shell = shell
+        self._bt_updating = False
         frame = add_classes(Gtk.Box(orientation=Gtk.Orientation.VERTICAL), "fos-card")
         self.add(frame)
-        frame.pack_start(popup_header("Network"), False, False, 0)
-        body = add_classes(Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10), "fos-card-content")
+        frame.pack_start(popup_header("Network & Bluetooth"), False, False, 0)
+        body = add_classes(Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=14), "fos-card-content")
         frame.pack_start(body, True, True, 0)
         self.picker = WifiPicker(on_changed=self._on_picker_changed, show_switch=True)
         self.picker.set_dialog_parent(self)
         body.pack_start(self.picker, False, False, 0)
-        footer = add_classes(Gtk.Box(), "fos-card-footer")
-        settings = button("Network settings", variant="ghost", size="sm")
-        settings.connect("clicked", lambda _b: self._open_settings())
-        footer.pack_start(settings, False, False, 0)
+
+        self.bt_block = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
+        self.bt_block.set_no_show_all(True)
+        bt_row = Gtk.Box(spacing=10)
+        bt_row.pack_start(label("Bluetooth", "fos-text", "fos-strong"), True, True, 0)
+        self.bt_switch = add_classes(Gtk.Switch(), "fos-switch")
+        self.bt_switch.set_valign(Gtk.Align.CENTER)
+        self.bt_switch.connect("state-set", self._on_bt_toggled)
+        bt_row.pack_end(self.bt_switch, False, False, 0)
+        self.bt_block.pack_start(bt_row, False, False, 0)
+        self.bt_status = label("", "fos-small", "fos-muted")
+        self.bt_status.set_line_wrap(True)
+        self.bt_block.pack_start(self.bt_status, False, False, 0)
+        body.pack_start(self.bt_block, False, False, 0)
+
+        footer = add_classes(Gtk.Box(spacing=8), "fos-card-footer")
+        net_settings = button("Network…", variant="ghost", size="sm")
+        net_settings.connect("clicked", lambda _b: self._open_network_settings())
+        footer.pack_start(net_settings, False, False, 0)
+        self.bt_settings = button("Bluetooth…", variant="ghost", size="sm")
+        self.bt_settings.connect("clicked", lambda _b: self._open_bluetooth_settings())
+        footer.pack_end(self.bt_settings, False, False, 0)
         frame.pack_start(footer, False, False, 0)
 
     def refresh(self) -> None:
         self.picker.refresh(rescan=True)
+        avail = bluetooth_available()
+        self.bt_block.set_visible(avail)
+        self.bt_settings.set_visible(avail)
+        if avail:
+            powered = bluetooth_powered()
+            self._bt_updating = True
+            self.bt_switch.set_sensitive(powered is not None)
+            if powered is not None:
+                self.bt_switch.set_active(powered)
+                self.bt_status.set_text("On — pair devices in Bluetooth settings" if powered else "Off")
+            else:
+                self.bt_switch.set_active(False)
+                self.bt_status.set_text("Bluetooth status unavailable")
+            self._bt_updating = False
+            self.bt_block.show_all()
         self.relayout()
 
     def _on_picker_changed(self) -> None:
         self.shell.update_status()
         self.relayout()
 
-    def _open_settings(self) -> None:
+    def _on_bt_toggled(self, switch: Gtk.Switch, state: bool) -> bool:
+        if self._bt_updating:
+            return False
+        run_async(
+            ["bluetoothctl", "power", "on" if state else "off"],
+            lambda _ok, _out: GLib.idle_add(self.refresh),
+        )
+        return False
+
+    def _open_network_settings(self) -> None:
         self.dismiss()
         self.shell.open_settings("network")
+
+    def _open_bluetooth_settings(self) -> None:
+        self.dismiss()
+        if shutil.which("blueman-manager"):
+            appmod.spawn(["blueman-manager"])
+        else:
+            self.shell.open_settings("bluetooth")
 
 
 # Clock
@@ -499,7 +567,7 @@ def battery_state() -> tuple[str, str] | None:
 
 class BatteryPopup(Popup):
     def __init__(self, shell) -> None:
-        super().__init__(width=260)
+        super().__init__(width=300)
         self.shell = shell
         frame = add_classes(Gtk.Box(orientation=Gtk.Orientation.VERTICAL), "fos-card")
         self.add(frame)
@@ -511,6 +579,11 @@ class BatteryPopup(Popup):
         self.detail = label("", "fos-small", "fos-muted")
         self.detail.set_line_wrap(True)
         body.pack_start(self.detail, False, False, 0)
+        footer = add_classes(Gtk.Box(), "fos-card-footer")
+        settings = button("Power settings", variant="ghost", size="sm")
+        settings.connect("clicked", lambda _b: self._open_settings())
+        footer.pack_start(settings, False, False, 0)
+        frame.pack_start(footer, False, False, 0)
 
     def refresh(self) -> None:
         state = battery_state()
@@ -520,8 +593,12 @@ class BatteryPopup(Popup):
         else:
             _icon, tip = state
             self.status.set_text(tip)
-            self.detail.set_text("Power settings follow the system power manager.")
+            self.detail.set_text("Screen blank and suspend are under Power settings.")
         self.shell.update_status()
+
+    def _open_settings(self) -> None:
+        self.dismiss()
+        self.shell.open_settings("power")
 
 
 # Brightness
@@ -638,4 +715,4 @@ class BrightnessPopup(Popup):
 
     def _open_settings(self) -> None:
         self.dismiss()
-        appmod.spawn(["arandr"])
+        self.shell.open_settings("display")

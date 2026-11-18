@@ -93,7 +93,7 @@ the soak log.
 | C06 | Taskbar: pin/unpin, drag reorder survives restart, middle-click opens new window |
 | C07 | Taskbar right-click empty → Taskbar settings; Show Desktop strip = Win+D |
 | C08 | Super+V clipboard history: several copies listed; pick pastes; Clear all empties |
-| C09 | Status Notifier tray left of Quick Settings (e.g. nm-applet); left-click activates |
+| C09 | Status Notifier tray left of status cluster (e.g. nm-applet); left-click activates |
 
 ### D — Windows, snap, multitasking
 
@@ -111,18 +111,19 @@ the soak log.
 | D10 | Super+Shift+S / Shift+Print region capture; Print full → under Pictures |
 | D11 | Taskbar: focused single window toggles minimize; multi-window cycles |
 
-### E — Quick Settings and notifications
+### E — Status flyouts and notifications
 
 | ID | Check |
 | --- | --- |
-| E01 | Volume / battery / brightness open Quick Settings; Win+A same; **network icon** opens Network flyout |
-| E02 | 2×2 tiles: Wi-Fi, Bluetooth, Focus assist, Mute; volume and brightness sliders; Wi-Fi tile opens Network flyout |
+| E01 | Sound / Battery / Brightness icons open their own flyouts; network opens Network & Bluetooth; Win+A opens Quick Settings |
+| E02 | Win+A: 2×2 tiles (Wi-Fi, Bluetooth, Focus assist, Mute) + volume/brightness sliders; no Lock / Sign out / Suspend |
 | E03 | QS footers: Settings / Sound… / Network… (Network… → flyout with scan/join) |
-| E03b | Network flyout / Settings → Network: list SSIDs, join WPA2 with password dialog; icon shows connected |
-| E04 | Focus assist hides new toasts; history still in Win+N |
+| E03b | Network flyout: Wi-Fi list + Bluetooth toggle; Network… / Bluetooth… footers; Settings → Network still embeds Wi-Fi picker |
+| E04 | Focus assist (QS tile or NC footer) hides new toasts; history still in Win+N |
 | E05 | `notify-send Test "Hello"` toast above panel; hover pauses expire |
-| E06 | Win+N / clock / bell: calendar + history; Clear all; click item focuses app when possible |
+| E06 | Win+N / clock / bell: right-edge calendar + history; Clear all; click item focuses app when possible |
 | E07 | Mute / Unmute on a history card suppresses that app’s toasts only |
+| E08 | Lock / Sign out / Suspend only from Start (account / power), not from status flyouts |
 
 ### F — Files and desktop
 

@@ -185,6 +185,12 @@ button.fos-btn.size-icon {
   padding: 0;
 }
 
+/* Pinned / running apps — larger than status-cluster icon-sm (28px / 16px). */
+button.fos-btn.fos-task-btn {
+  min-width: 40px;
+  min-height: 36px;
+}
+
 /* Taskbar keyboard layout code (US / PL / …) */
 button.fos-btn.fos-kbd-layout {
   min-width: 36px;
@@ -454,6 +460,23 @@ button.fos-btn.default .fos-start-cell {
   background-color: @fos_primary_fg;
 }
 
+/* Task View button: two panes, like Windows 11 Task View */
+.fos-taskview-icon {
+  min-width: 14px;
+  min-height: 14px;
+}
+
+.fos-taskview-pane {
+  background-color: @fos_fg;
+  background-image: none;
+  min-width: 6px;
+  min-height: 14px;
+}
+
+button.fos-btn.default .fos-taskview-pane {
+  background-color: @fos_primary_fg;
+}
+
 /* Icon tiles in menus and on the desktop */
 .fos-tile {
   min-width: 36px;
@@ -515,14 +538,17 @@ button.fos-btn.default .fos-start-cell {
   min-height: 1px;
 }
 
-/* Taskbar running indicator */
+/* Taskbar running indicator — underline only; hidden when the app is closed */
 .fos-indicator {
   background-color: @fos_primary;
+  min-width: 0;
   min-height: 2px;
+  margin-top: 1px;
 }
 
 .fos-indicator.focused {
   background-color: @fos_fg;
+  min-height: 3px;
 }
 
 .fos-dot {
@@ -630,6 +656,10 @@ switch.fos-switch:checked slider {
   min-height: 6px;
 }
 
+.fos-nc-panel {
+  min-width: 400px;
+}
+
 calendar.fos-calendar {
   background-color: transparent;
   border: none;
@@ -655,32 +685,33 @@ calendar.fos-calendar.highlight {
   color: @fos_muted_fg;
 }
 
-/* Desktop icons */
+/* Desktop icons — full-size glyphs on the wallpaper (no bordered tile) */
 .fos-desktop-icon {
-  padding: 8px;
+  padding: 4px 2px 6px;
+  border: 1px solid transparent;
+}
+
+.fos-desktop-icon:hover {
+  background-color: alpha(@fos_fg, 0.10);
+  border-color: alpha(@fos_fg, 0.08);
 }
 
 .fos-desktop-icon.selected {
-  background-color: alpha(@fos_fg, 0.08);
+  background-color: alpha(@fos_fg, 0.16);
+  border-color: alpha(@fos_fg, 0.18);
 }
 
-.fos-desktop-tile {
-  background-color: @fos_card;
-  border: 1px solid alpha(@fos_fg, 0.10);
-  color: @fos_fg;
-  min-width: 44px;
-  min-height: 44px;
-}
-
-.fos-desktop-icon:hover .fos-desktop-tile {
-  background-color: @fos_muted;
+.fos-desktop-glyph {
+  min-width: 48px;
+  min-height: 48px;
+  margin-bottom: 2px;
 }
 
 .fos-desktop-label {
   color: @fos_fg;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 500;
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.75);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.85);
 }
 
 /* Notifications */
