@@ -310,9 +310,14 @@ class Panel(Gtk.Window):
         self.start_button.connect("clicked", lambda _b: self.shell.toggle_start(self))
         row.pack_start(self.start_button, False, False, 0)
 
-        # Task View (Win+Tab) — two-pane glyph like Windows 11 Task View.
+        # Task View (Win+Tab) — overlapping-windows glyph like Windows 11.
         self.task_view_button = button(variant="ghost", size="icon", tooltip="Task View")
-        self.task_view_button.add(task_view_icon())
+        add_classes(self.task_view_button, "fos-taskview-btn")
+        self.task_view_button.set_halign(Gtk.Align.START)
+        self.task_view_button.set_valign(Gtk.Align.CENTER)
+        self.task_view_button.set_hexpand(False)
+        self.task_view_button.set_size_request(36, 36)
+        self.task_view_button.add(task_view_icon(22))
         self.task_view_button.set_no_show_all(True)
         self.task_view_button.connect("clicked", lambda _b: self.shell.toggle_task_view())
         row.pack_start(self.task_view_button, False, False, 0)

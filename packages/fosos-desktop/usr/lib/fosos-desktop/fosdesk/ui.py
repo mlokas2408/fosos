@@ -192,18 +192,25 @@ def start_icon(cell: int = 12, gap: int = 2) -> Gtk.Grid:
     return grid
 
 
-def task_view_icon() -> Gtk.Box:
-    """Two side-by-side panes, like the Windows 11 Task View glyph."""
-    row = Gtk.Box(spacing=2)
-    row.set_halign(Gtk.Align.CENTER)
-    row.set_valign(Gtk.Align.CENTER)
-    for _ in range(2):
-        pane = Gtk.Box()
-        pane.set_size_request(6, 14)
-        add_classes(pane, "fos-taskview-pane")
-        row.pack_start(pane, False, False, 0)
-    add_classes(row, "fos-taskview-icon")
-    return row
+def task_view_icon(size: int = 22) -> Gtk.Widget:
+    """Overlapping windows glyph, like the Windows 11 Task View button."""
+    path = DATA_DIR / "icons" / "task-view.svg"
+    image = Gtk.Image()
+    image.set_halign(Gtk.Align.CENTER)
+    image.set_valign(Gtk.Align.CENTER)
+    if path.is_file():
+        try:
+            pixbuf = GdkPixbuf.Pixbuf.new_from_file_at_size(str(path), size, size)
+            image.set_from_pixbuf(pixbuf)
+        except GLib.Error:
+            image.set_from_icon_name("view-grid-symbolic", Gtk.IconSize.BUTTON)
+            image.set_pixel_size(size)
+    else:
+        image.set_from_icon_name("view-grid-symbolic", Gtk.IconSize.BUTTON)
+        image.set_pixel_size(size)
+    image.set_size_request(size, size)
+    add_classes(image, "fos-taskview-icon")
+    return image
 
 
 def brand_title(size_px: int = 14) -> Gtk.Label:

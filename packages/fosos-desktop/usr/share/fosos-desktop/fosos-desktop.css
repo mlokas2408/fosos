@@ -467,21 +467,17 @@ button.fos-btn.default .fos-start-cell {
   background-color: @fos_primary_fg;
 }
 
-/* Task View button: two panes, like Windows 11 Task View */
+/* Task View button: overlapping windows glyph (see icons/task-view.svg) */
+button.fos-btn.fos-taskview-btn,
+button.fos-btn.size-icon.fos-taskview-btn {
+  min-width: 36px;
+  min-height: 36px;
+  padding: 4px;
+}
+
 .fos-taskview-icon {
-  min-width: 14px;
-  min-height: 14px;
-}
-
-.fos-taskview-pane {
-  background-color: @fos_fg;
-  background-image: none;
-  min-width: 6px;
-  min-height: 14px;
-}
-
-button.fos-btn.default .fos-taskview-pane {
-  background-color: @fos_primary_fg;
+  min-width: 22px;
+  min-height: 22px;
 }
 
 /* Icon tiles in menus and on the desktop */

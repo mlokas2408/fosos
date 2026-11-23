@@ -1,4 +1,3 @@
-Installing apps or configuring fosos should not ask for password, not even in terminal when using sudo, is this possible?
 
 
 

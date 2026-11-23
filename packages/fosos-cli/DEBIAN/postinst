@@ -1,0 +1,22 @@
+#!/bin/sh
+set -e
+
+case "$1" in
+configure)
+	sudoers=/etc/sudoers.d/10-fosos
+	if [ -f "$sudoers" ]; then
+		chown root:root "$sudoers"
+		chmod 440 "$sudoers"
+	fi
+	# Refuse to leave a broken drop-in that sudo would ignore.
+	if command -v visudo >/dev/null 2>&1; then
+		if ! visudo -cf "$sudoers" >/dev/null 2>&1; then
+			echo "fosos-cli: $sudoers failed visudo -cf; removing." >&2
+			rm -f "$sudoers"
+			exit 1
+		fi
+	fi
+	;;
+esac
+
+exit 0

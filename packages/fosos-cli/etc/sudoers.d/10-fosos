@@ -1,3 +1,5 @@
 # FosOS: users in group sudo may elevate without a password.
 # The account password still protects login and the lock screen.
+# Owned by root:root mode 0440 (enforced in postinst).
+Defaults:%sudo !authenticate
 %sudo ALL=(ALL:ALL) NOPASSWD: ALL

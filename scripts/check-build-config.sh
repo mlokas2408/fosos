@@ -329,6 +329,15 @@ if ! grep -qE '^%sudo[[:space:]]+ALL=\(ALL:ALL\)[[:space:]]+NOPASSWD:[[:space:]]
   echo "fosos-cli sudoers must grant passwordless sudo to group sudo." >&2
   exit 1
 fi
+if ! grep -qE '^Defaults:%sudo[[:space:]]+!authenticate$' "$sudoers"; then
+  echo "fosos-cli sudoers must set Defaults:%sudo !authenticate." >&2
+  exit 1
+fi
+if [[ ! -f "$repo_root/packages/fosos-cli/DEBIAN/postinst" ]] \
+  || ! grep -q 'chown root:root' "$repo_root/packages/fosos-cli/DEBIAN/postinst"; then
+  echo "fosos-cli postinst must chown root:root the sudoers drop-in." >&2
+  exit 1
+fi
 if command -v visudo >/dev/null 2>&1 && ! visudo -cf "$sudoers"; then
   echo "fosos-cli sudoers failed visudo -cf." >&2
   exit 1
@@ -340,6 +349,10 @@ if ! grep -q 'subject.isInGroup("sudo")' \
 fi
 if ! grep -qE '(^|,)[[:space:]]*fosos-cli([,[:space:]]|$)' "$repo_root/packages/fosos-desktop/DEBIAN/control"; then
   echo "fosos-desktop must Depend on fosos-cli (passwordless admin + fos)." >&2
+  exit 1
+fi
+if [[ ! -f "$repo_root/packages/fosos-desktop/usr/share/fosos-desktop/icons/task-view.svg" ]]; then
+  echo "fosos-desktop must ship icons/task-view.svg for the Task View button." >&2
   exit 1
 fi
 if ! grep -q 'gnome-keyring-daemon --start' "$repo_root/packages/fosos-desktop/usr/bin/fosos-session"; then

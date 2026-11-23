@@ -37,6 +37,12 @@ stage_deb() {
   if [[ -f "$stage/DEBIAN/postinst" ]]; then
     chmod 755 "$stage/DEBIAN/postinst"
   fi
+  if [[ -f "$stage/DEBIAN/prerm" ]]; then
+    chmod 755 "$stage/DEBIAN/prerm"
+  fi
+  if [[ -f "$stage/DEBIAN/postrm" ]]; then
+    chmod 755 "$stage/DEBIAN/postrm"
+  fi
   if [[ -d "$stage/usr/bin" ]]; then
     find "$stage/usr/bin" -type f -exec chmod 755 {} +
   fi
