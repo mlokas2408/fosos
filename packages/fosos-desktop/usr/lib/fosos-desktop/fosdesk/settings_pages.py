@@ -738,7 +738,14 @@ def build_network(status_cb) -> Gtk.Box:
     )
     tip.set_line_wrap(True)
     root.pack_start(tip, False, False, 0)
-    picker.refresh(rescan=True)
+    # Async list + soft rescan; do not block Settings on nmcli --rescan.
+    picker.refresh(rescan=False)
+
+    def soft_rescan() -> bool:
+        picker.refresh(rescan=True)
+        return False
+
+    GLib.timeout_add(250, soft_rescan)
     status_cb("Network settings.")
     return root
 

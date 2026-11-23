@@ -390,12 +390,14 @@ class Shell(Gtk.Application):
 
     def toggle_popup(self, name: str, anchor: Gtk.Widget, panel: Panel | None = None) -> None:
         popup = self.popups[name]
+        # Ignore duplicate clicks while the open sequence is still settling —
+        # a blocked refresh used to queue toggles that opened then immediately closed.
+        if getattr(popup, "_toggle_busy", False):
+            return
         if popup.get_visible():
             popup.dismiss()
             return
         self.close_popups(keep=name)
-        if hasattr(popup, "refresh"):
-            popup.refresh()
         if name in ("notifications", "clock") or popup is self.notification_center:
             self.notifications.mark_read()
         panel = panel or self.panel
@@ -404,7 +406,20 @@ class Shell(Gtk.Application):
         area = panel.area()
         alloc = anchor.get_allocation()
         x = panel.anchor_x(anchor) + alloc.width - popup.width
+        # Show first so the click feels instant; refresh on idle so a slow
+        # status probe never freezes the whole desktop before the flyout appears.
+        popup._toggle_busy = True
         popup.show_at(x, panel.top(), area)
+
+        def finish_open() -> bool:
+            # Drop the guard before refresh so a slow status probe cannot
+            # trap the flyout open; show_at already ran so the click registered.
+            popup._toggle_busy = False
+            if popup.get_visible() and hasattr(popup, "refresh"):
+                popup.refresh()
+            return False
+
+        GLib.idle_add(finish_open)
 
     def toggle_quick_settings(self, panel: Panel | None = None) -> None:
         panel = panel or self.panel

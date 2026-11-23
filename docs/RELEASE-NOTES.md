@@ -1,5 +1,14 @@
 # FosOS release notes
 
+## FosOS 1.13.1 — Taskbar network freeze polish
+
+- Wi-Fi scan / refresh no longer blocks the GTK main thread (async `nmcli`)
+- Network flyout and Settings → Network open immediately, then fill the list
+- Secured Wi-Fi password prompt uses FosDialog and holds the flyout grab so
+  connecting does not freeze or dismiss the desktop shell
+- Right-side taskbar flyouts show first and refresh on idle; duplicate clicks
+  while opening are ignored so icons no longer need several tries to open
+
 ## FosOS 1.13.0 — Split taskbar status flyouts
 
 - Taskbar icons open dedicated flyouts: Sound, Network & Bluetooth, Brightness,

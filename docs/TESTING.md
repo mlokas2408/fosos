@@ -119,6 +119,7 @@ the soak log.
 | E02 | Win+A: 2×2 tiles (Wi-Fi, Bluetooth, Focus assist, Mute) + volume/brightness sliders; no Lock / Sign out / Suspend |
 | E03 | QS footers: Settings / Sound… / Network… (Network… → flyout with scan/join) |
 | E03b | Network flyout: Wi-Fi list + Bluetooth toggle; Network… / Bluetooth… footers; Settings → Network still embeds Wi-Fi picker |
+| E03c | Network flyout opens on first click (no multi-click); join open/WPA2 SSID without freezing desktop; Refresh stays responsive |
 | E04 | Focus assist (QS tile or NC footer) hides new toasts; history still in Win+N |
 | E05 | `notify-send Test "Hello"` toast above panel; hover pauses expire |
 | E06 | Win+N / clock / bell: right-edge calendar + history; Clear all; click item focuses app when possible |
