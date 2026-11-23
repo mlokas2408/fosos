@@ -165,11 +165,10 @@ def mark(size: str = "md", inverse: bool = False) -> Gtk.Widget:
     return image
 
 
-def start_icon(cell: int = 21, gap: int = 2) -> Gtk.Grid:
+def start_icon(cell: int = 12, gap: int = 2) -> Gtk.Grid:
     """Four-pane mark, like the Windows Start button.
 
-    Sized to dominate the taskbar: larger than pinned-app icons, with only a
-    thin gap between panes.
+    Slightly larger than pinned-app icons (20px), without filling the panel.
     """
     grid = Gtk.Grid()
     grid.set_row_spacing(gap)
@@ -178,13 +177,15 @@ def start_icon(cell: int = 21, gap: int = 2) -> Gtk.Grid:
     grid.set_column_homogeneous(True)
     grid.set_halign(Gtk.Align.CENTER)
     grid.set_valign(Gtk.Align.CENTER)
+    grid.set_hexpand(False)
+    grid.set_vexpand(False)
     side = cell * 2 + gap
     grid.set_size_request(side, side)
     for index in range(4):
         pane = Gtk.Box()
         pane.set_size_request(cell, cell)
-        pane.set_hexpand(True)
-        pane.set_vexpand(True)
+        pane.set_hexpand(False)
+        pane.set_vexpand(False)
         add_classes(pane, "fos-start-cell")
         grid.attach(pane, index % 2, index // 2, 1, 1)
     add_classes(grid, "fos-start-icon")

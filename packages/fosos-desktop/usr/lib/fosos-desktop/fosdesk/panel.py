@@ -292,19 +292,20 @@ class Panel(Gtk.Window):
         self.screen.force_update()
 
         row = Gtk.Box(spacing=4)
-        row.set_margin_start(8)
+        row.set_margin_start(4)
         row.set_margin_end(8)
+        row.set_halign(Gtk.Align.FILL)
         self.add(row)
 
-        # Start: fill the taskbar height with minimal padding; panes larger than
-        # pinned-app icons (20px). HEIGHT=48 → 2px pad → 44px mark → 21px cells.
-        start_pad = 2
-        start_gap = 2
-        start_cell = max(8, (HEIGHT - 2 * start_pad - start_gap) // 2)
+        # Start: left-aligned; mark (~26px) larger than pinned glyphs (20px),
+        # not full panel height.
         self.start_button = button(variant="ghost", size="icon", tooltip=BRAND["name"])
         add_classes(self.start_button, "fos-start-btn")
-        self.start_button.set_size_request(HEIGHT - 2, HEIGHT - 2)
-        self.start_icon = start_icon(cell=start_cell, gap=start_gap)
+        self.start_button.set_halign(Gtk.Align.START)
+        self.start_button.set_valign(Gtk.Align.CENTER)
+        self.start_button.set_hexpand(False)
+        self.start_button.set_size_request(36, 36)
+        self.start_icon = start_icon(cell=12, gap=2)
         self.start_button.add(self.start_icon)
         self.start_button.connect("clicked", lambda _b: self.shell.toggle_start(self))
         row.pack_start(self.start_button, False, False, 0)

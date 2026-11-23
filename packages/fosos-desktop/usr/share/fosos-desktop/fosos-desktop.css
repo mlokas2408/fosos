@@ -443,24 +443,24 @@ button.fos-btn.fos-taskview-window.default {
   outline: 1px solid @fos_ring;
 }
 
-/* Start button: four panes, fills the taskbar with minimal padding */
+/* Start button: four panes, left-aligned, larger than pinned icons */
 button.fos-btn.fos-start-btn,
 button.fos-btn.size-icon.fos-start-btn {
-  min-width: 46px;
-  min-height: 46px;
-  padding: 2px;
+  min-width: 36px;
+  min-height: 36px;
+  padding: 4px;
 }
 
 .fos-start-icon {
-  min-width: 42px;
-  min-height: 42px;
+  min-width: 26px;
+  min-height: 26px;
 }
 
 .fos-start-cell {
   background-color: @fos_fg;
   background-image: none;
-  min-width: 20px;
-  min-height: 20px;
+  min-width: 12px;
+  min-height: 12px;
 }
 
 button.fos-btn.default .fos-start-cell {
