@@ -81,7 +81,7 @@ def volume_icon(level: int, muted: bool) -> str:
 
 class VolumePopup(Popup):
     def __init__(self, shell) -> None:
-        super().__init__(width=320)
+        super().__init__(width=360)
         self.shell = shell
         self._updating = False
         frame = add_classes(Gtk.Box(orientation=Gtk.Orientation.VERTICAL), "fos-card")
@@ -668,7 +668,7 @@ def battery_state() -> tuple[str, str] | None:
 
 class BatteryPopup(Popup):
     def __init__(self, shell) -> None:
-        super().__init__(width=300)
+        super().__init__(width=360)
         self.shell = shell
         frame = add_classes(Gtk.Box(orientation=Gtk.Orientation.VERTICAL), "fos-card")
         self.add(frame)
@@ -761,7 +761,7 @@ def brightness_icon(_level: int) -> str:
 
 class BrightnessPopup(Popup):
     def __init__(self, shell) -> None:
-        super().__init__(width=300)
+        super().__init__(width=360)
         self.shell = shell
         self._updating = False
         frame = add_classes(Gtk.Box(orientation=Gtk.Orientation.VERTICAL), "fos-card")

@@ -1,5 +1,23 @@
 # FosOS release notes
 
+## FosOS 1.13.13 — Professional desktop polish
+
+- Named `fos_frame` / `fos_frame_inactive` tokens; Inter **11** across
+  shell, xsettingsd, Openbox, and greeter fallback
+- Flat CSD frames (no drop shadow) matching Openbox and CardWindow
+- Flyout width scale: S 280 / M 360 / L 420; Notification Center 360
+- Start/Task View 40×36 hit targets; focused task underline 3px; Start
+  8px spacing grid and clearer section labels
+- Desktop icon selection uses frame greys; boot/greeter/Plymouth neutrals
+  aligned to `#0a0a0a` (`fosos-theme` 0.6.2)
+
+## FosOS 1.13.12 — Clearer window frames
+
+- Openbox and CardWindow borders use palette greys (`#737373` active /
+  `#404040` inactive) so overlapping windows no longer melt together
+- Maximized windows drop the frame (Openbox `keepBorder` off; CardWindow
+  CSS); GTK CSD apps keep a soft drop shadow when restored
+
 ## FosOS 1.13.1 — Taskbar network freeze polish
 
 - Wi-Fi scan / refresh no longer blocks the GTK main thread (async `nmcli`)

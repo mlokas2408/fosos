@@ -14,15 +14,16 @@ def chunk(tag: bytes, data: bytes) -> bytes:
 
 
 def pixel(x: int, y: int) -> bytes:
+    """Dawn neutrals matching session wallpaper.py (#0a0a0a base, grey glow)."""
     nx = (x - WIDTH / 2) / (WIDTH / 2)
     ny = (y - HEIGHT / 2) / (HEIGHT / 2)
     distance = (nx * nx + ny * ny) ** 0.5
     glow = max(0.0, 1.0 - distance) ** 2
     shade = y / (HEIGHT - 1)
-    red = 12 + 20 * (1 - shade) + 78 * glow
-    green = 16 + 24 * (1 - shade) + 88 * glow
-    blue = 22 + 32 * (1 - shade) + 96 * glow
-    return bytes((min(int(red), 255), min(int(green), 255), min(int(blue), 255)))
+    # base 10, mid lift ~8, glow toward ~38
+    value = 10 + 8 * (1 - shade) + 28 * glow
+    channel = min(int(value), 255)
+    return bytes((channel, channel, channel))
 
 
 def main() -> None:

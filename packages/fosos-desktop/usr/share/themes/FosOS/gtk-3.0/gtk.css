@@ -12,6 +12,8 @@
 @define-color fos_border rgba(255, 255, 255, 0.10);
 @define-color fos_input rgba(255, 255, 255, 0.15);
 @define-color fos_ring #737373;
+@define-color fos_frame #737373;
+@define-color fos_frame_inactive #404040;
 @define-color fos_destructive #ff6467;
 @define-color fos_titlebar #1f1f1f;
 @define-color fos_titlebar_inactive #141414;
@@ -53,7 +55,7 @@ headerbar,
 .titlebar .titlebutton {
   background-color: @fos_titlebar;
   background-image: none;
-  border-color: @fos_border;
+  border-color: @fos_frame_inactive;
   border-radius: 0;
   box-shadow: none;
   color: @fos_fg;
@@ -320,18 +322,25 @@ infobar.error {
   color: @fos_fg;
 }
 
-/* Client-side decorations keep the same flat frame as Openbox SSD. */
+/* CSD frames match Openbox SSD / CardWindow (flat, fos_frame contrast). */
 .csd decoration {
-  border: 1px solid @fos_border;
+  border: 1px solid @fos_frame;
   border-radius: 0;
   box-shadow: none;
   margin: 0;
 }
 
+.csd decoration:backdrop {
+  border-color: @fos_frame_inactive;
+  box-shadow: none;
+}
+
 .csd.maximized decoration,
 .csd.tiled decoration {
+  border: none;
   border-radius: 0;
   box-shadow: none;
+  margin: 0;
 }
 
 /* Files / legacy file-manager class: mockup colours (card body, muted sidebar). */

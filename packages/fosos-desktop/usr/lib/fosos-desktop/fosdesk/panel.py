@@ -144,7 +144,10 @@ class TaskButton(Gtk.Box):
         set_class(self.indicator, "focused", focused and shown)
         # Line only while the app is open — never a mark under idle pins.
         if running:
-            self.indicator.set_size_request(22 if focused and shown else 18, 2)
+            self.indicator.set_size_request(
+                22 if focused and shown else 18,
+                3 if focused and shown else 2,
+            )
             self.indicator.show()
         else:
             self.indicator.hide()
@@ -304,7 +307,7 @@ class Panel(Gtk.Window):
         self.start_button.set_halign(Gtk.Align.START)
         self.start_button.set_valign(Gtk.Align.CENTER)
         self.start_button.set_hexpand(False)
-        self.start_button.set_size_request(36, 36)
+        self.start_button.set_size_request(40, 36)
         self.start_icon = start_icon(cell=12, gap=2)
         self.start_button.add(self.start_icon)
         self.start_button.connect("clicked", lambda _b: self.shell.toggle_start(self))
@@ -316,7 +319,7 @@ class Panel(Gtk.Window):
         self.task_view_button.set_halign(Gtk.Align.START)
         self.task_view_button.set_valign(Gtk.Align.CENTER)
         self.task_view_button.set_hexpand(False)
-        self.task_view_button.set_size_request(36, 36)
+        self.task_view_button.set_size_request(40, 36)
         self.task_view_button.add(task_view_icon(22))
         self.task_view_button.set_no_show_all(True)
         self.task_view_button.connect("clicked", lambda _b: self.shell.toggle_task_view())

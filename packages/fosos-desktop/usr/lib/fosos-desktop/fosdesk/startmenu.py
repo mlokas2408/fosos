@@ -75,7 +75,7 @@ class StartMenu(Popup):
         frame = add_classes(Gtk.Box(orientation=Gtk.Orientation.VERTICAL), "fos-card")
         self.add(frame)
 
-        header = add_classes(Gtk.Box(spacing=10), "fos-card-header")
+        header = add_classes(Gtk.Box(spacing=8), "fos-card-header")
         header.pack_start(mark("md", inverse=True), False, False, 0)
         titles = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
         titles.pack_start(brand_title(14), False, False, 0)
@@ -89,7 +89,7 @@ class StartMenu(Popup):
         header.pack_end(actions, False, False, 0)
         frame.pack_start(header, False, False, 0)
 
-        content = add_classes(Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=20), "fos-card-content")
+        content = add_classes(Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=16), "fos-card-content")
         frame.pack_start(content, True, True, 0)
 
         self.search = add_classes(Gtk.Entry(), "fos-input")
@@ -109,7 +109,7 @@ class StartMenu(Popup):
         content.pack_start(self.stack, True, True, 0)
 
         home_page = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
-        self.home = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=20)
+        self.home = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=16)
         self._home_scroller = self._scroller(self.home, HOME_SCROLL)
         home_page.pack_start(self._home_scroller, True, True, 0)
         all_apps_row = Gtk.Box()

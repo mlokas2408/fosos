@@ -5,5 +5,5 @@ ModuleName=text
 
 [text]
 title=FosOS
-black=0x0c0e12
-white=0xe8eef2
+black=0x0a0a0a
+white=0xfafafa

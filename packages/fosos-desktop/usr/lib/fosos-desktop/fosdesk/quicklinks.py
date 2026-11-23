@@ -13,7 +13,7 @@ from .ui import add_classes, button, label, separator
 
 class QuickLinks(Popup):
     def __init__(self, shell) -> None:
-        super().__init__(width=240)
+        super().__init__(width=280)
         self.shell = shell
         frame = add_classes(Gtk.Box(orientation=Gtk.Orientation.VERTICAL), "fos-card")
         self.add(frame)

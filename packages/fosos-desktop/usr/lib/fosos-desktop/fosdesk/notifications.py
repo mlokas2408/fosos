@@ -377,7 +377,7 @@ class NotificationList(Popup):
         self.refresh()
 
 
-NC_WIDTH = 400
+NC_WIDTH = 360
 NC_EDGE_GAP = 8
 
 

@@ -1,5 +1,7 @@
 # FosOS window frames for Openbox: flat, square, mockup palette.
 # Button masks (close/max/iconify.xbm) match the mockup line icons.
+# Borders use palette greys with enough contrast that stacked windows
+# stay readable (Windows-like frame clarity without leaving Dawn colours).
 
 border.width: 1
 padding.width: 10
@@ -13,13 +15,13 @@ menu.separator.width: 1
 menu.separator.padding.width: 6
 menu.separator.padding.height: 3
 
-# Ring-style border: near white at ~10% on the dark card.
-window.active.border.color: #2a2a2a
-window.inactive.border.color: #1f1f1f
+# Active = fos_frame (#737373); inactive = fos_frame_inactive (#404040).
+window.active.border.color: #737373
+window.inactive.border.color: #404040
 window.active.client.color: #171717
 window.inactive.client.color: #171717
-window.active.title.separator.color: #2a2a2a
-window.inactive.title.separator.color: #1f1f1f
+window.active.title.separator.color: #404040
+window.inactive.title.separator.color: #2a2a2a
 
 # Active titlebar is muted, like the mockup header.
 window.active.title.bg: flat solid
@@ -80,7 +82,7 @@ window.inactive.button.toggled.pressed.bg: flat solid
 window.inactive.button.toggled.pressed.bg.color: #333333
 window.inactive.button.toggled.pressed.image.color: #fafafa
 
-menu.border.color: #2a2a2a
+menu.border.color: #404040
 menu.title.bg: flat solid
 menu.title.bg.color: #171717
 menu.title.text.color: #a1a1a1
@@ -94,7 +96,7 @@ menu.items.active.bg.color: #262626
 menu.items.active.text.color: #fafafa
 menu.separator.color: #262626
 
-osd.border.color: #2a2a2a
+osd.border.color: #404040
 osd.bg: flat solid
 osd.bg.color: #171717
 osd.label.bg: parentrelative
@@ -105,7 +107,7 @@ osd.unhilight.bg: flat solid
 osd.unhilight.bg.color: #262626
 osd.button.unpressed.bg: flat solid
 osd.button.unpressed.bg.color: #171717
-osd.button.unpressed.*.border.color: #2a2a2a
+osd.button.unpressed.*.border.color: #404040
 osd.button.pressed.bg: flat solid
 osd.button.pressed.bg.color: #262626
 osd.button.focused.bg: flat solid

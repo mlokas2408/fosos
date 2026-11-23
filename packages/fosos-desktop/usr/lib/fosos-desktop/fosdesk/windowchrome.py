@@ -147,6 +147,11 @@ class CardWindow(Gtk.ApplicationWindow):
 
     def _on_window_state(self, _window, event: Gdk.EventWindowState) -> bool:
         self._maximized = bool(event.new_window_state & Gdk.WindowState.MAXIMIZED)
+        style = self.get_style_context()
+        if self._maximized:
+            style.add_class("maximized")
+        else:
+            style.remove_class("maximized")
         child = self.max_btn.get_child()
         if isinstance(child, Gtk.Image):
             name = "window-maximize-symbolic"

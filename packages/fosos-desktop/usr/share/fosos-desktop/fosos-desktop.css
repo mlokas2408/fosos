@@ -9,7 +9,11 @@
 @define-color fos_border rgba(255, 255, 255, 0.10);
 @define-color fos_input rgba(255, 255, 255, 0.15);
 @define-color fos_ring #737373;
+@define-color fos_frame #737373;
+@define-color fos_frame_inactive #404040;
 @define-color fos_destructive #ff6467;
+@define-color fos_warning #f5c542;
+@define-color fos_success #4ade80;
 @define-color fos_titlebar #1f1f1f;
 @define-color fos_titlebar_inactive #141414;
 
@@ -17,7 +21,7 @@
   background-color: @fos_background;
   color: @fos_fg;
   font-family: Inter, sans-serif;
-  font-size: 12px;
+  font-size: 11px;
 }
 
 /* Theme colours must not leak in; the classes below set their own. */
@@ -55,7 +59,7 @@
 .fos-card {
   background-color: @fos_card;
   background-image: none;
-  border: 1px solid alpha(@fos_fg, 0.10);
+  border: 1px solid @fos_frame_inactive;
   border-radius: 0;
 }
 
@@ -79,17 +83,18 @@
 }
 
 .fos-text {
-  font-size: 12px;
-}
-
-.fos-small {
   font-size: 11px;
 }
 
+.fos-small {
+  font-size: 10px;
+}
+
 .fos-label {
-  font-size: 12px;
-  font-weight: 500;
-  color: @fos_muted_fg;
+  font-size: 11px;
+  font-weight: 600;
+  color: @fos_fg;
+  letter-spacing: 0.02em;
 }
 
 .fos-muted,
@@ -109,7 +114,7 @@ button.fos-btn {
   border-radius: 0;
   box-shadow: none;
   color: @fos_fg;
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 500;
   min-height: 30px;
   padding: 0 10px;
@@ -446,7 +451,7 @@ button.fos-btn.fos-taskview-window.default {
 /* Start button: four panes, left-aligned, larger than pinned icons */
 button.fos-btn.fos-start-btn,
 button.fos-btn.size-icon.fos-start-btn {
-  min-width: 36px;
+  min-width: 40px;
   min-height: 36px;
   padding: 4px;
 }
@@ -470,7 +475,7 @@ button.fos-btn.default .fos-start-cell {
 /* Task View button: overlapping windows glyph (see icons/task-view.svg) */
 button.fos-btn.fos-taskview-btn,
 button.fos-btn.size-icon.fos-taskview-btn {
-  min-width: 36px;
+  min-width: 40px;
   min-height: 36px;
   padding: 4px;
 }
@@ -512,7 +517,7 @@ button.fos-btn.size-icon.fos-taskview-btn {
 
 .fos-badge {
   border: 1px solid transparent;
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 500;
   padding: 1px 8px;
 }
@@ -528,7 +533,7 @@ button.fos-btn.size-icon.fos-taskview-btn {
 .fos-kbd {
   background-color: @fos_muted;
   color: @fos_muted_fg;
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 500;
   min-width: 20px;
   min-height: 20px;
@@ -569,7 +574,7 @@ entry.fos-input {
   box-shadow: none;
   caret-color: @fos_fg;
   color: @fos_fg;
-  font-size: 12px;
+  font-size: 11px;
   min-height: 30px;
   padding: 0 10px;
 }
@@ -660,14 +665,14 @@ switch.fos-switch:checked slider {
 }
 
 .fos-nc-panel {
-  min-width: 400px;
+  min-width: 360px;
 }
 
 calendar.fos-calendar {
   background-color: transparent;
   border: none;
   color: @fos_fg;
-  font-size: 12px;
+  font-size: 11px;
 }
 
 calendar.fos-calendar:selected {
@@ -696,12 +701,12 @@ calendar.fos-calendar.highlight {
 
 .fos-desktop-icon:hover {
   background-color: alpha(@fos_fg, 0.10);
-  border-color: alpha(@fos_fg, 0.08);
+  border-color: @fos_frame_inactive;
 }
 
 .fos-desktop-icon.selected {
   background-color: alpha(@fos_fg, 0.16);
-  border-color: alpha(@fos_fg, 0.18);
+  border-color: @fos_frame;
 }
 
 .fos-desktop-glyph {
@@ -712,7 +717,7 @@ calendar.fos-calendar.highlight {
 
 .fos-desktop-label {
   color: @fos_fg;
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 500;
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.85);
 }
@@ -748,24 +753,38 @@ tooltip.background {
 tooltip label {
   color: @fos_background;
   font-family: Inter, sans-serif;
-  font-size: 12px;
+  font-size: 11px;
 }
 
-/* Custom Files / Terminal card apps */
+/* Custom Files / Terminal card apps — Windows-like frame clarity */
 .fos-card-window {
   background-color: transparent;
 }
 
 .fos-app-frame {
   background-color: @fos_card;
-  border: 1px solid alpha(@fos_fg, 0.10);
+  /* Flat frames — shadows clip on undecorated X11 windows. */
+  border: 1px solid @fos_frame;
+}
+
+.fos-card-window:backdrop .fos-app-frame {
+  border-color: @fos_frame_inactive;
+}
+
+.fos-card-window.maximized .fos-app-frame {
+  border: none;
 }
 
 .fos-app-header {
   background-color: @fos_titlebar;
-  border-bottom: 1px solid @fos_border;
+  border-bottom: 1px solid @fos_frame_inactive;
   padding: 4px 8px;
   min-height: 40px;
+}
+
+.fos-card-window:backdrop .fos-app-header {
+  background-color: @fos_titlebar_inactive;
+  color: @fos_muted_fg;
 }
 
 .fos-app-toolbar {
