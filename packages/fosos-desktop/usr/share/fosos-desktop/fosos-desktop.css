@@ -665,8 +665,6 @@ switch.fos-switch:checked slider {
 
 .fos-nc-panel {
   min-width: 400px;
-  /* Stretch with the full-height notification center window. */
-  min-height: 100%;
 }
 
 calendar.fos-calendar {
