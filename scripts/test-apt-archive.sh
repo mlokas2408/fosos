@@ -122,6 +122,11 @@ if [[ -d "$cli_stage/etc/sudoers.d" ]]; then
   find "$cli_stage/etc/sudoers.d" -type f -exec chmod 440 {} +
 fi
 chmod 755 "$cli_stage/usr/bin/fos"
+for maint in postinst preinst prerm postrm; do
+  if [[ -f "$cli_stage/DEBIAN/$maint" ]]; then
+    chmod 755 "$cli_stage/DEBIAN/$maint"
+  fi
+done
 cli_deb="$upgrade_dir/fosos-cli_${cli_upgrade_version}_all.deb"
 dpkg-deb --root-owner-group -Zgzip --build "$cli_stage" "$cli_deb"
 reprepro -b "$upgrade_dir" includedeb testing "$cli_deb"
