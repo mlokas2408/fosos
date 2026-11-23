@@ -77,11 +77,31 @@ Components: main
 Signed-By: /usr/share/keyrings/fosos-archive-keyring.gpg
 EOF
 
+cli_control="$repo_root/packages/fosos-cli/DEBIAN/control"
+cli_version="$(awk '/^Version:/{print $2; exit}' "$cli_control")"
+if [[ -z "$cli_version" ]]; then
+  echo "Could not read Version from $cli_control." >&2
+  exit 1
+fi
+# Debian sorts +test1 above the base version for the upgrade exercise.
+cli_upgrade_version="${cli_version}+test1"
+
+expect_cli_version() {
+  local want="$1"
+  local got
+  got="$(chroot "$root" dpkg-query -W -f '${Version}' fosos-cli)"
+  if [[ "$got" != "$want" ]]; then
+    echo "Expected fosos-cli $want in the test chroot, got ${got:-none}." >&2
+    echo "Publish testing with the current packages/fosos-cli before this test." >&2
+    exit 1
+  fi
+}
+
 refresh_lists
 chroot "$root" dpkg --purge fosos-cli >/dev/null 2>&1 || true
 chroot "$root" dpkg --purge fosos-archive-test-broken >/dev/null 2>&1 || true
 printf 'y\n' | chroot "$root" apt-get install fosos-cli
-test "$(chroot "$root" dpkg-query -W -f '${Version}' fosos-cli)" = "0.2.0"
+expect_cli_version "$cli_version"
 set +e
 chroot "$root" fos install -y fosos-cli
 status=$?
@@ -95,21 +115,21 @@ upgrade_dir="$(mktemp -d /var/tmp/fosos-apt-upgrade.XXXXXX)"
 cp -a "$work_dir/." "$upgrade_dir/"
 cli_stage="$(mktemp -d /var/tmp/fosos-cli.XXXXXX)"
 cp -a "$repo_root/packages/fosos-cli/." "$cli_stage/"
-sed -i 's/^Version: .*/Version: 0.2.1/' "$cli_stage/DEBIAN/control"
+sed -i "s/^Version: .*/Version: ${cli_upgrade_version}/" "$cli_stage/DEBIAN/control"
 find "$cli_stage" -type d -exec chmod 755 {} +
 find "$cli_stage" -type f -exec chmod 644 {} +
 if [[ -d "$cli_stage/etc/sudoers.d" ]]; then
   find "$cli_stage/etc/sudoers.d" -type f -exec chmod 440 {} +
 fi
 chmod 755 "$cli_stage/usr/bin/fos"
-cli_deb="$upgrade_dir/fosos-cli_0.2.1_all.deb"
+cli_deb="$upgrade_dir/fosos-cli_${cli_upgrade_version}_all.deb"
 dpkg-deb --root-owner-group -Zgzip --build "$cli_stage" "$cli_deb"
 reprepro -b "$upgrade_dir" includedeb testing "$cli_deb"
 umount "$root/srv/fosos-apt"
 mount --bind "$upgrade_dir" "$root/srv/fosos-apt"
 refresh_lists
 printf 'y\n' | chroot "$root" fos install fosos-cli
-test "$(chroot "$root" dpkg-query -W -f '${Version}' fosos-cli)" = "0.2.1"
+expect_cli_version "$cli_upgrade_version"
 
 printf 'y\n' | chroot "$root" fos remove fosos-cli
 if chroot "$root" test -e /usr/bin/fos; then
@@ -141,7 +161,7 @@ if chroot "$root" dpkg-query -W fosos-archive-test-broken >/dev/null 2>&1; then
   echo "fos repair left the broken package installed." >&2
   exit 1
 fi
-test "$(chroot "$root" dpkg-query -W -f '${Version}' fosos-cli)" = "0.2.1"
+expect_cli_version "$cli_upgrade_version"
 
 tampered="$(mktemp -d /var/tmp/fosos-apt-tamper.XXXXXX)"
 cp -a "$work_dir/dists" "$tampered/dists"
