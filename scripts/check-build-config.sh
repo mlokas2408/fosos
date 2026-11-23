@@ -329,8 +329,8 @@ if ! grep -qE '^%sudo[[:space:]]+ALL=\(ALL:ALL\)[[:space:]]+NOPASSWD:[[:space:]]
   echo "fosos-cli sudoers must grant passwordless sudo to group sudo." >&2
   exit 1
 fi
-if ! grep -qE '^Defaults:%sudo[[:space:]]+!authenticate$' "$sudoers"; then
-  echo "fosos-cli sudoers must set Defaults:%sudo !authenticate." >&2
+if ! grep -qE '^Defaults:%sudo[[:space:]]+!passwd$' "$sudoers"; then
+  echo "fosos-cli sudoers must set Defaults:%sudo !passwd." >&2
   exit 1
 fi
 if [[ ! -f "$repo_root/packages/fosos-cli/DEBIAN/postinst" ]] \
