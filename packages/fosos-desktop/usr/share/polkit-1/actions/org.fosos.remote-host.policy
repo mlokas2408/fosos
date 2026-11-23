@@ -9,9 +9,10 @@
     <description>Manage FosOS Remote Desktop (xrdp) host</description>
     <message>Authentication is required to change Remote Desktop hosting</message>
     <defaults>
+      <!-- Active sudo users are allowed by 49-fosos-admin.rules (no prompt). -->
       <allow_any>auth_admin</allow_any>
       <allow_inactive>auth_admin</allow_inactive>
-      <allow_active>auth_admin_keep</allow_active>
+      <allow_active>yes</allow_active>
     </defaults>
     <annotate key="org.freedesktop.policykit.exec.path">/usr/libexec/fosos-remote-host</annotate>
     <annotate key="org.freedesktop.policykit.exec.allow_gui">true</annotate>

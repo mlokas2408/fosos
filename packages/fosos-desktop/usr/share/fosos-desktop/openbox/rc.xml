@@ -365,20 +365,26 @@
   </menu>
 
   <applications>
+    <!-- force=yes: GTK sets program-specified location 0,0 which otherwise
+         sticks new windows in the top-left corner. -->
     <application class="Fosos-settings">
-      <position force="no"><x>center</x><y>center</y></position>
+      <position force="yes"><x>center</x><y>center</y></position>
     </application>
     <application class="Fosos-files">
       <decor>no</decor>
-      <position force="no"><x>center</x><y>center</y></position>
+      <position force="yes"><x>center</x><y>center</y></position>
     </application>
     <application class="Fosos-terminal">
       <decor>no</decor>
-      <position force="no"><x>center</x><y>center</y></position>
+      <position force="yes"><x>center</x><y>center</y></position>
     </application>
     <application class="Fosos-notepad">
       <decor>no</decor>
-      <position force="no"><x>center</x><y>center</y></position>
+      <position force="yes"><x>center</x><y>center</y></position>
+    </application>
+    <application class="Fosos-remote">
+      <decor>no</decor>
+      <position force="yes"><x>center</x><y>center</y></position>
     </application>
   </applications>
 </openbox_config>

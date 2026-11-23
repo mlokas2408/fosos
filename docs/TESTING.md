@@ -27,7 +27,7 @@ casually; append new ones at the end of a section if the product grows.
 
 | Context | Account | Password |
 | --- | --- | --- |
-| Live image | `user` | `live` (also for `sudo` / TTY) |
+| Live image | `user` | `live` (TTY / lock; `sudo` is passwordless) |
 | Installed system | Account created in Calamares | As chosen |
 
 Live image autologins to **FosOS Desktop** via LightDM. Root stays locked.
@@ -79,7 +79,7 @@ the soak log.
 | B01 | **Install FosOS** (Calamares): language, keyboard, disk, optional encryption, account |
 | B02 | After reboot (ISO detached): greeter Sign in; default session FosOS Desktop |
 | B03 | Welcome shows network status; can open guide / updates; finish setup |
-| B04 | Installed account can `sudo`; root remains locked |
+| B04 | Installed account can `sudo` without a password; root remains locked |
 
 ### C — Taskbar, Start, tray, clipboard
 

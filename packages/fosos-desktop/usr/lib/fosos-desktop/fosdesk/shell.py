@@ -37,6 +37,7 @@ from .run import RunDialog
 from .snaplayouts import (
     SnapLayouts,
     move_window_to_workspace,
+    repair_startup_geometry,
     snap_down,
     snap_left,
     snap_maximize,
@@ -241,7 +242,26 @@ class Shell(Gtk.Application):
             window.connect("name-changed", lambda *_a: self._refresh_panels())
             window.connect("geometry-changed", lambda *_a: self._rebuild_tasks())
             window.connect("workspace-changed", lambda *_a: self._rebuild_tasks())
+            # GTK often maps at 0,0 with a stub size; retry after the client settles.
+            self._schedule_startup_repair(window)
         self._rebuild_tasks()
+
+    def _schedule_startup_repair(self, window: Wnck.Window) -> None:
+        xid = window.get_xid()
+
+        def attempt(pass_no: int = 0) -> bool:
+            screen = Wnck.Screen.get_default()
+            screen.force_update()
+            target = next((w for w in screen.get_windows() if w.get_xid() == xid), None)
+            if target is None:
+                return False
+            repair_startup_geometry(target)
+            # Second pass catches apps that resize themselves after the first map.
+            if pass_no == 0:
+                GLib.timeout_add(350, lambda: attempt(1))
+            return False
+
+        GLib.timeout_add(120, lambda: attempt(0))
 
     def _rebuild_tasks(self) -> None:
         for panel in self.panels:

@@ -7,7 +7,7 @@ gi.require_version("Gtk", "3.0")
 from gi.repository import Gdk, Gio, GLib, Gtk, Pango
 
 from . import VERSION
-from .popup import Popup
+from .popup import GAP, Popup
 from .ui import add_classes, button, clear, icon, label
 
 BUS_NAME = "org.freedesktop.Notifications"
@@ -415,9 +415,10 @@ class NotificationCenter(Popup):
         self.scroller = Gtk.ScrolledWindow()
         self.scroller.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
         self.scroller.set_vexpand(True)
-        self.scroller.set_propagate_natural_height(True)
-        self.scroller.set_min_content_height(220)
-        self.scroller.set_max_content_height(520)
+        self.scroller.set_hexpand(True)
+        # Height comes from the full-height panel allocation, not content size.
+        self.scroller.set_propagate_natural_height(False)
+        self.scroller.set_min_content_height(120)
         self.scroller.add(self.items)
         body.pack_start(self.scroller, True, True, 0)
 
@@ -429,16 +430,34 @@ class NotificationCenter(Popup):
         self.focus_switch.connect("state-set", self._on_focus_toggled)
         footer.pack_end(self.focus_switch, False, False, 0)
         frame.pack_start(footer, False, False, 0)
+        self._fill_height: int | None = None
 
     def show_at(self, x: int, bottom: int, monitor: Gdk.Rectangle) -> None:
-        """Dock to the monitor's right edge above the taskbar."""
+        """Dock to the monitor's right edge and fill the height above the taskbar."""
         right = monitor.x + monitor.width - self.width - NC_EDGE_GAP
-        available = max(320, bottom - monitor.y - NC_EDGE_GAP)
-        # Leave room for header/calendar/footer; grow the history list.
-        list_height = max(220, min(520, available - 320))
-        self.scroller.set_min_content_height(list_height)
-        self.scroller.set_max_content_height(list_height)
+        top = monitor.y + NC_EDGE_GAP
+        self._fill_height = max(320, bottom - top - GAP)
         super().show_at(right, bottom, monitor)
+
+    def _place(self) -> bool:
+        """Pin to the top-right work area instead of sizing to content."""
+        anchor = getattr(self, "_anchor", None)
+        if anchor is None or not self.get_visible():
+            return False
+        x, bottom, monitor = anchor
+        width = self.width
+        top = monitor.y + NC_EDGE_GAP
+        height = self._fill_height
+        if height is None:
+            height = max(320, bottom - top - GAP)
+        height = min(height, max(320, bottom - top - GAP))
+        x = max(monitor.x, min(x, monitor.x + monitor.width - width))
+        self.resize(width, height)
+        self.move(x, top)
+        child = self.get_child()
+        if child is not None:
+            child.set_size_request(width, height)
+        return False
 
     def refresh(self) -> None:
         now = GLib.DateTime.new_now_local()

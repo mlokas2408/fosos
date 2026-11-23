@@ -1,0 +1,6 @@
+/* FosOS: active local admins skip polkit password prompts (pkexec, Settings, PackageKit). */
+polkit.addRule(function(action, subject) {
+    if (subject.isInGroup("sudo") && subject.local && subject.active) {
+        return polkit.Result.YES;
+    }
+});

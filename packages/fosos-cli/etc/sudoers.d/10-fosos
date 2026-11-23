@@ -1,0 +1,3 @@
+# FosOS: users in group sudo may elevate without a password.
+# The account password still protects login and the lock screen.
+%sudo ALL=(ALL:ALL) NOPASSWD: ALL

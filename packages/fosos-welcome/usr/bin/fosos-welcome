@@ -167,7 +167,7 @@ class Welcome(Gtk.Window):
             self,
             "Install updates now?",
             "FosOS will refresh package lists and install available upgrades. "
-            "This needs a network connection and your password.",
+            "This needs a network connection.",
             ok="Install",
         ):
             return

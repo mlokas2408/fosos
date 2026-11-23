@@ -90,6 +90,55 @@ def work_area_for_window(window: Wnck.Window) -> Gdk.Rectangle:
     return work_area_for_point(x + w // 2, y + h // 2)
 
 
+# GTK/Electron often map with program-specified location 0,0 and a stub size.
+_ORIGIN_TOLERANCE = 8
+_TINY_WIDTH = 160
+_TINY_HEIGHT = 120
+
+
+def repair_startup_geometry(window: Wnck.Window) -> bool:
+    """Center/grow windows that mapped as a stub in the top-left corner.
+
+    Skips docks, dialogs, maximized/fullscreen windows, and edge-snapped
+    layouts so restored or tiled geometry is left alone.
+    """
+    if window.get_window_type() != Wnck.WindowType.NORMAL:
+        return False
+    if window.is_skip_tasklist() or window.get_window_type() in SKIP_TYPES:
+        return False
+    if window.is_maximized() or window.is_fullscreen() or window.is_minimized():
+        return False
+    try:
+        x, y, w, h = window.get_geometry()
+    except Exception:  # noqa: BLE001 - window may vanish before we run
+        return False
+    area = work_area_for_window(window)
+    if is_snapped(window, area):
+        return False
+    at_origin = abs(x - area.x) <= _ORIGIN_TOLERANCE and abs(y - area.y) <= _ORIGIN_TOLERANCE
+    too_small = (w < _TINY_WIDTH and h < _TINY_HEIGHT) or min(w, h) < 64
+    if not at_origin and not too_small:
+        return False
+    if too_small:
+        new_w = min(area.width, max(640, int(area.width * 0.55)))
+        new_h = min(area.height, max(420, int(area.height * 0.55)))
+    else:
+        new_w, new_h = min(w, area.width), min(h, area.height)
+    new_x = area.x + max(0, (area.width - new_w) // 2)
+    new_y = area.y + max(0, (area.height - new_h) // 2)
+    if (new_x, new_y, new_w, new_h) == (x, y, w, h):
+        return False
+    gravity = Wnck.WindowGravity.STATIC
+    mask = (
+        Wnck.WindowMoveResizeMask.X
+        | Wnck.WindowMoveResizeMask.Y
+        | Wnck.WindowMoveResizeMask.WIDTH
+        | Wnck.WindowMoveResizeMask.HEIGHT
+    )
+    window.set_geometry(gravity, mask, new_x, new_y, new_w, new_h)
+    return True
+
+
 def slot_rect(area: Gdk.Rectangle, slot: Slot) -> tuple[int, int, int, int]:
     x = area.x + int(round(area.width * slot.x))
     y = area.y + int(round(area.height * slot.y))

@@ -30,6 +30,10 @@ stage_deb() {
   find "$stage" -type d -exec chmod 755 {} +
   find "$stage" -type f ! -name '*.png' ! -name '*.gpg' -exec sed -i 's/\r$//' {} +
   find "$stage" -type f -exec chmod 644 {} +
+  if [[ -d "$stage/etc/sudoers.d" ]]; then
+    # sudo rejects sudoers.d files that are group/world writable.
+    find "$stage/etc/sudoers.d" -type f -exec chmod 440 {} +
+  fi
   if [[ -f "$stage/DEBIAN/postinst" ]]; then
     chmod 755 "$stage/DEBIAN/postinst"
   fi

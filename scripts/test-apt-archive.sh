@@ -81,7 +81,7 @@ refresh_lists
 chroot "$root" dpkg --purge fosos-cli >/dev/null 2>&1 || true
 chroot "$root" dpkg --purge fosos-archive-test-broken >/dev/null 2>&1 || true
 printf 'y\n' | chroot "$root" apt-get install fosos-cli
-test "$(chroot "$root" dpkg-query -W -f '${Version}' fosos-cli)" = "0.1.0"
+test "$(chroot "$root" dpkg-query -W -f '${Version}' fosos-cli)" = "0.2.0"
 set +e
 chroot "$root" fos install -y fosos-cli
 status=$?
@@ -95,18 +95,21 @@ upgrade_dir="$(mktemp -d /var/tmp/fosos-apt-upgrade.XXXXXX)"
 cp -a "$work_dir/." "$upgrade_dir/"
 cli_stage="$(mktemp -d /var/tmp/fosos-cli.XXXXXX)"
 cp -a "$repo_root/packages/fosos-cli/." "$cli_stage/"
-sed -i 's/^Version: .*/Version: 0.1.1/' "$cli_stage/DEBIAN/control"
+sed -i 's/^Version: .*/Version: 0.2.1/' "$cli_stage/DEBIAN/control"
 find "$cli_stage" -type d -exec chmod 755 {} +
 find "$cli_stage" -type f -exec chmod 644 {} +
+if [[ -d "$cli_stage/etc/sudoers.d" ]]; then
+  find "$cli_stage/etc/sudoers.d" -type f -exec chmod 440 {} +
+fi
 chmod 755 "$cli_stage/usr/bin/fos"
-cli_deb="$upgrade_dir/fosos-cli_0.1.1_all.deb"
+cli_deb="$upgrade_dir/fosos-cli_0.2.1_all.deb"
 dpkg-deb --root-owner-group -Zgzip --build "$cli_stage" "$cli_deb"
 reprepro -b "$upgrade_dir" includedeb testing "$cli_deb"
 umount "$root/srv/fosos-apt"
 mount --bind "$upgrade_dir" "$root/srv/fosos-apt"
 refresh_lists
 printf 'y\n' | chroot "$root" fos install fosos-cli
-test "$(chroot "$root" dpkg-query -W -f '${Version}' fosos-cli)" = "0.1.1"
+test "$(chroot "$root" dpkg-query -W -f '${Version}' fosos-cli)" = "0.2.1"
 
 printf 'y\n' | chroot "$root" fos remove fosos-cli
 if chroot "$root" test -e /usr/bin/fos; then
@@ -138,7 +141,7 @@ if chroot "$root" dpkg-query -W fosos-archive-test-broken >/dev/null 2>&1; then
   echo "fos repair left the broken package installed." >&2
   exit 1
 fi
-test "$(chroot "$root" dpkg-query -W -f '${Version}' fosos-cli)" = "0.1.1"
+test "$(chroot "$root" dpkg-query -W -f '${Version}' fosos-cli)" = "0.2.1"
 
 tampered="$(mktemp -d /var/tmp/fosos-apt-tamper.XXXXXX)"
 cp -a "$work_dir/dists" "$tampered/dists"

@@ -34,6 +34,11 @@ required_files=(
   "$repo_root/packages/fosos-installer/usr/libexec/fosos-calamares"
   "$repo_root/packages/fosos-installer/usr/libexec/fosos-grub-install"
   "$repo_root/packages/fosos-installer/usr/share/polkit-1/actions/com.fosos.installer.policy"
+  "$repo_root/packages/fosos-installer/usr/share/calamares/branding/fosos/show.qml"
+  "$repo_root/packages/fosos-installer/usr/share/calamares/branding/fosos/slide1.png"
+  "$repo_root/packages/fosos-installer/usr/share/calamares/branding/fosos/slide2.png"
+  "$repo_root/packages/fosos-installer/usr/share/calamares/branding/fosos/slide3.png"
+  "$repo_root/packages/fosos-installer/usr/share/calamares/branding/fosos/slide4.png"
   "$repo_root/packages/fosos-welcome/DEBIAN/control"
   "$repo_root/packages/fosos-welcome/usr/bin/fosos-welcome"
   "$repo_root/packages/fosos-welcome/usr/share/doc/fosos/guide.html"
@@ -45,6 +50,8 @@ required_files=(
   "$repo_root/packages/fosos-archive-keyring/usr/share/keyrings/fosos-archive-keyring.gpg"
   "$repo_root/packages/fosos-cli/DEBIAN/control"
   "$repo_root/packages/fosos-cli/usr/bin/fos"
+  "$repo_root/packages/fosos-cli/etc/sudoers.d/10-fosos"
+  "$repo_root/packages/fosos-cli/etc/polkit-1/rules.d/49-fosos-admin.rules"
   "$repo_root/packages/fosos-desktop/DEBIAN/control"
   "$repo_root/packages/fosos-desktop/usr/bin/fosos-session"
   "$repo_root/packages/fosos-desktop/usr/bin/fosos-recovery-session"
@@ -317,6 +324,24 @@ sh -n "$repo_root/packages/fosos-installer/usr/bin/calamares-install-fosos"
 sh -n "$repo_root/packages/fosos-installer/usr/libexec/fosos-calamares"
 sh -n "$repo_root/packages/fosos-installer/usr/libexec/fosos-grub-install"
 sh -n "$repo_root/packages/fosos-cli/usr/bin/fos"
+sudoers="$repo_root/packages/fosos-cli/etc/sudoers.d/10-fosos"
+if ! grep -qE '^%sudo[[:space:]]+ALL=\(ALL:ALL\)[[:space:]]+NOPASSWD:[[:space:]]*ALL$' "$sudoers"; then
+  echo "fosos-cli sudoers must grant passwordless sudo to group sudo." >&2
+  exit 1
+fi
+if command -v visudo >/dev/null 2>&1 && ! visudo -cf "$sudoers"; then
+  echo "fosos-cli sudoers failed visudo -cf." >&2
+  exit 1
+fi
+if ! grep -q 'subject.isInGroup("sudo")' \
+  "$repo_root/packages/fosos-cli/etc/polkit-1/rules.d/49-fosos-admin.rules"; then
+  echo "fosos-cli polkit rule must allow active sudo group members without a prompt." >&2
+  exit 1
+fi
+if ! grep -qE '(^|,)[[:space:]]*fosos-cli([,[:space:]]|$)' "$repo_root/packages/fosos-desktop/DEBIAN/control"; then
+  echo "fosos-desktop must Depend on fosos-cli (passwordless admin + fos)." >&2
+  exit 1
+fi
 if ! grep -q 'gnome-keyring-daemon --start' "$repo_root/packages/fosos-desktop/usr/bin/fosos-session"; then
   echo "fosos-session must start gnome-keyring-daemon for the OS keyring / Secret Service." >&2
   exit 1

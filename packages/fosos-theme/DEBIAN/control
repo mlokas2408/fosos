@@ -1,12 +1,13 @@
 Package: fosos-theme
-Version: 0.6.0
+Version: 0.6.1
 Section: x11
 Priority: optional
 Architecture: all
 Depends: fonts-inter, fonts-liberation, dmz-cursor-theme, plymouth, lxpolkit
 Maintainer: FosOS <dev@fosos.local>
 Description: FosOS desktop branding and defaults
- Wallpaper, Dawn Aperture logo, boot splash, and session defaults. The
- FosOS LightDM greeter and desktop GTK/icon themes ship in fosos-desktop
- (Adwaita icons as fallback). lxpolkit provides password prompts.
- Greybird and elementary-xfce are no longer pulled into the image.
+ Wallpaper, Dawn Aperture logo, boot splash, session defaults, and
+ touchpad tap-to-click via libinput. The FosOS LightDM greeter and desktop
+ GTK/icon themes ship in fosos-desktop (Adwaita icons as fallback).
+ lxpolkit provides password prompts. Greybird and elementary-xfce are no
+ longer pulled into the image.

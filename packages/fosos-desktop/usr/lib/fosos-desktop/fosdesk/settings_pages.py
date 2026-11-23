@@ -188,6 +188,40 @@ def apply_accel(numer: int, denom: int, threshold: int) -> None:
     subprocess.run(["xset", "m", f"{numer}/{denom}", str(threshold)], check=False)
 
 
+_TAPPING_PROP = "libinput Tapping Enabled"
+
+
+def _pointer_device_ids() -> list[str]:
+    output = run(["xinput", "list"]) or ""
+    return re.findall(r"id=(\d+)\s+\[slave\s+pointer", output)
+
+
+def current_tapping() -> bool | None:
+    """Return live tap-to-click state, or None if no libinput touchpad."""
+    for device_id in _pointer_device_ids():
+        props = run(["xinput", "list-props", device_id]) or ""
+        match = re.search(rf"{re.escape(_TAPPING_PROP)}\s*\(\d+\):\s*(\d+)", props)
+        if match:
+            return match.group(1) == "1"
+    return None
+
+
+def apply_tapping(enabled: bool) -> bool:
+    value = "1" if enabled else "0"
+    applied = False
+    for device_id in _pointer_device_ids():
+        props = run(["xinput", "list-props", device_id]) or ""
+        if _TAPPING_PROP not in props:
+            continue
+        result = subprocess.run(
+            ["xinput", "set-prop", device_id, _TAPPING_PROP, value],
+            check=False,
+        )
+        if result.returncode == 0:
+            applied = True
+    return applied
+
+
 def idle_timeout_seconds() -> int:
     output = run(["xset", "q"]) or ""
     match = re.search(r"timeout:\s*(\d+)", output)
@@ -290,7 +324,13 @@ def build_keyboard(status_cb) -> Gtk.Box:
 
 def build_mouse(status_cb) -> Gtk.Box:
     root = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=16)
-    root.pack_start(pack_header("Mouse and touchpad", "Pointer acceleration for this session."), False, False, 0)
+    root.pack_start(
+        pack_header("Mouse and touchpad", "Pointer speed and tap-to-click for this session."),
+        False,
+        False,
+        0,
+    )
+    prefs = load_kv("mouse", {"accel": "2.0", "threshold": "10", "tapping": "1"})
     numer, threshold = current_accel()
     accel = numer / 10.0
 
@@ -312,14 +352,40 @@ def build_mouse(status_cb) -> Gtk.Box:
     thr_row.pack_start(thr, True, True, 0)
     root.pack_start(thr_row, False, False, 0)
 
+    live_tap = current_tapping()
+    tapping = Gtk.CheckButton(label="Tap to click (touchpad)")
+    if live_tap is None:
+        tapping.set_active(truthy(prefs.get("tapping"), True))
+        tapping.set_sensitive(False)
+        note = label(
+            "No libinput touchpad detected in this session.",
+            "fos-small",
+            "fos-muted",
+        )
+        note.set_line_wrap(True)
+        root.pack_start(tapping, False, False, 0)
+        root.pack_start(note, False, False, 0)
+    else:
+        tapping.set_active(live_tap)
+        root.pack_start(tapping, False, False, 0)
+
     def apply(_button=None) -> None:
         value = scale.get_value()
         numer_v = max(1, int(round(value * 10)))
         thr_v = int(thr.get_value())
         apply_accel(numer_v, 10, thr_v)
-        CONFIG.mkdir(parents=True, exist_ok=True)
-        (CONFIG / "mouse").write_text(f"accel={value}\nthreshold={thr_v}\n", encoding="utf-8")
-        status_cb("Mouse settings applied for this session.")
+        tap_on = tapping.get_active()
+        if tapping.get_sensitive():
+            apply_tapping(tap_on)
+        save_kv(
+            "mouse",
+            {
+                "accel": str(value),
+                "threshold": str(thr_v),
+                "tapping": "1" if tap_on else "0",
+            },
+        )
+        status_cb("Mouse and touchpad settings applied for this session.")
 
     apply_btn = button("Apply", variant="default")
     apply_btn.connect("clicked", apply)
@@ -895,7 +961,7 @@ def build_updates(status_cb) -> Gtk.Box:
     root.pack_start(actions, False, False, 0)
 
     tip = label(
-        "Install updates runs `fos update && fos upgrade` with your password when needed.",
+        "Install updates runs `fos update && fos upgrade` (no password for sudo users).",
         "fos-small",
         "fos-muted",
     )
@@ -1342,6 +1408,10 @@ def restore_session_input() -> None:
             apply_accel(max(1, int(round(accel * 10))), 10, thr)
         except ValueError:
             pass
+        apply_tapping(truthy(values.get("tapping"), True))
+    else:
+        # Match system Xorg default when the user has never opened Mouse settings.
+        apply_tapping(True)
     power = CONFIG / "power"
     if power.is_file():
         values = dict(line.split("=", 1) for line in power.read_text(encoding="utf-8").splitlines() if "=" in line)

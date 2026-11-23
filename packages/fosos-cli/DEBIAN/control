@@ -1,10 +1,12 @@
 Package: fosos-cli
-Version: 0.1.0
+Version: 0.2.0
 Section: admin
 Priority: optional
 Architecture: all
-Depends: apt, sudo
+Depends: apt, sudo, polkitd
 Maintainer: FosOS <dev@fosos.local>
-Description: fos command for common package actions
+Description: fos command and passwordless admin for sudo users
  Provides fos for updating, upgrading, installing, removing, and repairing
- packages. APT remains available for every other operation.
+ packages. APT remains available for every other operation. Members of the
+ sudo group may use sudo and polkit (pkexec) without a password; login and
+ lock screen still use the account password.

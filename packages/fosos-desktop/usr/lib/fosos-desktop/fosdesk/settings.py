@@ -70,7 +70,7 @@ PANELS = [
         {"page": "notifications"},
     ),
     ("Input", "Keyboard", "Layout, repeat and shortcuts", "input-keyboard-symbolic", {"page": "keyboard"}),
-    ("Input", "Mouse and touchpad", "Pointer speed and buttons", "input-mouse-symbolic", {"page": "mouse"}),
+    ("Input", "Mouse and touchpad", "Pointer speed and tap-to-click", "input-mouse-symbolic", {"page": "mouse"}),
     ("Apps", "Default apps", "Browser, PDF, archives and more", "starred-symbolic", {"page": "defaults"}),
     (
         "FosOS",
