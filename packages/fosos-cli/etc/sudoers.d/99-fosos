@@ -1,4 +1,6 @@
 # FosOS: users in group sudo may elevate without a password.
 # The account password still protects login and the lock screen.
+# Named 99-* so this rule wins over Calamares' 10-installer
+# (user ALL=(ALL) ALL), which would otherwise re-require a password.
 # Owned by root:root mode 0440 (enforced in postinst).
 %sudo ALL=(ALL:ALL) NOPASSWD: ALL

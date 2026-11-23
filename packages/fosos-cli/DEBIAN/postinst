@@ -3,7 +3,10 @@ set -e
 
 case "$1" in
 configure)
-	sudoers=/etc/sudoers.d/10-fosos
+	# Drop the old name so upgrades do not leave two FosOS snippets.
+	rm -f /etc/sudoers.d/10-fosos
+
+	sudoers=/etc/sudoers.d/99-fosos
 	if [ -f "$sudoers" ]; then
 		chown root:root "$sudoers"
 		chmod 440 "$sudoers"

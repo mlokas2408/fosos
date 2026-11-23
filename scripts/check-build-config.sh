@@ -50,7 +50,7 @@ required_files=(
   "$repo_root/packages/fosos-archive-keyring/usr/share/keyrings/fosos-archive-keyring.gpg"
   "$repo_root/packages/fosos-cli/DEBIAN/control"
   "$repo_root/packages/fosos-cli/usr/bin/fos"
-  "$repo_root/packages/fosos-cli/etc/sudoers.d/10-fosos"
+  "$repo_root/packages/fosos-cli/etc/sudoers.d/99-fosos"
   "$repo_root/packages/fosos-cli/etc/polkit-1/rules.d/49-fosos-admin.rules"
   "$repo_root/packages/fosos-desktop/DEBIAN/control"
   "$repo_root/packages/fosos-desktop/usr/bin/fosos-session"
@@ -324,7 +324,7 @@ sh -n "$repo_root/packages/fosos-installer/usr/bin/calamares-install-fosos"
 sh -n "$repo_root/packages/fosos-installer/usr/libexec/fosos-calamares"
 sh -n "$repo_root/packages/fosos-installer/usr/libexec/fosos-grub-install"
 sh -n "$repo_root/packages/fosos-cli/usr/bin/fos"
-sudoers="$repo_root/packages/fosos-cli/etc/sudoers.d/10-fosos"
+sudoers="$repo_root/packages/fosos-cli/etc/sudoers.d/99-fosos"
 if ! grep -qE '^%sudo[[:space:]]+ALL=\(ALL:ALL\)[[:space:]]+NOPASSWD:[[:space:]]*ALL$' "$sudoers"; then
   echo "fosos-cli sudoers must grant passwordless sudo to group sudo." >&2
   exit 1
