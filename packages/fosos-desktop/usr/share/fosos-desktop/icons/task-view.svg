@@ -1,7 +1,7 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-  <!-- Windows-like Task View: two overlapping window frames -->
-  <rect x="8" y="2.5" width="13.5" height="13.5" rx="1.25"
-        stroke="#fafafa" stroke-width="1.75" fill="none"/>
-  <rect x="2.5" y="8" width="13.5" height="13.5" rx="1.25"
-        stroke="#fafafa" stroke-width="1.75" fill="#171717"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" aria-hidden="true">
+  <!-- Windows-like Task View: two overlapping window frames (filled for clarity) -->
+  <rect x="7.5" y="2" width="14" height="14" rx="1.5" fill="#fafafa"/>
+  <rect x="9" y="3.5" width="11" height="11" rx="0.75" fill="#171717"/>
+  <rect x="2" y="7.5" width="14" height="14" rx="1.5" fill="#fafafa"/>
+  <rect x="3.5" y="9" width="11" height="11" rx="0.75" fill="#171717"/>
 </svg>

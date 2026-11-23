@@ -457,7 +457,9 @@ class Panel(Gtk.Window):
 
         prefs = load_kv("taskbar", {"task_view": "1", "clock_date": "1", "bell": "1"})
         if truthy(prefs.get("task_view"), True):
-            self.task_view_button.show()
+            # show_all: no_show_all skipped this button during panel show_all,
+            # so show() alone would leave the icon child invisible.
+            self.task_view_button.show_all()
         else:
             self.task_view_button.hide()
         if truthy(prefs.get("clock_date"), True):
