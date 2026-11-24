@@ -1,5 +1,10 @@
 # FosOS release notes
 
+## FosOS theme 0.7.8 — Splash spacing; no bottom watermark
+
+- More space between Dawn Aperture mark and spinner on the Plymouth splash
+- Transparent watermark so a second small logo no longer appears at the bottom
+
 ## FosOS theme 0.7.7 — Smaller Plymouth spinner
 
 - Boot / shut down / restart splash spinner halved (~64px diameter, was ~128px)

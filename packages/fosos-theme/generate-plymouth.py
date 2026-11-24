@@ -34,13 +34,13 @@ FG_DIM = (250, 250, 250, 51)
 
 # Sized for 1080p+ / HiDPI laptops: logo ~280px, spinner ~64px diameter.
 # Compact frame so logo+spinner read as one centred unit.
-FRAME_W, FRAME_H = 480, 520
+FRAME_W, FRAME_H = 480, 560
 LOGO_TARGET = 280
 SPINNER_RADIUS = 32
 SPINNER_LINE = 5
 LOGO_TOP = 36
-# Spinner centre sits just under the mark.
-SPINNER_CY = LOGO_TOP + LOGO_TARGET + 28
+# ~48px clear air between mark bottom and spinner top (radius 32).
+SPINNER_CY = LOGO_TOP + LOGO_TARGET + 80
 
 
 def _mark_image(logo_path: Path) -> Image.Image:
@@ -108,15 +108,10 @@ def main() -> None:
     # Keep animation frames branded too (end-animation / future toggles).
     _write_logo_spinner_sequence(mark, "animation", 36)
 
-    # Small bottom watermark (Debian's plymouth hook may overwrite this for
-    # two-step themes; zz-fosos-plymouth restores our copy into the initramfs).
-    wm = Image.new("RGBA", (160, 160), (0, 0, 0, 0))
-    mw, mh = mark.size
-    scale = 120 / max(mw, mh)
-    tw, th = max(1, int(mw * scale)), max(1, int(mh * scale))
-    scaled = mark.resize((tw, th), Image.Resampling.LANCZOS)
-    wm.paste(scaled, ((160 - tw) // 2, (160 - th) // 2), scaled)
-    wm.save(OUT / "watermark.png")
+    # two-step always draws watermark.png near the bottom; keep a fully
+    # transparent placeholder so only the centred throbber (logo+spinner)
+    # is visible. zz-fosos-plymouth restores this after Debian's plymouth hook.
+    Image.new("RGBA", (1, 1), (0, 0, 0, 0)).save(OUT / "watermark.png")
 
     if SPINNER.is_dir():
         for name in (

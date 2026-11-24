@@ -1,7 +1,8 @@
 #!/bin/sh
 # Run after the plymouth hook: restore FosOS theme assets that Debian's
-# plymouth initramfs hook overwrites for two-step themes (watermark.png),
-# and ship Liberation Sans so shutdown/reboot titles render in the initramfs.
+# plymouth initramfs hook overwrites for two-step themes (transparent
+# watermark.png — logo lives in throbber frames only), and ship Liberation
+# Sans so shutdown/reboot titles render in the initramfs.
 set -e
 
 PREREQ="plymouth"
