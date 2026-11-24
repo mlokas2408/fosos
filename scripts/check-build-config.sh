@@ -48,6 +48,7 @@ required_files=(
   "$repo_root/packages/fosos-archive-keyring/usr/libexec/fosos-enable-archive"
   "$repo_root/build/live-build/config/hooks/normal/0150-fosos-archive-source.hook.chroot"
   "$repo_root/build/live-build/config/hooks/normal/0160-fosos-locales.hook.chroot"
+  "$repo_root/build/live-build/config/hooks/normal/0170-fosos-quiet-boot.hook.chroot"
   "$repo_root/packages/fosos-archive-keyring/usr/share/keyrings/fosos-archive-keyring.gpg"
   "$repo_root/packages/fosos-cli/DEBIAN/control"
   "$repo_root/packages/fosos-cli/usr/bin/fos"
@@ -230,8 +231,39 @@ if grep -qE 'greybird-gtk-theme|elementary-xfce-icon-theme' \
   echo "Phase 7c: fosos-theme must not Depend on greybird or elementary-xfce." >&2
   exit 1
 fi
-if ! grep -q '^Version: 0\.6\.' "$repo_root/packages/fosos-theme/DEBIAN/control"; then
-  echo "Phase 7c: fosos-theme should be 0.6.x after dropping greybird/elementary." >&2
+if ! grep -qE '^Version: 0\.[7-9]\.|^Version: [1-9]' "$repo_root/packages/fosos-theme/DEBIAN/control"; then
+  echo "fosos-theme should be 0.7.x+ (graphical Plymouth + quiet GRUB)." >&2
+  exit 1
+fi
+
+if ! grep -q 'ModuleName=two-step' \
+  "$repo_root/packages/fosos-theme/usr/share/plymouth/themes/fosos/fosos.plymouth"; then
+  echo "fosos Plymouth theme must use two-step (logo + spinner), not text." >&2
+  exit 1
+fi
+
+if [[ ! -f "$repo_root/packages/fosos-theme/usr/share/plymouth/themes/fosos/animation-0001.png" ]]; then
+  echo "fosos Plymouth theme is missing animation frames (run generate-plymouth.py)." >&2
+  exit 1
+fi
+
+if [[ ! -f "$repo_root/packages/fosos-theme/etc/default/grub.d/fosos-boot.cfg" ]]; then
+  echo "fosos-theme must ship /etc/default/grub.d/fosos-boot.cfg for quiet boot." >&2
+  exit 1
+fi
+
+if [[ ! -f "$repo_root/packages/fosos-theme/usr/share/grub/themes/fosos/theme.txt" ]]; then
+  echo "fosos-theme must ship the installed GRUB theme." >&2
+  exit 1
+fi
+
+if ! grep -qE -- 'quiet splash' "$repo_root/scripts/build-iso.sh"; then
+  echo "build-iso.sh bootappend-live must include quiet splash." >&2
+  exit 1
+fi
+
+if [[ ! -f "$repo_root/build/live-build/config/hooks/normal/0170-fosos-quiet-boot.hook.chroot" ]]; then
+  echo "Missing 0170-fosos-quiet-boot.hook.chroot (Plymouth in initramfs)." >&2
   exit 1
 fi
 

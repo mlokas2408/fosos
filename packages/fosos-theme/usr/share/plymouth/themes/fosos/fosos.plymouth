@@ -1,9 +1,61 @@
 [Plymouth Theme]
 Name=FosOS
-Description=FosOS boot splash (Dawn Aperture)
-ModuleName=text
+Description=FosOS boot splash — Dawn Aperture logo and spinner
+ModuleName=two-step
 
-[text]
-title=FosOS
-black=0x0a0a0a
-white=0xfafafa
+[two-step]
+Font=Inter 11
+TitleFont=Inter 11
+ImageDir=/usr/share/plymouth/themes/fosos
+DialogHorizontalAlignment=.5
+DialogVerticalAlignment=.5
+TitleHorizontalAlignment=.5
+TitleVerticalAlignment=.4
+HorizontalAlignment=.5
+VerticalAlignment=.5
+WatermarkHorizontalAlignment=.5
+WatermarkVerticalAlignment=.96
+Transition=none
+TransitionDuration=0.0
+BackgroundStartColor=0x0a0a0a
+BackgroundEndColor=0x0a0a0a
+ProgressBarBackgroundColor=0x404040
+ProgressBarForegroundColor=0xfafafa
+MessageBelowAnimation=false
+
+[boot-up]
+UseEndAnimation=false
+
+[shutdown]
+UseEndAnimation=false
+
+[reboot]
+UseEndAnimation=false
+
+[updates]
+SuppressMessages=true
+ProgressBarShowPercentComplete=true
+UseProgressBar=true
+Title=Installing Updates...
+SubTitle=Do not turn off your computer
+
+[system-upgrade]
+SuppressMessages=true
+ProgressBarShowPercentComplete=true
+UseProgressBar=true
+Title=Upgrading System...
+SubTitle=Do not turn off your computer
+
+[firmware-upgrade]
+SuppressMessages=true
+ProgressBarShowPercentComplete=true
+UseProgressBar=true
+Title=Upgrading Firmware...
+SubTitle=Do not turn off your computer
+
+[system-reset]
+SuppressMessages=true
+ProgressBarShowPercentComplete=true
+UseProgressBar=true
+Title=Resetting System...
+SubTitle=Do not turn off your computer

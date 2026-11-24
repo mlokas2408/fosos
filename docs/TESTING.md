@@ -64,7 +64,7 @@ the soak log.
 
 | ID | Check |
 | --- | --- |
-| A01 | GRUB: Dawn Aperture splash, FosOS title, dark menu, **FosOS Live** entry |
+| A01 | After firmware logo: no blue GRUB / no boot console text; Dawn Aperture Plymouth logo+spinner until greeter (Shift shows GRUB). Live ISO also shows FosOS Live menu when Shift held. |
 | A02 | Live boots and autologins to **FosOS Desktop** (taskbar, Start, wallpaper) |
 | A03 | Mouse and keyboard work in the live session |
 | A04 | Sign out → greeter is two-column FosOS Sign in (not gtk-greeter / Greybird) |

@@ -1,5 +1,16 @@
 # FosOS release notes
 
+## FosOS theme 0.7.0 — Quiet boot (logo + spinner)
+
+- After the firmware logo: hidden GRUB (Shift shows menu), Dawn Aperture
+  splash theme, then graphical Plymouth (logo + spinner on `#0a0a0a`) until
+  the greeter — no blue menu or boot console text by default
+- Kernel cmdline: `quiet splash loglevel=3 rd.udev.log_level=3
+  vt.global_cursor_default=0` via `/etc/default/grub.d/fosos-boot.cfg`
+- Plymouth theme switched from text to `two-step`; postinst runs
+  `plymouth-set-default-theme -R` so the splash is in the initramfs
+- Live `bootappend` matches; image hook rebuilds Plymouth into the squashfs
+
 ## FosOS installer 1.0.4 / CLI 0.2.6 — UEFI Secure Boot
 
 - Live image: `--uefi-secure-boot enable`; ship `shim-signed`,

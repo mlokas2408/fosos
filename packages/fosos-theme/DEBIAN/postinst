@@ -3,8 +3,22 @@ set -e
 
 case "$1" in
 configure)
+	# Graphical Plymouth (logo + spinner). -R rebuilds initramfs so splash
+	# appears before the root filesystem is mounted.
 	if command -v plymouth-set-default-theme >/dev/null 2>&1; then
-		plymouth-set-default-theme fosos || true
+		if plymouth-set-default-theme -R fosos >/dev/null 2>&1; then
+			:
+		else
+			plymouth-set-default-theme fosos >/dev/null 2>&1 || true
+			if command -v update-initramfs >/dev/null 2>&1; then
+				update-initramfs -u >/dev/null 2>&1 || true
+			fi
+		fi
+	fi
+
+	# Apply quiet GRUB theme / hidden menu on installed systems.
+	if command -v update-grub >/dev/null 2>&1 && [ -d /boot/grub ]; then
+		update-grub >/dev/null 2>&1 || true
 	fi
 	;;
 esac

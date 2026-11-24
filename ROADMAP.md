@@ -61,12 +61,12 @@ See [DESKTOP.md](docs/DESKTOP.md) and [ISO-SIZE.md](docs/ISO-SIZE.md).
 Prioritized. Prefer Windows *behavior* over Windows *pixels*; keep square
 FosOS cards, Dawn Aperture, Inter. Prefer baremetal soak over Hyper-V.
 
-### 0 — Baremetal release hardening — partial (1.13.20)
+### 0 — Baremetal release hardening — partial (1.13.20 / theme 0.7.0)
 
-ThinkPad T14 retest: **F04** / **G04** cleared (no open `fail` rows). Still
-open on hardware: greeter sign-out round-trip, suspend/resume, Network
-flyout join, Files trash/clipboard. `fos upgrade` now uses `full-upgrade`
-(fosos-cli 0.2.6).
+ThinkPad T14 retest: **F04** / **G04** cleared (no open `fail` rows).
+Quiet boot (hidden GRUB + logo/spinner Plymouth) in `fosos-theme` 0.7.0.
+Still open on hardware: greeter sign-out, suspend/resume, Network flyout
+join, Files trash/clipboard. `fos upgrade` uses `full-upgrade` (cli 0.2.6).
 
 ### 1 — Start menu and search polish — done (1.7.0)
 

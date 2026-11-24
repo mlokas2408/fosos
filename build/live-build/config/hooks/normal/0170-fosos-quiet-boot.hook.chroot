@@ -1,0 +1,22 @@
+#!/bin/sh
+# Ensure the live/installed squashfs boots logo+spinner (not a text console).
+# fosos-theme postinst also does this; the hook covers image builds where
+# dpkg configure order might skip a full initramfs rebuild.
+set -eu
+
+if ! command -v plymouth-set-default-theme >/dev/null 2>&1; then
+  echo "plymouth-set-default-theme missing; install plymouth in the package list." >&2
+  exit 1
+fi
+
+if [ ! -f /usr/share/plymouth/themes/fosos/fosos.plymouth ]; then
+  echo "FosOS Plymouth theme missing; install fosos-theme before this hook." >&2
+  exit 1
+fi
+
+plymouth-set-default-theme -R fosos
+
+if [ ! -f /etc/default/grub.d/fosos-boot.cfg ]; then
+  echo "fosos-boot.cfg missing from fosos-theme." >&2
+  exit 1
+fi
