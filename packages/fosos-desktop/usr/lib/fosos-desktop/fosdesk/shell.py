@@ -88,6 +88,9 @@ class Shell(Gtk.Application):
     def _startup(self) -> None:
         Gtk.Application.do_startup(self)
         GLib.set_prgname("fosos-shell")
+        from .settings_pages import restore_session_region
+
+        restore_session_region()
         load_css()
         self.pinned = appmod.Pinned()
         self.pinned.listeners.append(self._on_pins_changed)
@@ -493,11 +496,19 @@ class Shell(Gtk.Application):
 
     def reload_ui(self) -> None:
         """Re-apply desktop / taskbar prefs after Settings changes."""
+        from .settings_pages import restore_session_region
+
+        restore_session_region()
         if getattr(self, "desktop", None) is not None:
             self.desktop.refresh()
         for panel in self.panels:
             panel.apply_prefs()
             panel.refresh_keyboard()
+            panel.update_clock()
+        for name in ("clock", "notifications"):
+            popup = self.popups.get(name) if hasattr(self, "popups") else None
+            if popup is not None and popup.get_visible() and hasattr(popup, "refresh"):
+                popup.refresh()
 
     def switch_workspace(self, index: int) -> None:
         screen = Wnck.Screen.get_default()

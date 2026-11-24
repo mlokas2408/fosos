@@ -31,6 +31,30 @@ def run(argv: list[str], timeout: float = 2.0) -> str | None:
     return result.stdout
 
 
+def run_ok(argv: list[str], timeout: float = 2.0) -> bool:
+    """Like run(), but success is returncode 0 (stdout may be empty)."""
+    if shutil.which(argv[0]) is None:
+        return False
+    try:
+        result = subprocess.run(argv, capture_output=True, text=True, timeout=timeout, check=False)
+    except (OSError, subprocess.TimeoutExpired):
+        return False
+    return result.returncode == 0
+
+
+def set_volume(level: int) -> bool:
+    """Set default sink volume 0–100%. wpctl global options must precede the command."""
+    level = max(0, min(100, int(level)))
+    # WirePlumber: `wpctl [OPTION] set-volume ID VOL` — `-l` before the verb.
+    if run_ok(["wpctl", "-l", "1.0", "set-volume", SINK, f"{level}%"]):
+        return True
+    return run_ok(["wpctl", "set-volume", SINK, f"{level}%"])
+
+
+def toggle_mute() -> bool:
+    return run_ok(["wpctl", "set-mute", SINK, "toggle"])
+
+
 def run_async(argv: list[str], done=None) -> None:
     """Run without blocking the shell. `done(ok, output)` runs on completion."""
     if shutil.which(argv[0]) is None:
@@ -134,11 +158,13 @@ class VolumePopup(Popup):
             return
         level = int(scale.get_value())
         self.percent.set_text(f"{level}%")
-        run(["wpctl", "set-volume", "-l", "1.0", SINK, f"{level / 100:.2f}"])
+        if not set_volume(level):
+            self.status.set_text("Could not change volume.")
         self.shell.update_status()
 
     def _toggle_mute(self) -> None:
-        run(["wpctl", "set-mute", SINK, "toggle"])
+        if not toggle_mute():
+            self.status.set_text("Could not toggle mute.")
         self.refresh()
 
     def _open_settings(self) -> None:
@@ -594,9 +620,11 @@ class ClockPopup(Popup):
         frame.pack_start(body, True, True, 0)
 
     def refresh(self) -> None:
+        from .region import format_date_full, format_weekday
+
         now = GLib.DateTime.new_now_local()
-        self.day.set_text(now.format("%A"))
-        self.date.set_text(now.format("%-d %B %Y"))
+        self.day.set_text(format_weekday())
+        self.date.set_text(format_date_full())
         self.calendar.select_month(now.get_month() - 1, now.get_year())
         self.calendar.select_day(now.get_day_of_month())
 
@@ -627,8 +655,8 @@ def battery_present() -> bool:
     return False
 
 
-def battery_state() -> tuple[str, str] | None:
-    """Return (icon, tooltip) for the first battery, or None if none."""
+def battery_state() -> tuple[str, str, int] | None:
+    """Return (icon, tooltip, capacity%) for the first battery, or None if none."""
     if not POWER_SUPPLY.is_dir():
         return None
     for path in sorted(POWER_SUPPLY.iterdir()):
@@ -662,7 +690,7 @@ def battery_state() -> tuple[str, str] | None:
             tip = f"Battery · {capacity}%"
         else:
             tip = f"Battery · {capacity}%"
-        return icon_name, tip
+        return icon_name, tip, int(capacity)
     return None
 
 
@@ -692,7 +720,7 @@ class BatteryPopup(Popup):
             self.status.set_text("No battery")
             self.detail.set_text("This machine has no battery, or it is not reported.")
         else:
-            _icon, tip = state
+            _icon, tip, _capacity = state
             self.status.set_text(tip)
             self.detail.set_text("Screen blank and suspend are under Power settings.")
         self.shell.update_status()
@@ -716,43 +744,57 @@ def brightness_available() -> bool:
     return backlight_device() is not None or shutil.which("brightnessctl") is not None
 
 
+def _parse_brightnessctl_percent(output: str) -> int | None:
+    """Parse `brightnessctl -m info`. Debian 0.5.x is device,class,current,percent,max."""
+    fields = output.strip().split(",")
+    # Prefer the field that ends with '%'.
+    for field in fields:
+        if field.endswith("%"):
+            raw = field[:-1]
+            if raw.isdigit():
+                return max(0, min(100, int(raw)))
+    # Legacy 6-field layout: …,current,percent,max
+    if len(fields) >= 6:
+        percent = fields[4].rstrip("%")
+        if percent.isdigit():
+            return max(0, min(100, int(percent)))
+    return None
+
+
 def read_brightness() -> int | None:
     """Return brightness as 0–100, or None if unavailable."""
+    # Prefer sysfs when present — reliable percent without CLI format drift.
+    device = backlight_device()
+    if device is not None:
+        current = _read_int(device / "brightness")
+        maximum = _read_int(device / "max_brightness")
+        if current is not None and maximum:
+            return max(0, min(100, round(100 * current / maximum)))
     if shutil.which("brightnessctl"):
         output = run(["brightnessctl", "-m", "info"])
         if output:
-            # brightnessctl -m: device,type,class,current,percent,max
-            fields = output.strip().split(",")
-            if len(fields) >= 5:
-                percent = fields[4].rstrip("%")
-                if percent.isdigit():
-                    return max(0, min(100, int(percent)))
-    device = backlight_device()
-    if device is None:
-        return None
-    current = _read_int(device / "brightness")
-    maximum = _read_int(device / "max_brightness")
-    if current is None or not maximum:
-        return None
-    return max(0, min(100, round(100 * current / maximum)))
+            parsed = _parse_brightnessctl_percent(output)
+            if parsed is not None:
+                return parsed
+    return None
 
 
-def set_brightness(percent: int) -> None:
+def set_brightness(percent: int) -> bool:
     percent = max(1, min(100, int(percent)))
-    if shutil.which("brightnessctl"):
-        run(["brightnessctl", "set", f"{percent}%"])
-        return
+    if shutil.which("brightnessctl") and run_ok(["brightnessctl", "set", f"{percent}%"]):
+        return True
     device = backlight_device()
     if device is None:
-        return
+        return False
     maximum = _read_int(device / "max_brightness")
     if not maximum:
-        return
+        return False
     value = max(1, min(maximum, round(maximum * percent / 100)))
     try:
         (device / "brightness").write_text(str(value), encoding="utf-8")
+        return True
     except OSError:
-        pass
+        return False
 
 
 def brightness_icon(_level: int) -> str:
@@ -810,8 +852,11 @@ class BrightnessPopup(Popup):
             return
         level = int(scale.get_value())
         self.percent.set_text(f"{level}%")
-        set_brightness(level)
-        self.icon_button.get_child().set_from_icon_name(brightness_icon(level), Gtk.IconSize.MENU)
+        if not set_brightness(level):
+            self.status.set_text("Could not change brightness.")
+        child = self.icon_button.get_child()
+        if isinstance(child, Gtk.Image):
+            child.set_from_icon_name(brightness_icon(level), Gtk.IconSize.MENU)
         self.shell.update_status()
 
     def _open_settings(self) -> None:

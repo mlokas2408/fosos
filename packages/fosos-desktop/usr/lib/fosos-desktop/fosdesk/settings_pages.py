@@ -322,6 +322,96 @@ def build_keyboard(status_cb) -> Gtk.Box:
     return root
 
 
+def build_region(status_cb) -> Gtk.Box:
+    from . import apps as appmod
+    from .region import (
+        apply_locale,
+        current_locale,
+        format_date_full,
+        format_date_short,
+        format_number,
+        format_time,
+        locale_choices,
+        write_user_locale_conf,
+    )
+
+    root = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=16)
+    root.pack_start(
+        pack_header(
+            "Region",
+            "Formats for the calendar, clock, dates and numbers. Uses locales already "
+            "generated on this system (sudo dpkg-reconfigure locales to add more).",
+        ),
+        False,
+        False,
+        0,
+    )
+
+    prefs = load_kv("region", {})
+    selected = prefs.get("locale", "").strip() or current_locale()
+    choices = locale_choices()
+    codes = [code for code, _label in choices]
+    if selected not in codes:
+        choices.insert(0, (selected, selected))
+        codes.insert(0, selected)
+
+    row = Gtk.Box(spacing=12)
+    row.pack_start(label("Regional format", "fos-text", "fos-strong"), False, False, 0)
+    combo = Gtk.ComboBoxText()
+    for code, text in choices:
+        combo.append(code, text)
+    combo.set_active_id(selected)
+    combo.set_hexpand(True)
+    row.pack_start(combo, True, True, 0)
+    root.pack_start(row, False, False, 0)
+
+    preview = label("", "fos-text", "fos-muted")
+    preview.set_line_wrap(True)
+    root.pack_start(preview, False, False, 0)
+
+    def refresh_preview(_combo=None) -> None:
+        code = combo.get_active_id() or selected
+        # Preview without permanently switching until Apply.
+        previous = current_locale()
+        if apply_locale(code):
+            preview.set_text(
+                f"Preview: {format_time()} · {format_date_short()} · {format_date_full()} · "
+                f"1 234,56 → {format_number(1234.56)}"
+            )
+            apply_locale(previous)
+        else:
+            preview.set_text(f"Locale {code} is not available on this system.")
+
+    combo.connect("changed", refresh_preview)
+    refresh_preview()
+
+    def apply(_button=None) -> None:
+        code = combo.get_active_id()
+        if not code:
+            status_cb("Choose a regional format.")
+            return
+        if not apply_locale(code):
+            status_cb(f"Could not apply {code}. Generate it with: sudo dpkg-reconfigure locales")
+            return
+        save_kv("region", {"locale": code})
+        write_user_locale_conf(code)
+        appmod.spawn(["fosos-shell", "--reload-ui"])
+        refresh_preview()
+        status_cb(f"Region set to {code}. Clock and calendar updated.")
+
+    apply_btn = button("Apply", variant="default")
+    apply_btn.connect("clicked", apply)
+    root.pack_start(apply_btn, False, False, 0)
+    tip = label(
+        "New apps pick up the format after you sign out and back in.",
+        "fos-small",
+        "fos-muted",
+    )
+    tip.set_line_wrap(True)
+    root.pack_start(tip, False, False, 0)
+    return root
+
+
 def build_mouse(status_cb) -> Gtk.Box:
     root = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=16)
     root.pack_start(
@@ -748,23 +838,291 @@ def build_tool_page(title: str, subtitle: str, command: list[str], button_label:
 
 
 def build_display(status_cb) -> Gtk.Box:
-    return build_tool_page(
-        "Display",
-        "Arrange monitors, set resolution and orientation.",
-        ["arandr"],
-        "Open display layout",
-        status_cb,
+    from . import apps as appmod
+    from .indicators import brightness_available, read_brightness, set_brightness
+    from .settings_helpers import (
+        list_displays,
+        set_display_mode,
+        set_display_primary,
+        set_display_rotation,
+        settings_row,
+        settings_section,
     )
+
+    root = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=16)
+    root.pack_start(
+        pack_header("Display", "Brightness, resolution and orientation for connected monitors."),
+        False,
+        False,
+        0,
+    )
+
+    if brightness_available():
+        bright_scale = add_classes(
+            Gtk.Scale.new_with_range(Gtk.Orientation.HORIZONTAL, 1, 100, 1),
+            "fos-scale",
+        )
+        bright_scale.set_draw_value(True)
+        bright_scale.set_size_request(180, -1)
+        level = read_brightness()
+        if level is not None:
+            bright_scale.set_value(level)
+
+        def on_bright(scale: Gtk.Scale) -> None:
+            set_brightness(int(scale.get_value()))
+            status_cb(f"Brightness {int(scale.get_value())}%")
+
+        bright_scale.connect("value-changed", on_bright)
+        root.pack_start(
+            settings_section(
+                "Brightness & color",
+                settings_row(
+                    "Brightness",
+                    "Built-in display backlight",
+                    trailing=bright_scale,
+                    icon_name="display-brightness-symbolic",
+                ),
+            ),
+            False,
+            False,
+            0,
+        )
+
+    displays = [d for d in list_displays() if d.connected]
+    if not displays:
+        root.pack_start(
+            label("No connected displays were reported by xrandr.", "fos-text", "fos-muted"),
+            False,
+            False,
+            0,
+        )
+    for display in displays:
+        title = display.name + (" (primary)" if display.primary else "")
+        rows: list[Gtk.Widget] = []
+        guard = {"ready": False}
+
+        mode_combo = Gtk.ComboBoxText()
+        modes = display.modes or ([display.current] if display.current else [])
+        for mode in modes:
+            mode_combo.append(mode, mode)
+        if display.current:
+            mode_combo.set_active_id(display.current)
+        elif modes:
+            mode_combo.set_active(0)
+
+        def on_mode(_combo, name=display.name, combo=mode_combo, g=guard) -> None:
+            if not g["ready"]:
+                return
+            mode = combo.get_active_id()
+            if mode and set_display_mode(name, mode):
+                status_cb(f"{name} → {mode}")
+            else:
+                status_cb(f"Could not set resolution on {name}.")
+
+        mode_combo.connect("changed", on_mode)
+        rows.append(
+            settings_row(
+                "Display resolution",
+                "Recommended modes for this monitor",
+                trailing=mode_combo,
+            )
+        )
+
+        rot_combo = Gtk.ComboBoxText()
+        for code, text in (
+            ("normal", "Landscape"),
+            ("left", "Portrait (left)"),
+            ("right", "Portrait (right)"),
+            ("inverted", "Landscape (flipped)"),
+        ):
+            rot_combo.append(code, text)
+        rot_combo.set_active_id(display.rotation if display.rotation in ("normal", "left", "right", "inverted") else "normal")
+
+        def on_rot(_combo, name=display.name, combo=rot_combo, g=guard) -> None:
+            if not g["ready"]:
+                return
+            rot = combo.get_active_id()
+            if rot and set_display_rotation(name, rot):
+                status_cb(f"{name} orientation updated.")
+            else:
+                status_cb(f"Could not rotate {name}.")
+
+        rot_combo.connect("changed", on_rot)
+        rows.append(settings_row("Display orientation", "Rotate this monitor", trailing=rot_combo))
+        guard["ready"] = True
+
+        if not display.primary:
+            make_primary = button("Set as main display", variant="outline", size="sm")
+
+            def on_primary(_b, name=display.name) -> None:
+                if set_display_primary(name):
+                    status_cb(f"{name} is now the main display. Reopen Display to refresh.")
+                else:
+                    status_cb(f"Could not set {name} as primary.")
+
+            make_primary.connect("clicked", on_primary)
+            rows.append(settings_row("Multiple displays", "Use this monitor as the main display", trailing=make_primary))
+
+        root.pack_start(settings_section(title, *rows), False, False, 0)
+
+    advanced = Gtk.Box(spacing=8)
+    if shutil.which("arandr"):
+        layout_btn = button("Rearrange displays", variant="outline", size="sm")
+        layout_btn.connect(
+            "clicked",
+            lambda _b: status_cb("Opened display layout.")
+            if appmod.spawn(["arandr"])
+            else status_cb("Display layout tool is not available."),
+        )
+        advanced.pack_start(layout_btn, False, False, 0)
+    tip = label(
+        "Use Rearrange displays for multi-monitor positions. Changes apply immediately.",
+        "fos-small",
+        "fos-muted",
+    )
+    tip.set_line_wrap(True)
+    root.pack_start(advanced, False, False, 0)
+    root.pack_start(tip, False, False, 0)
+    return root
 
 
 def build_sound(status_cb) -> Gtk.Box:
-    return build_tool_page(
-        "Sound",
-        "Choose output and input devices and levels.",
-        ["pavucontrol"],
-        "Open volume control",
-        status_cb,
+    from . import apps as appmod
+    from .indicators import read_volume, set_volume, toggle_mute, volume_icon
+    from .settings_helpers import list_audio_nodes, set_default_audio, settings_row, settings_section
+
+    root = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=16)
+    root.pack_start(
+        pack_header("Sound", "Output volume, mute and default devices."),
+        False,
+        False,
+        0,
     )
+
+    vol_box = Gtk.Box(spacing=8)
+    mute_btn = button(icon_name="audio-volume-high-symbolic", size="icon-sm", tooltip="Mute")
+    vol_scale = add_classes(Gtk.Scale.new_with_range(Gtk.Orientation.HORIZONTAL, 0, 100, 1), "fos-scale")
+    vol_scale.set_draw_value(True)
+    vol_scale.set_size_request(200, -1)
+    vol_box.pack_start(mute_btn, False, False, 0)
+    vol_box.pack_start(vol_scale, True, True, 0)
+    updating = {"on": False}
+
+    def refresh_volume() -> None:
+        state = read_volume()
+        updating["on"] = True
+        if state is None:
+            vol_scale.set_sensitive(False)
+            mute_btn.set_sensitive(False)
+            status_cb("Sound is not available.")
+        else:
+            level, muted = state
+            vol_scale.set_sensitive(True)
+            mute_btn.set_sensitive(True)
+            vol_scale.set_value(min(level, 100))
+            child = mute_btn.get_child()
+            if isinstance(child, Gtk.Image):
+                child.set_from_icon_name(volume_icon(level, muted), Gtk.IconSize.MENU)
+            mute_btn.set_tooltip_text("Unmute" if muted else "Mute")
+        updating["on"] = False
+
+    def on_vol(scale: Gtk.Scale) -> None:
+        if updating["on"]:
+            return
+        level = int(scale.get_value())
+        if set_volume(level):
+            status_cb(f"Volume {level}%")
+        else:
+            status_cb("Could not change volume.")
+        refresh_volume()
+
+    def on_mute(_b) -> None:
+        if toggle_mute():
+            status_cb("Mute toggled.")
+        else:
+            status_cb("Could not toggle mute.")
+        refresh_volume()
+
+    vol_scale.connect("value-changed", on_vol)
+    mute_btn.connect("clicked", on_mute)
+    refresh_volume()
+    root.pack_start(
+        settings_section(
+            "Output",
+            settings_row("Volume", "Master output level", trailing=vol_box, icon_name="audio-volume-high-symbolic"),
+        ),
+        False,
+        False,
+        0,
+    )
+
+    sinks = list_audio_nodes("Sinks")
+    if sinks:
+        sink_combo = Gtk.ComboBoxText()
+        for node in sinks:
+            sink_combo.append(node.id, node.name)
+            if node.default:
+                sink_combo.set_active_id(node.id)
+        if sink_combo.get_active_id() is None and sinks:
+            sink_combo.set_active(0)
+
+        def on_sink(_combo) -> None:
+            node_id = sink_combo.get_active_id()
+            if node_id and set_default_audio(node_id):
+                status_cb("Output device updated.")
+                refresh_volume()
+            else:
+                status_cb("Could not change output device.")
+
+        sink_combo.connect("changed", on_sink)
+        root.pack_start(
+            settings_section(
+                "Choose your output device",
+                settings_row("Output device", "Speakers or headphones", trailing=sink_combo),
+            ),
+            False,
+            False,
+            0,
+        )
+
+    sources = list_audio_nodes("Sources")
+    if sources:
+        source_combo = Gtk.ComboBoxText()
+        for node in sources:
+            source_combo.append(node.id, node.name)
+            if node.default:
+                source_combo.set_active_id(node.id)
+        if source_combo.get_active_id() is None and sources:
+            source_combo.set_active(0)
+
+        def on_source(_combo) -> None:
+            node_id = source_combo.get_active_id()
+            if node_id and set_default_audio(node_id):
+                status_cb("Input device updated.")
+            else:
+                status_cb("Could not change input device.")
+
+        source_combo.connect("changed", on_source)
+        root.pack_start(
+            settings_section(
+                "Input",
+                settings_row("Input device", "Microphone", trailing=source_combo, icon_name="audio-input-microphone-symbolic"),
+            ),
+            False,
+            False,
+            0,
+        )
+
+    if shutil.which("pavucontrol"):
+        more = button("More sound settings", variant="outline", size="sm")
+        more.connect(
+            "clicked",
+            lambda _b: status_cb("Opened volume control.")
+            if appmod.spawn(["pavucontrol"])
+            else status_cb("Volume control is not available."),
+        )
+        root.pack_start(more, False, False, 0)
+    return root
 
 
 def build_network(status_cb) -> Gtk.Box:
@@ -1316,48 +1674,169 @@ def build_remote_desktop(status_cb) -> Gtk.Box:
 
 
 def build_power(status_cb) -> Gtk.Box:
+    from .indicators import (
+        battery_present,
+        battery_state,
+        brightness_available,
+        read_brightness,
+        set_brightness,
+    )
+    from .settings_helpers import hibernate_available, settings_row, settings_section
+
     root = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=16)
     root.pack_start(
-        pack_header("Power", "Idle blanking for this session. Lid actions follow systemd-logind."),
+        pack_header("Power", "Screen, sleep, battery and power actions."),
         False,
         False,
         0,
     )
 
+    if battery_present():
+        batt = battery_state()
+        tip = batt[1] if batt else "Battery"
+        capacity = f"{batt[2]}%" if batt else "—"
+        root.pack_start(
+            settings_section(
+                "Battery",
+                settings_row(
+                    "Battery status",
+                    tip,
+                    trailing=label(capacity, "fos-text", "fos-strong"),
+                    icon_name="battery-good-symbolic",
+                ),
+            ),
+            False,
+            False,
+            0,
+        )
+
+    if brightness_available():
+        bright_scale = add_classes(
+            Gtk.Scale.new_with_range(Gtk.Orientation.HORIZONTAL, 1, 100, 1),
+            "fos-scale",
+        )
+        bright_scale.set_draw_value(True)
+        bright_scale.set_size_request(160, -1)
+        level = read_brightness()
+        if level is not None:
+            bright_scale.set_value(level)
+
+        def on_bright(scale: Gtk.Scale) -> None:
+            set_brightness(int(scale.get_value()))
+
+        bright_scale.connect("value-changed", on_bright)
+        root.pack_start(
+            settings_section(
+                "Brightness",
+                settings_row("Screen brightness", "Also available on the taskbar", trailing=bright_scale),
+            ),
+            False,
+            False,
+            0,
+        )
+
     timeout = idle_timeout_seconds()
-    row = Gtk.Box(spacing=12)
-    row.pack_start(label("Blank screen after", "fos-text"), False, False, 0)
-    scale = add_classes(Gtk.Scale.new_with_range(Gtk.Orientation.HORIZONTAL, 0, 1800, 60), "fos-scale")
-    scale.set_value(timeout)
-    scale.set_hexpand(True)
-    scale.set_draw_value(True)
-    scale.connect("format-value", lambda _s, v: "Off" if int(v) == 0 else f"{int(v)} s")
-    row.pack_start(scale, True, True, 0)
-    root.pack_start(row, False, False, 0)
+    blank_combo = Gtk.ComboBoxText()
+    blank_choices = [
+        (0, "Never"),
+        (60, "1 minute"),
+        (120, "2 minutes"),
+        (300, "5 minutes"),
+        (600, "10 minutes"),
+        (900, "15 minutes"),
+        (1800, "30 minutes"),
+    ]
+    for value, text in blank_choices:
+        blank_combo.append(str(value), text)
+    # Pick nearest saved value.
+    nearest = min(blank_choices, key=lambda item: abs(item[0] - timeout))[0]
+    blank_combo.set_active_id(str(nearest))
 
-    def apply(_button=None) -> None:
-        seconds = int(scale.get_value())
-        apply_idle_timeout(seconds)
+    sleep_combo = Gtk.ComboBoxText()
+    sleep_prefs = load_kv("power", {"blank": "300", "sleep": "0"})
+    sleep_choices = [
+        (0, "Never"),
+        (900, "15 minutes"),
+        (1800, "30 minutes"),
+        (3600, "1 hour"),
+        (7200, "2 hours"),
+    ]
+    for value, text in sleep_choices:
+        sleep_combo.append(str(value), text)
+    try:
+        sleep_saved = int(sleep_prefs.get("sleep", "0"))
+    except ValueError:
+        sleep_saved = 0
+    sleep_nearest = min(sleep_choices, key=lambda item: abs(item[0] - sleep_saved))[0]
+    sleep_combo.set_active_id(str(sleep_nearest))
+
+    def apply_power(_button=None) -> None:
+        try:
+            blank = int(blank_combo.get_active_id() or "0")
+        except ValueError:
+            blank = 0
+        try:
+            sleep = int(sleep_combo.get_active_id() or "0")
+        except ValueError:
+            sleep = 0
+        apply_idle_timeout(blank)
+        # DPMS off time ≈ “sleep” for the display (session-level).
+        if sleep <= 0:
+            subprocess.run(["xset", "dpms", "0", "0", "0"], check=False)
+        else:
+            subprocess.run(["xset", "dpms", str(sleep), str(sleep), str(sleep)], check=False)
         CONFIG.mkdir(parents=True, exist_ok=True)
-        (CONFIG / "power").write_text(f"blank={seconds}\n", encoding="utf-8")
-        status_cb("Idle blanking updated. Screen lock still uses Super+L / xss-lock.")
+        (CONFIG / "power").write_text(f"blank={blank}\nsleep={sleep}\n", encoding="utf-8")
+        status_cb("Power settings saved for this session.")
 
-    apply_btn = button("Apply", variant="default")
-    apply_btn.connect("clicked", apply)
-    root.pack_start(apply_btn, False, False, 0)
+    apply_btn = button("Apply", variant="default", size="sm")
+    apply_btn.connect("clicked", apply_power)
+    root.pack_start(
+        settings_section(
+            "Screen and sleep",
+            settings_row(
+                "Turn off my screen after",
+                "Idle blanking (xset). Lock still uses Super+L / xss-lock.",
+                trailing=blank_combo,
+            ),
+            settings_row(
+                "Make my device sleep after",
+                "Display power management (DPMS). Full system sleep uses Suspend.",
+                trailing=sleep_combo,
+            ),
+            settings_row("Save power settings", "Apply blank and sleep timers", trailing=apply_btn),
+        ),
+        False,
+        False,
+        0,
+    )
 
-    def suspend(_button=None) -> None:
-        status_cb("Suspending…")
-        subprocess.Popen(["systemctl", "suspend"])
-
-    actions = Gtk.Box(spacing=8)
-    suspend_btn = button("Suspend now", variant="outline")
-    suspend_btn.connect("clicked", suspend)
-    actions.pack_start(suspend_btn, False, False, 0)
-    root.pack_start(actions, False, False, 0)
+    actions_box = Gtk.Box(spacing=8)
+    suspend_btn = button("Suspend", variant="outline", size="sm")
+    suspend_btn.connect(
+        "clicked",
+        lambda _b: (status_cb("Suspending…"), subprocess.Popen(["systemctl", "suspend"])),
+    )
+    actions_box.pack_start(suspend_btn, False, False, 0)
+    if hibernate_available():
+        hibernate_btn = button("Hibernate", variant="outline", size="sm")
+        hibernate_btn.connect(
+            "clicked",
+            lambda _b: (status_cb("Hibernating…"), subprocess.Popen(["systemctl", "hibernate"])),
+        )
+        actions_box.pack_start(hibernate_btn, False, False, 0)
+    root.pack_start(
+        settings_section(
+            "Power actions",
+            settings_row("Suspend or hibernate now", "Uses systemd", trailing=actions_box),
+        ),
+        False,
+        False,
+        0,
+    )
 
     tip = label(
-        "Brightness is on the taskbar when a backlight is present.",
+        "Lid close behaviour follows systemd-logind. Change it system-wide if needed.",
         "fos-small",
         "fos-muted",
     )
@@ -1369,6 +1848,7 @@ def build_power(status_cb) -> Gtk.Box:
 PAGES = {
     "keyboard": ("Keyboard", build_keyboard),
     "mouse": ("Mouse and touchpad", build_mouse),
+    "region": ("Region", build_region),
     "defaults": ("Default apps", build_defaults),
     "power": ("Power", build_power),
     "desktop": ("Personalize", build_desktop),
@@ -1385,8 +1865,21 @@ PAGES = {
 }
 
 
+def restore_session_region() -> None:
+    """Apply saved regional locale into this process environment."""
+    from .region import apply_locale, write_user_locale_conf
+
+    prefs = load_kv("region", {})
+    code = prefs.get("locale", "").strip()
+    if not code:
+        return
+    if apply_locale(code):
+        write_user_locale_conf(code)
+
+
 def restore_session_input() -> None:
     """Apply saved keyboard/mouse/power prefs at session start."""
+    restore_session_region()
     keyboard = CONFIG / "keyboard"
     if keyboard.is_file():
         values = dict(
@@ -1419,3 +1912,11 @@ def restore_session_input() -> None:
             apply_idle_timeout(int(values.get("blank", "300")))
         except ValueError:
             pass
+        try:
+            sleep = int(values.get("sleep", "0"))
+        except ValueError:
+            sleep = 0
+        if sleep <= 0:
+            subprocess.run(["xset", "dpms", "0", "0", "0"], check=False)
+        else:
+            subprocess.run(["xset", "dpms", str(sleep), str(sleep), str(sleep)], check=False)

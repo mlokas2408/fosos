@@ -59,8 +59,9 @@ headerbar,
   border-radius: 0;
   box-shadow: none;
   color: @fos_fg;
-  min-height: 40px;
-  padding: 0 8px;
+  /* Compact like Windows 11 titlebars (~32px). */
+  min-height: 32px;
+  padding: 0 6px;
 }
 
 headerbar:backdrop,
@@ -243,17 +244,25 @@ separator {
   min-width: 1px;
 }
 
+/* Dark tooltips — readable on Dawn (matches shell CSS). */
 tooltip,
 tooltip.background {
-  background-color: @fos_fg;
-  border: none;
+  background-color: @fos_muted;
+  background-image: none;
+  border: 1px solid @fos_frame_inactive;
   border-radius: 0;
   box-shadow: none;
-  color: @fos_background;
+  color: @fos_fg;
+  padding: 4px 8px;
+  opacity: 1;
+}
+
+tooltip decoration {
+  background-color: transparent;
 }
 
 tooltip label {
-  color: @fos_background;
+  color: @fos_fg;
 }
 
 frame > border,

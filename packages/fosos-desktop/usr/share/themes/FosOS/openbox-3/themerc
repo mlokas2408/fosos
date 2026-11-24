@@ -4,8 +4,9 @@
 # stay readable (Windows-like frame clarity without leaving Dawn colours).
 
 border.width: 1
-padding.width: 10
-padding.height: 10
+padding.width: 8
+# Vertical padding around title text — keep total chrome ~32px like Win11.
+padding.height: 6
 window.handle.width: 0
 window.client.padding.width: 0
 window.client.padding.height: 0

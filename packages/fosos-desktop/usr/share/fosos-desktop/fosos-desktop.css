@@ -209,10 +209,21 @@ button.fos-btn.size-icon-sm {
   padding: 0;
 }
 
+button.fos-btn.fos-battery-btn {
+  min-width: 0;
+  min-height: 28px;
+  padding: 0 4px;
+}
+
 button.fos-btn.size-icon-xs {
   min-width: 24px;
   min-height: 24px;
   padding: 0;
+}
+
+.fos-app-header button.fos-btn.size-icon-xs {
+  min-width: 36px;
+  min-height: 28px;
 }
 
 button.fos-btn.tile {
@@ -742,18 +753,93 @@ calendar.fos-calendar.highlight {
   border-right: 1px solid @fos_border;
 }
 
+/* Full-screen Settings shell (Windows 11–like navigation) */
+.fos-settings-root {
+  background-color: @fos_background;
+}
+
+.fos-settings-nav {
+  background-color: alpha(@fos_card, 0.92);
+  border-right: 1px solid @fos_frame_inactive;
+}
+
+.fos-settings-nav-list {
+  padding-bottom: 8px;
+}
+
+button.fos-btn.fos-settings-nav-item {
+  min-height: 36px;
+  padding: 0 10px;
+}
+
+button.fos-btn.fos-settings-nav-item.secondary {
+  background-color: alpha(@fos_fg, 0.10);
+  border-color: transparent;
+}
+
+.fos-settings-main {
+  background-color: @fos_background;
+}
+
+.fos-settings-toolbar {
+  padding: 16px 24px 8px;
+  border-bottom: 1px solid @fos_border;
+}
+
+.fos-settings-content {
+  padding: 20px 24px 28px;
+}
+
+.fos-settings-hero {
+  background-color: @fos_card;
+  border: 1px solid @fos_frame_inactive;
+  padding: 16px 18px;
+}
+
+.fos-settings-card {
+  background-color: @fos_card;
+  border: 1px solid @fos_frame_inactive;
+}
+
+.fos-settings-row {
+  background-color: transparent;
+  padding: 12px 16px;
+  min-height: 52px;
+}
+
+.fos-settings-row-sep {
+  background-color: @fos_border;
+  min-height: 1px;
+  margin: 0 16px;
+}
+
+button.fos-btn.fos-settings-tile {
+  min-height: 64px;
+  padding: 12px 14px;
+}
+
+button.fos-btn.fos-settings-tile:hover {
+  border-color: @fos_frame;
+}
+
+/* Dark tooltips — readable on the Dawn desktop (Win11 dark style). */
 tooltip,
 tooltip.background {
-  background-color: @fos_fg;
-  border: none;
+  background-color: @fos_muted;
+  background-image: none;
+  border: 1px solid @fos_frame_inactive;
   border-radius: 0;
   box-shadow: none;
+  color: @fos_fg;
+  padding: 4px 8px;
+  opacity: 1;
 }
 
 tooltip label {
-  color: @fos_background;
+  color: @fos_fg;
   font-family: Inter, sans-serif;
   font-size: 11px;
+  font-weight: 500;
 }
 
 /* Custom Files / Terminal card apps — Windows-like frame clarity */
@@ -778,8 +864,9 @@ tooltip label {
 .fos-app-header {
   background-color: @fos_titlebar;
   border-bottom: 1px solid @fos_frame_inactive;
-  padding: 4px 8px;
-  min-height: 40px;
+  /* Compact like Windows 11 titlebars (~32px). */
+  padding: 2px 6px;
+  min-height: 32px;
 }
 
 .fos-card-window:backdrop .fos-app-header {

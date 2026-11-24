@@ -461,8 +461,10 @@ class NotificationCenter(Popup):
 
     def refresh(self) -> None:
         now = GLib.DateTime.new_now_local()
-        self.day.set_text(now.format("%A"))
-        self.date.set_text(now.format("%-d %B %Y"))
+        from .region import format_date_full, format_weekday
+
+        self.day.set_text(format_weekday())
+        self.date.set_text(format_date_full())
         self.calendar.select_month(now.get_month() - 1, now.get_year())
         self.calendar.select_day(now.get_day_of_month())
         clear(self.items)

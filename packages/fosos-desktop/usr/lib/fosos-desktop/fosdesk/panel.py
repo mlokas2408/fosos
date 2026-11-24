@@ -360,9 +360,15 @@ class Panel(Gtk.Window):
 
             # Status cluster: each icon opens its own flyout (Win+A still opens Quick Settings).
             if battery_present():
-                self.battery_button = button(
-                    icon_name="battery-good-symbolic", size="icon-sm", tooltip="Battery"
-                )
+                self.battery_button = button(variant="ghost", tooltip="Battery")
+                add_classes(self.battery_button, "fos-battery-btn")
+                batt_box = Gtk.Box(spacing=2)
+                batt_box.set_valign(Gtk.Align.CENTER)
+                self.battery_image = icon("battery-good-symbolic", 16)
+                self.battery_percent_label = label("--%", "fos-small", "fos-strong")
+                batt_box.pack_start(self.battery_image, False, False, 0)
+                batt_box.pack_start(self.battery_percent_label, False, False, 0)
+                self.battery_button.add(batt_box)
                 self.battery_button.connect(
                     "clicked", lambda b: self.shell.toggle_popup("battery", b)
                 )
@@ -729,9 +735,10 @@ class Panel(Gtk.Window):
     # Status
 
     def update_clock(self) -> bool:
-        now = GLib.DateTime.new_now_local()
-        self.clock_time.set_text(now.format("%H:%M"))
-        self.clock_date.set_text(now.format("%a, %b %-d"))
+        from .region import format_date_short, format_time
+
+        self.clock_time.set_text(format_time())
+        self.clock_date.set_text(format_date_short())
         return True
 
     def set_start_open(self, is_open: bool) -> None:
@@ -754,11 +761,20 @@ class Panel(Gtk.Window):
         self.network_button.get_child().set_from_icon_name(name, Gtk.IconSize.MENU)
         self.network_button.set_tooltip_text(tooltip)
 
-    def set_battery_icon(self, name: str, tooltip: str) -> None:
+    def set_battery_icon(self, name: str, tooltip: str, percent: int | None = None) -> None:
         if self.battery_button is None:
             return
-        self.battery_button.get_child().set_from_icon_name(name, Gtk.IconSize.MENU)
+        image = getattr(self, "battery_image", None)
+        if image is not None:
+            image.set_from_icon_name(name, Gtk.IconSize.MENU)
+        else:
+            child = self.battery_button.get_child()
+            if isinstance(child, Gtk.Image):
+                child.set_from_icon_name(name, Gtk.IconSize.MENU)
         self.battery_button.set_tooltip_text(tooltip)
+        percent_label = getattr(self, "battery_percent_label", None)
+        if percent_label is not None and percent is not None:
+            percent_label.set_text(f"{percent}%")
 
     def set_brightness_icon(self, name: str, tooltip: str) -> None:
         if self.brightness_button is None:
@@ -770,7 +786,7 @@ class Panel(Gtk.Window):
         self,
         volume: tuple[str, str] | None,
         network: tuple[str, str],
-        battery: tuple[str, str] | None,
+        battery: tuple[str, str, int] | None,
         brightness: tuple[str, str] | None,
     ) -> None:
         if volume is not None:

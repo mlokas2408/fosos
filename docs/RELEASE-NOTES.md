@@ -1,5 +1,28 @@
 # FosOS release notes
 
+## FosOS 1.13.15 — Full-screen Settings (Windows-like)
+
+- Settings opens maximized with a left nav, search, Home hero and Back
+- Display: brightness, resolution, orientation, primary monitor (xrandr);
+  optional arandr for rearrange
+- Sound: volume/mute, default output and input devices (wpctl); optional
+  pavucontrol for advanced mixer
+- Power: battery status, brightness, screen blank + DPMS sleep timers,
+  Suspend / Hibernate when available
+- Window titlebars tightened to ~32px (CardWindow, GTK CSD, Openbox) to
+  match Windows 11 chrome height
+- Dark tooltips (muted surface + light text) instead of harsh white/black
+  inverted tips on the taskbar and apps
+
+## FosOS 1.13.14 — Status controls, Region, desktop icons
+
+- Fix volume slider / mute (`wpctl -l` before `set-volume`) and brightness
+  percent parsing (`brightnessctl -m` field with `%`; sysfs preferred)
+- Taskbar shows battery percentage beside the icon
+- Settings → Region: calendar, clock date/time and number formats follow the
+  selected locale (generated locales only)
+- Default desktop icons: Computer, Files, Recycle Bin (Home removed)
+
 ## FosOS 1.13.13 — Professional desktop polish
 
 - Named `fos_frame` / `fos_frame_inactive` tokens; Inter **11** across

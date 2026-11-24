@@ -25,6 +25,8 @@ from .indicators import (
     run,
     run_async,
     set_brightness,
+    set_volume,
+    toggle_mute,
     volume_icon,
     wifi_enabled,
 )
@@ -227,7 +229,7 @@ class QuickSettings(Popup):
             return
         level = int(scale.get_value())
         self.vol_percent.set_text(f"{level}%")
-        run(["wpctl", "set-volume", "-l", "1.0", "@DEFAULT_AUDIO_SINK@", f"{level / 100:.2f}"])
+        set_volume(level)
         self.shell.update_status()
 
     def _on_brightness(self, scale: Gtk.Scale) -> None:
@@ -239,7 +241,7 @@ class QuickSettings(Popup):
         self.shell.update_status()
 
     def _toggle_mute(self) -> None:
-        run(["wpctl", "set-mute", "@DEFAULT_AUDIO_SINK@", "toggle"])
+        toggle_mute()
         self.refresh()
 
     def _toggle_focus(self) -> None:

@@ -36,8 +36,8 @@ class CardWindow(Gtk.ApplicationWindow):
         self.frame = add_classes(Gtk.Box(orientation=Gtk.Orientation.VERTICAL), "fos-card", "fos-app-frame")
         self.add(self.frame)
 
-        self.header = add_classes(Gtk.Box(spacing=6), "fos-app-header")
-        self.header.set_size_request(-1, 40)
+        self.header = add_classes(Gtk.Box(spacing=4), "fos-app-header")
+        self.header.set_size_request(-1, 32)
 
         self.header_icon = tile(icon_name, "primary", size=14, small=True)
         self.header.pack_start(self.header_icon, False, False, 0)
@@ -56,9 +56,9 @@ class CardWindow(Gtk.ApplicationWindow):
         self.badge_label.hide()
         self.header.pack_start(self.badge_label, False, False, 0)
 
-        self.min_btn = button(icon_name="window-minimize-symbolic", size="icon-xs", tooltip="Minimize", icon_size=14)
-        self.max_btn = button(icon_name="window-maximize-symbolic", size="icon-xs", tooltip="Maximize", icon_size=14)
-        self.close_btn = button(icon_name="window-close-symbolic", size="icon-xs", tooltip="Close", icon_size=14)
+        self.min_btn = button(icon_name="window-minimize-symbolic", size="icon-xs", tooltip="Minimize", icon_size=12)
+        self.max_btn = button(icon_name="window-maximize-symbolic", size="icon-xs", tooltip="Maximize", icon_size=12)
+        self.close_btn = button(icon_name="window-close-symbolic", size="icon-xs", tooltip="Close", icon_size=12)
         add_classes(self.close_btn, "close")
         self.min_btn.connect("clicked", lambda _b: self.iconify())
         self.max_btn.connect("clicked", lambda _b: self.toggle_maximize())
@@ -160,7 +160,7 @@ class CardWindow(Gtk.ApplicationWindow):
             if self._maximized and theme.has_icon("window-restore-symbolic"):
                 name = "window-restore-symbolic"
             child.set_from_icon_name(name, Gtk.IconSize.MENU)
-            child.set_pixel_size(14)
+            child.set_pixel_size(12)
         self.max_btn.set_tooltip_text("Restore" if self._maximized else "Maximize")
         return False
 

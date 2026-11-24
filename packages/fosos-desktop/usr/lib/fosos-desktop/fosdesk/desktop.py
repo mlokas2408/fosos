@@ -344,7 +344,7 @@ class Desktop(Gtk.Window):
         self.selected: DesktopIcon | None = None
         self._prefs = load_desktop_prefs()
 
-        self._add_icon("home", "Home", "user-home", lambda: self._open_folder(Path.home()))
+        # Default desktop: Computer, Files, Recycle Bin (no Home).
         self._add_icon("computer", "Computer", "computer", lambda: self._open_folder(Path("/")))
         self._add_icon("files", "Files", "system-file-manager", lambda: self._launch("fosos-files.desktop"))
         self._add_icon("trash", "Recycle Bin", "user-trash", lambda: self._open_trash())

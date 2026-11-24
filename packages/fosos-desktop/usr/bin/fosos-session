@@ -60,6 +60,16 @@ if command -v xsettingsd >/dev/null 2>&1 && [ -f "$xsettings_conf" ]; then
 	xsettingsd -c "$xsettings_conf" >/dev/null 2>&1 &
 fi
 
+# Regional format for this session and child apps (Settings → Region).
+region_file="${XDG_CONFIG_HOME:-$HOME/.config}/fosos-desktop/region"
+if [ -f "$region_file" ]; then
+	region_locale=$(sed -n 's/^locale=//p' "$region_file" | head -n1)
+	if [ -n "$region_locale" ]; then
+		export LANG="$region_locale"
+		unset LC_ALL
+	fi
+fi
+
 # Restore keyboard, mouse and idle blanking saved by fosos-settings.
 if command -v python3 >/dev/null 2>&1; then
 	PYTHONPATH="/usr/lib/fosos-desktop${PYTHONPATH:+:$PYTHONPATH}" \
