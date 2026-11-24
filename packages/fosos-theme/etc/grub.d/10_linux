@@ -1,0 +1,12 @@
+#! /bin/sh
+# FosOS wrapper: Debian's 10_linux ships quiet_boot=0, so the default
+# menuentry prints "Loading Linux ..." / "Loading initial ramdisk ..." on
+# the framebuffer between firmware and Plymouth. Flip quiet_boot on (same
+# path Ubuntu uses) so those two echoes are omitted for the simple entry.
+# The real script is diverted to 10_linux.fosos-orig by fosos-theme.
+set -e
+orig=/etc/grub.d/10_linux.fosos-orig
+if [ ! -f "$orig" ]; then
+  exit 0
+fi
+sed 's/^quiet_boot="0"/quiet_boot="1"/' "$orig" | /bin/sh

@@ -1,0 +1,14 @@
+#!/bin/sh
+set -e
+
+# Divert Debian's /etc/grub.d/10_linux so we can wrap it and enable quiet_boot
+# without forking the whole script. New grub-common versions still land in
+# 10_linux.fosos-orig; the wrapper re-reads that file on every update-grub.
+case "$1" in
+install|upgrade)
+	dpkg-divert --package fosos-theme --add --rename \
+		--divert /etc/grub.d/10_linux.fosos-orig /etc/grub.d/10_linux
+	;;
+esac
+
+exit 0

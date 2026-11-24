@@ -1,5 +1,11 @@
 # FosOS release notes
 
+## FosOS theme 0.7.10 — Hide GRUB Loading lines
+
+- Divert `/etc/grub.d/10_linux` and enable Debian's unused `quiet_boot` so the
+  default entry no longer prints "Loading Linux ..." / "Loading initial
+  ramdisk ..." between firmware and Plymouth
+
 ## FosOS theme 0.7.9 — Resolution-independent splash layout
 
 - Logo is the centred watermark (true vertical + horizontal centre on any panel)

@@ -1,0 +1,11 @@
+#!/bin/sh
+set -e
+
+case "$1" in
+remove)
+	dpkg-divert --package fosos-theme --remove --rename \
+		--divert /etc/grub.d/10_linux.fosos-orig /etc/grub.d/10_linux
+	;;
+esac
+
+exit 0

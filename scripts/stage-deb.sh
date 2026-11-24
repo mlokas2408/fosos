@@ -37,6 +37,9 @@ stage_deb() {
     # sudo rejects sudoers.d files that are group/world writable.
     find "$stage/etc/sudoers.d" -type f -exec chmod 440 {} +
   fi
+  if [[ -f "$stage/DEBIAN/preinst" ]]; then
+    chmod 755 "$stage/DEBIAN/preinst"
+  fi
   if [[ -f "$stage/DEBIAN/postinst" ]]; then
     chmod 755 "$stage/DEBIAN/postinst"
   fi
@@ -56,6 +59,10 @@ stage_deb() {
   # plymouth watermark overwrite in place for fosos-theme).
   if [[ -d "$stage/usr/share/initramfs-tools/hooks" ]]; then
     find "$stage/usr/share/initramfs-tools/hooks" -type f -exec chmod 755 {} +
+  fi
+  # grub-mkconfig only runs executable /etc/grub.d/* helpers.
+  if [[ -d "$stage/etc/grub.d" ]]; then
+    find "$stage/etc/grub.d" -type f -exec chmod 755 {} +
   fi
 
   version="$(awk '/^Version:/{print $2; exit}' "$stage/DEBIAN/control")"

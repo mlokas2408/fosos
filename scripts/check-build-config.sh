@@ -302,6 +302,20 @@ if ! grep -q 'initramfs-tools/hooks' "$repo_root/scripts/stage-deb.sh"; then
   echo "stage-deb.sh must chmod 755 initramfs-tools/hooks (hooks are ignored if not executable)." >&2
   exit 1
 fi
+if ! grep -q 'etc/grub.d' "$repo_root/scripts/stage-deb.sh"; then
+  echo "stage-deb.sh must chmod 755 etc/grub.d (grub-mkconfig skips non-executable helpers)." >&2
+  exit 1
+fi
+if [[ ! -f "$repo_root/packages/fosos-theme/etc/grub.d/10_linux" ]] \
+  || ! grep -q 'quiet_boot="1"' "$repo_root/packages/fosos-theme/etc/grub.d/10_linux"; then
+  echo "fosos-theme must wrap /etc/grub.d/10_linux to enable quiet_boot (hide Loading Linux lines)." >&2
+  exit 1
+fi
+if [[ ! -f "$repo_root/packages/fosos-theme/DEBIAN/preinst" ]] \
+  || ! grep -q '10_linux.fosos-orig' "$repo_root/packages/fosos-theme/DEBIAN/preinst"; then
+  echo "fosos-theme must divert Debian 10_linux via DEBIAN/preinst." >&2
+  exit 1
+fi
 if ! grep -qE '^Title=Shutting down' \
   "$repo_root/packages/fosos-theme/usr/share/plymouth/themes/fosos/fosos.plymouth" \
   || ! grep -qE '^Title=Restarting' \
