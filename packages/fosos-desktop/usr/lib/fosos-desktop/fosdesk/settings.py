@@ -14,6 +14,9 @@ from gi.repository import Gio, GLib, Gtk
 from . import VERSION
 from . import apps as appmod
 from . import settings_pages as pages
+
+pages.register_extra_pages()
+
 from .ui import add_classes, brand_title, button, clear, icon, label, load_css, mark, tile
 from .windowchrome import CardWindow
 
@@ -26,7 +29,7 @@ PANELS = [
     (
         "System",
         "Network",
-        "Wi-Fi, cable and VPN connections",
+        "Wi-Fi, Ethernet and VPN connections",
         "network-wireless-symbolic",
         {"page": "network"},
     ),
@@ -38,12 +41,12 @@ PANELS = [
         "network-server-symbolic",
         {"page": "remote"},
     ),
-    ("System", "Power", "Screen, sleep and battery", "battery-good-symbolic", {"page": "power"}),
+    ("System", "Power", "Screen, lock, sleep and battery", "battery-good-symbolic", {"page": "power"}),
     ("System", "Storage", "Free space on disks", "drive-harddisk-symbolic", {"page": "storage"}),
     (
         "Personalization",
         "Wallpaper",
-        "Dawn Aperture and other drawn backgrounds",
+        "Drawn themes and image backgrounds",
         "preferences-desktop-wallpaper-symbolic",
         {"page": "wallpaper"},
     ),
@@ -56,10 +59,24 @@ PANELS = [
     ),
     (
         "Personalization",
+        "Appearance",
+        "Font size and cursor",
+        "preferences-desktop-theme-symbolic",
+        {"page": "appearance"},
+    ),
+    (
+        "Personalization",
         "Taskbar",
         "Desktop switcher, clock and notification bell",
         "view-continuous-symbolic",
         {"page": "taskbar"},
+    ),
+    (
+        "Personalization",
+        "Multitasking",
+        "Virtual desktops",
+        "view-grid-symbolic",
+        {"page": "multitasking"},
     ),
     (
         "Personalization",
@@ -68,8 +85,23 @@ PANELS = [
         "preferences-system-notifications-symbolic",
         {"page": "notifications"},
     ),
-    ("Input", "Keyboard", "Layout, repeat and shortcuts", "input-keyboard-symbolic", {"page": "keyboard"}),
+    ("Accounts", "Accounts", "Password, name and sign-in", "avatar-default-symbolic", {"page": "accounts"}),
+    ("Input", "Keyboard", "Layout and key repeat", "input-keyboard-symbolic", {"page": "keyboard"}),
+    (
+        "Input",
+        "Keyboard shortcuts",
+        "Change desktop shortcuts",
+        "preferences-desktop-keyboard-shortcuts-symbolic",
+        {"page": "shortcuts"},
+    ),
     ("Input", "Mouse and touchpad", "Pointer speed and tap-to-click", "input-mouse-symbolic", {"page": "mouse"}),
+    (
+        "Time & language",
+        "Date & time",
+        "Timezone and automatic clock sync",
+        "preferences-system-time-symbolic",
+        {"page": "datetime"},
+    ),
     (
         "Time & language",
         "Region",
@@ -78,6 +110,28 @@ PANELS = [
         {"page": "region"},
     ),
     ("Apps", "Default apps", "Browser, PDF, archives and more", "starred-symbolic", {"page": "defaults"}),
+    ("Apps", "Startup", "Apps that launch when you sign in", "application-x-executable-symbolic", {"page": "startup"}),
+    (
+        "Accessibility",
+        "Accessibility",
+        "Larger text, sticky keys and reduce motion",
+        "preferences-desktop-accessibility-symbolic",
+        {"page": "accessibility"},
+    ),
+    (
+        "Privacy",
+        "Privacy",
+        "Lock screen and clipboard",
+        "security-high-symbolic",
+        {"page": "privacy"},
+    ),
+    (
+        "Personalization",
+        "Night light",
+        "Warmer colours at night",
+        "weather-clear-night-symbolic",
+        {"page": "nightlight"},
+    ),
     (
         "FosOS",
         "Updates",
@@ -138,14 +192,10 @@ def panel_available(action: dict) -> bool:
         if page_id not in pages.PAGES:
             return False
         # Built-in Display / Sound / Power no longer require external GUIs.
-        commands = {
-            "bluetooth": "blueman-manager",
-        }
         if page_id == "network":
             return shutil.which("nmcli") is not None
-        binary = commands.get(page_id)
-        if binary is not None and shutil.which(binary) is None:
-            return False
+        if page_id == "bluetooth":
+            return shutil.which("bluetoothctl") is not None or shutil.which("blueman-manager") is not None
         return True
     command = action.get("command") or []
     return bool(command) and shutil.which(command[0]) is not None

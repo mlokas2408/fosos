@@ -3,12 +3,14 @@
 from __future__ import annotations
 
 import math
+from pathlib import Path
 
 import cairo
 import gi
 
 gi.require_version("Gdk", "3.0")
-from gi.repository import Gdk
+gi.require_version("GdkPixbuf", "2.0")
+from gi.repository import Gdk, GdkPixbuf
 
 # Theme id → display name. Greeter/lock always use "dawn".
 THEMES: tuple[tuple[str, str], ...] = (
@@ -83,7 +85,44 @@ def draw_grid(cr, x, y, w, h, step, alpha, mask) -> None:
     cr.mask(mask)
 
 
-def draw_wallpaper(cr, area: Gdk.Rectangle, theme: str = "dawn") -> None:
+def draw_image_wallpaper(cr, area: Gdk.Rectangle, path: str) -> bool:
+    """Cover-fit an image into *area*. Returns False if the file cannot be loaded."""
+    try:
+        pixbuf = GdkPixbuf.Pixbuf.new_from_file(path)
+    except Exception:
+        return False
+    if pixbuf is None:
+        return False
+    x, y, w, h = area.x, area.y, area.width, area.height
+    if w <= 0 or h <= 0:
+        return False
+    pw, ph = pixbuf.get_width(), pixbuf.get_height()
+    if pw <= 0 or ph <= 0:
+        return False
+    scale = max(w / pw, h / ph)
+    tw, th = max(1, int(pw * scale)), max(1, int(ph * scale))
+    try:
+        scaled = pixbuf.scale_simple(tw, th, GdkPixbuf.InterpType.BILINEAR)
+    except Exception:
+        return False
+    if scaled is None:
+        return False
+    cr.save()
+    cr.rectangle(x, y, w, h)
+    cr.clip()
+    ox = x + (w - tw) / 2
+    oy = y + (h - th) / 2
+    Gdk.cairo_set_source_pixbuf(cr, scaled, ox, oy)
+    cr.paint()
+    cr.restore()
+    return True
+
+
+def draw_wallpaper(cr, area: Gdk.Rectangle, theme: str = "dawn", image_path: str | None = None) -> None:
+    if theme == "image" and image_path and Path(image_path).is_file():
+        if draw_image_wallpaper(cr, area, image_path):
+            return
+        theme = "dawn"
     palette = _PALETTES.get(theme) or _PALETTES["dawn"]
     base = palette["base"]
     mid = palette["mid"]

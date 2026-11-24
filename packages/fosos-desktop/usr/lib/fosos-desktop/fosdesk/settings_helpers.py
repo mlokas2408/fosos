@@ -81,6 +81,10 @@ class DisplayOutput:
     current: str | None = None
     modes: list[str] = field(default_factory=list)
     rotation: str = "normal"
+    x: int = 0
+    y: int = 0
+    width: int = 0
+    height: int = 0
 
 
 def list_displays() -> list[DisplayOutput]:
@@ -97,13 +101,13 @@ def list_displays() -> list[DisplayOutput]:
                 primary="primary" in rest,
                 rotation="normal",
             )
-            for rot in ("left", "right", "inverted", "normal"):
-                if f" {rot} " in f" {rest} ":
-                    # xrandr prints orientation in parentheses block; keep default.
-                    pass
-            geom = re.search(r"(\d+)x(\d+)\+\d+\+\d+", rest)
+            geom = re.search(r"(\d+)x(\d+)\+(\d+)\+(\d+)", rest)
             if geom:
                 current.current = f"{geom.group(1)}x{geom.group(2)}"
+                current.width = int(geom.group(1))
+                current.height = int(geom.group(2))
+                current.x = int(geom.group(3))
+                current.y = int(geom.group(4))
             # Orientation tokens after geometry in connected line.
             orient = re.search(r"\)\s+(\w+)\s+\(", rest)
             if orient and orient.group(1) in ("normal", "left", "right", "inverted"):
@@ -143,6 +147,17 @@ def set_display_rotation(output: str, rotation: str) -> bool:
 
 def set_display_primary(output: str) -> bool:
     return subprocess.run(["xrandr", "--output", output, "--primary"], check=False).returncode == 0
+
+
+def set_display_beside(output: str, relative_to: str, side: str) -> bool:
+    """Place *output* left or right of *relative_to* (side: left|right)."""
+    if side not in ("left", "right"):
+        return False
+    flag = "--left-of" if side == "left" else "--right-of"
+    return (
+        subprocess.run(["xrandr", "--output", output, flag, relative_to], check=False).returncode
+        == 0
+    )
 
 
 @dataclass

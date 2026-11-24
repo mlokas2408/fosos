@@ -135,7 +135,27 @@ class LockScreen(Gtk.Window):
         self.ui.password.grab_focus()
 
 
+def _maybe_clear_clipboard() -> None:
+    try:
+        from .settings_pages import load_kv, truthy
+    except Exception:
+        return
+    prefs = load_kv("privacy", {"clear_clipboard_on_lock": "0"})
+    if not truthy(prefs.get("clear_clipboard_on_lock"), False):
+        return
+    try:
+        clip = Gtk.Clipboard.get(Gdk.SELECTION_CLIPBOARD)
+        clip.set_text("", -1)
+        clip.store()
+        primary = Gtk.Clipboard.get(Gdk.SELECTION_PRIMARY)
+        primary.set_text("", -1)
+    except Exception:
+        pass
+
+
 def main() -> int:
+    if not PREVIEW:
+        _maybe_clear_clipboard()
     # Only one locker at a time.
     if not PREVIEW:
         try:

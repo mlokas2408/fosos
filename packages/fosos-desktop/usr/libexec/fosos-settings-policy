@@ -1,0 +1,163 @@
+#!/bin/sh
+# Privileged helpers for FosOS Settings (timezone, NTP, autologin, password, gecos, lid).
+# Intended for pkexec.
+
+ACTION="${1:-}"
+shift || true
+
+LIGHTDM_AUTO=/etc/lightdm/lightdm.conf.d/95-fosos-autologin.conf
+LOGIND_LID=/etc/systemd/logind.conf.d/90-fosos-lid.conf
+
+case "$ACTION" in
+set-timezone)
+	tz=${1:-}
+	if [ -z "$tz" ]; then
+		echo "usage: fosos-settings-policy set-timezone ZONE" >&2
+		exit 2
+	fi
+	if [ ! -e "/usr/share/zoneinfo/$tz" ]; then
+		echo "unknown timezone: $tz" >&2
+		exit 1
+	fi
+	if command -v timedatectl >/dev/null 2>&1; then
+		timedatectl set-timezone "$tz" || exit 1
+	else
+		ln -sf "/usr/share/zoneinfo/$tz" /etc/localtime || exit 1
+		echo "$tz" >/etc/timezone
+	fi
+	echo "ok"
+	;;
+set-ntp)
+	val=${1:-}
+	case "$val" in
+	0|off|false|no) state=0 ;;
+	1|on|true|yes) state=1 ;;
+	*)
+		echo "usage: fosos-settings-policy set-ntp 0|1" >&2
+		exit 2
+		;;
+	esac
+	if ! command -v timedatectl >/dev/null 2>&1; then
+		echo "timedatectl not available" >&2
+		exit 1
+	fi
+	if [ "$state" -eq 1 ]; then
+		timedatectl set-ntp true || exit 1
+	else
+		timedatectl set-ntp false || exit 1
+	fi
+	echo "ok"
+	;;
+set-gecos)
+	user=${1:-}
+	# Remaining args form the display name.
+	shift || true
+	name=$*
+	if [ -z "$user" ]; then
+		echo "usage: fosos-settings-policy set-gecos USER NAME" >&2
+		exit 2
+	fi
+	if ! getent passwd "$user" >/dev/null; then
+		echo "unknown user: $user" >&2
+		exit 1
+	fi
+	# Keep other GECOS fields if present.
+	old=$(getent passwd "$user" | cut -d: -f5)
+	rest=$(printf '%s' "$old" | cut -d, -f2-)
+	if [ -n "$rest" ] && [ "$rest" != "$old" ]; then
+		gecos="${name},${rest}"
+	else
+		gecos="$name"
+	fi
+	if command -v chfn >/dev/null 2>&1; then
+		chfn -f "$name" "$user" || usermod -c "$gecos" "$user" || exit 1
+	else
+		usermod -c "$gecos" "$user" || exit 1
+	fi
+	echo "ok"
+	;;
+set-password)
+	user=${1:-}
+	# Password on stdin (one line) — avoids argv exposure.
+	if [ -z "$user" ]; then
+		echo "usage: fosos-settings-policy set-password USER < password" >&2
+		exit 2
+	fi
+	if ! getent passwd "$user" >/dev/null; then
+		echo "unknown user: $user" >&2
+		exit 1
+	fi
+	IFS= read -r pass || true
+	if [ -z "$pass" ]; then
+		echo "empty password" >&2
+		exit 1
+	fi
+	printf '%s:%s\n' "$user" "$pass" | chpasswd || exit 1
+	echo "ok"
+	;;
+set-autologin)
+	user=${1:-}
+	if [ -z "$user" ] || [ "$user" = "off" ] || [ "$user" = "0" ]; then
+		rm -f "$LIGHTDM_AUTO"
+		echo "disabled"
+		exit 0
+	fi
+	if ! getent passwd "$user" >/dev/null; then
+		echo "unknown user: $user" >&2
+		exit 1
+	fi
+	mkdir -p "$(dirname "$LIGHTDM_AUTO")"
+	cat >"$LIGHTDM_AUTO" <<EOF
+[Seat:*]
+autologin-user=$user
+autologin-user-timeout=0
+EOF
+	chmod 644 "$LIGHTDM_AUTO"
+	echo "enabled"
+	;;
+set-lid)
+	# HandleLidSwitch=suspend|hibernate|ignore|lock|poweroff
+	val=${1:-suspend}
+	case "$val" in
+	suspend|hibernate|ignore|lock|poweroff) ;;
+	*)
+		echo "usage: fosos-settings-policy set-lid suspend|hibernate|ignore|lock|poweroff" >&2
+		exit 2
+		;;
+	esac
+	mkdir -p "$(dirname "$LOGIND_LID")"
+	cat >"$LOGIND_LID" <<EOF
+[Login]
+HandleLidSwitch=$val
+HandleLidSwitchExternalPower=$val
+HandleLidSwitchDocked=ignore
+EOF
+	chmod 644 "$LOGIND_LID"
+	if command -v systemctl >/dev/null 2>&1; then
+		systemctl restart systemd-logind >/dev/null 2>&1 || true
+	fi
+	echo "ok"
+	;;
+get-lid)
+	if [ -f "$LOGIND_LID" ]; then
+		sed -n 's/^HandleLidSwitch=//p' "$LOGIND_LID" | head -n1
+		exit 0
+	fi
+	if [ -f /etc/systemd/logind.conf ]; then
+		sed -n 's/^HandleLidSwitch=//p' /etc/systemd/logind.conf | head -n1
+		exit 0
+	fi
+	echo "suspend"
+	;;
+get-autologin)
+	if [ -f "$LIGHTDM_AUTO" ]; then
+		sed -n 's/^autologin-user=//p' "$LIGHTDM_AUTO" | head -n1
+		exit 0
+	fi
+	echo ""
+	;;
+*)
+	echo "usage: fosos-settings-policy set-timezone|set-ntp|set-gecos|set-password|set-autologin|set-lid|get-lid|get-autologin ..." >&2
+	exit 2
+	;;
+esac

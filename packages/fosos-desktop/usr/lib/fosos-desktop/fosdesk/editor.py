@@ -638,6 +638,8 @@ class EditorWindow(CardWindow):
         self._status_item = _check_item("Status bar", self.show_status, self.set_status_visible)
         view_menu.append(self._status_item)
         view_menu.append(Gtk.SeparatorMenuItem())
+        view_menu.append(_menu_item("Font…", self.choose_font))
+        view_menu.append(Gtk.SeparatorMenuItem())
         md_root = Gtk.MenuItem(label="Markdown")
         md_sub = Gtk.Menu()
         md_root.set_submenu(md_sub)
@@ -1139,6 +1141,28 @@ class EditorWindow(CardWindow):
         for tab in self.tabs:
             tab.apply_zoom(self.zoom)
         self._update_status()
+
+    def choose_font(self) -> None:
+        dialog = Gtk.FontChooserDialog(title="Notepad font", parent=self)
+        family = self.prefs.get("font_family", DEFAULT_PREFS["font_family"])
+        try:
+            size = int(self.prefs.get("font_size", DEFAULT_PREFS["font_size"]))
+        except ValueError:
+            size = BASE_FONT_PT
+        dialog.set_font(f"{family} {size}")
+        response = dialog.run()
+        font = dialog.get_font()
+        dialog.destroy()
+        if response != Gtk.ResponseType.OK or not font:
+            return
+        desc = Pango.FontDescription.from_string(font)
+        chosen_family = desc.get_family() or family
+        chosen_size = max(6, int(desc.get_size() / Pango.SCALE)) if desc.get_size() > 0 else size
+        self.prefs["font_family"] = chosen_family
+        self.prefs["font_size"] = str(chosen_size)
+        save_prefs(self.prefs)
+        for tab in self.tabs:
+            tab.apply_zoom(self.zoom)
 
     def _update_chrome(self) -> None:
         tab = self.active

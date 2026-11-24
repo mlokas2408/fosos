@@ -96,6 +96,8 @@
   <keyboard>
     <chainQuitKey>C-g</chainQuitKey>
 
+    <!-- FOSOS-SHORTCUTS-BEGIN -->
+
     <!-- Start: Super alone via xcape → Alt+F1; Super+Space remains an alias. -->
     <keybind key="W-space">
       <action name="Execute"><command>fosos-shell --toggle-start</command></action>
@@ -248,6 +250,8 @@
     <keybind key="A-space">
       <action name="ShowMenu"><menu>client-menu</menu></action>
     </keybind>
+
+    <!-- FOSOS-SHORTCUTS-END -->
   </keyboard>
 
   <mouse>

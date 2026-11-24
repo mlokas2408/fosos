@@ -158,7 +158,19 @@ class EdgeSnap:
             return None
         return window
 
+    def _reduce_motion(self) -> bool:
+        try:
+            from .settings_pages import load_kv, truthy
+
+            return truthy(load_kv("accessibility", {}).get("reduce_motion"), False)
+        except Exception:
+            return False
+
     def _update_preview(self, root_x: int, root_y: int) -> None:
+        if self._reduce_motion():
+            self._overlay.hide_zone()
+            self._zone_key = None
+            return
         if self._drag_window_ok() is None:
             self._overlay.hide_zone()
             self._zone_key = None

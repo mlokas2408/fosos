@@ -21,7 +21,7 @@ from .ui import BRAND, DATA_DIR, add_classes, full_icon, label, set_class
 try:
     from .wallpaper import draw_wallpaper
 except ImportError:  # pragma: no cover - packaging fault; keep shell alive
-    def draw_wallpaper(cr, area: Gdk.Rectangle, theme: str = "dawn") -> None:
+    def draw_wallpaper(cr, area: Gdk.Rectangle, theme: str = "dawn", image_path: str | None = None) -> None:
         cr.set_source_rgb(10 / 255, 10 / 255, 10 / 255)
         cr.rectangle(area.x, area.y, area.width, area.height)
         cr.fill()
@@ -130,8 +130,18 @@ def wallpaper_theme() -> str:
     theme = load_desktop_prefs().get("wallpaper", "dawn")
     from .wallpaper import THEMES
 
+    if theme == "image":
+        return "image"
     ids = {tid for tid, _name in THEMES}
     return theme if theme in ids else "dawn"
+
+
+def wallpaper_image_path() -> str | None:
+    prefs = load_desktop_prefs()
+    if prefs.get("wallpaper") != "image":
+        return None
+    path = prefs.get("wallpaper_image", "").strip()
+    return path or None
 
 
 def save_desktop_prefs(values: dict[str, str]) -> None:
@@ -661,9 +671,10 @@ class Desktop(Gtk.Window):
         display = Gdk.Display.get_default()
         primary = self._primary()
         theme = wallpaper_theme()
+        image = wallpaper_image_path()
         for index in range(display.get_n_monitors()):
             area = display.get_monitor(index).get_geometry()
-            draw_wallpaper(cr, area, theme)
+            draw_wallpaper(cr, area, theme, image_path=image)
         draw_brand(cr, self, primary)
         return False
 

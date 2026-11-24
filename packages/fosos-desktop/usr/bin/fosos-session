@@ -112,9 +112,12 @@ if command -v xcape >/dev/null 2>&1; then
 fi
 
 # Lock on idle, lid close and before suspend. Super+L and Start > Lock also
-# run fosos-lock directly.
+# run fosos-lock directly. Idle timeout comes from Settings → Power (restored
+# above); fall back to 5 minutes when no power prefs exist yet.
 if command -v xss-lock >/dev/null 2>&1 && command -v fosos-lock >/dev/null 2>&1; then
-	xset s 300 5 >/dev/null 2>&1 || true
+	if [ ! -f "$config/power" ]; then
+		xset s 300 5 >/dev/null 2>&1 || true
+	fi
 	xss-lock -l --transfer-sleep-lock -- fosos-lock >/dev/null 2>&1 &
 fi
 

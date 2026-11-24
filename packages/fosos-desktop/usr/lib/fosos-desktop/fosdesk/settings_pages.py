@@ -189,6 +189,7 @@ def apply_accel(numer: int, denom: int, threshold: int) -> None:
 
 
 _TAPPING_PROP = "libinput Tapping Enabled"
+_NATURAL_PROP = "libinput Natural Scrolling Enabled"
 
 
 def _pointer_device_ids() -> list[str]:
@@ -196,30 +197,46 @@ def _pointer_device_ids() -> list[str]:
     return re.findall(r"id=(\d+)\s+\[slave\s+pointer", output)
 
 
-def current_tapping() -> bool | None:
-    """Return live tap-to-click state, or None if no libinput touchpad."""
+def _libinput_prop_state(prop: str) -> bool | None:
     for device_id in _pointer_device_ids():
         props = run(["xinput", "list-props", device_id]) or ""
-        match = re.search(rf"{re.escape(_TAPPING_PROP)}\s*\(\d+\):\s*(\d+)", props)
+        match = re.search(rf"{re.escape(prop)}\s*\(\d+\):\s*(\d+)", props)
         if match:
             return match.group(1) == "1"
     return None
 
 
-def apply_tapping(enabled: bool) -> bool:
+def _apply_libinput_prop(prop: str, enabled: bool) -> bool:
     value = "1" if enabled else "0"
     applied = False
     for device_id in _pointer_device_ids():
         props = run(["xinput", "list-props", device_id]) or ""
-        if _TAPPING_PROP not in props:
+        if prop not in props:
             continue
         result = subprocess.run(
-            ["xinput", "set-prop", device_id, _TAPPING_PROP, value],
+            ["xinput", "set-prop", device_id, prop, value],
             check=False,
         )
         if result.returncode == 0:
             applied = True
     return applied
+
+
+def current_tapping() -> bool | None:
+    """Return live tap-to-click state, or None if no libinput touchpad."""
+    return _libinput_prop_state(_TAPPING_PROP)
+
+
+def apply_tapping(enabled: bool) -> bool:
+    return _apply_libinput_prop(_TAPPING_PROP, enabled)
+
+
+def current_natural_scrolling() -> bool | None:
+    return _libinput_prop_state(_NATURAL_PROP)
+
+
+def apply_natural_scrolling(enabled: bool) -> bool:
+    return _apply_libinput_prop(_NATURAL_PROP, enabled)
 
 
 def idle_timeout_seconds() -> int:
@@ -263,62 +280,141 @@ def pack_header(title: str, subtitle: str) -> Gtk.Box:
 
 
 def build_keyboard(status_cb) -> Gtk.Box:
-    root = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=16)
-    root.pack_start(pack_header("Keyboard", "Layout and key repeat for this session."), False, False, 0)
+    from .settings_helpers import settings_row, settings_section
 
-    layout_row = Gtk.Box(spacing=12)
-    layout_row.pack_start(label("Layout", "fos-text", "fos-strong"), False, False, 0)
-    combo = Gtk.ComboBoxText()
+    root = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=16)
+    root.pack_start(pack_header("Keyboard", "Layouts and key repeat for this session."), False, False, 0)
+
+    prefs = load_kv("keyboard", {"layout": "us", "delay": "600", "rate": "25", "layouts": ""})
     current = current_layout()
-    seen = set()
+    listed = [part.strip() for part in prefs.get("layouts", "").split(",") if part.strip()]
+    if prefs.get("layout") and prefs["layout"] not in listed:
+        listed.insert(0, prefs["layout"])
+    if current and current not in listed:
+        listed.insert(0, current)
+    if not listed:
+        listed = ["us"]
+    names = dict(COMMON_LAYOUTS)
+
+    layout_store = Gtk.ListStore(str, str)
+    for code in listed:
+        layout_store.append([code, f"{names.get(code, code)} ({code})"])
+    layout_tree = Gtk.TreeView(model=layout_store)
+    layout_tree.append_column(Gtk.TreeViewColumn("Installed layouts", Gtk.CellRendererText(), text=1))
+    layout_tree.set_headers_visible(False)
+    layout_tree.set_size_request(-1, 120)
+    scroller = Gtk.ScrolledWindow()
+    scroller.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
+    scroller.add(layout_tree)
+
+    combo = Gtk.ComboBoxText()
+    seen: set[str] = set()
     for code, name in COMMON_LAYOUTS:
         combo.append(code, f"{name} ({code})")
         seen.add(code)
-    if current not in seen:
-        combo.append(current, current)
-    combo.set_active_id(current)
-    combo.set_hexpand(True)
-    layout_row.pack_start(combo, True, True, 0)
-    root.pack_start(layout_row, False, False, 0)
+    for code in listed:
+        if code not in seen:
+            combo.append(code, code)
+            seen.add(code)
+    combo.set_active_id(current if current in seen else listed[0])
+
+    def refresh_store() -> None:
+        layout_store.clear()
+        for code in listed:
+            layout_store.append([code, f"{names.get(code, code)} ({code})"])
+
+    def add_layout(_button=None) -> None:
+        code = combo.get_active_id()
+        if not code:
+            return
+        if code in listed:
+            status_cb(f"{code} is already in the list.")
+            return
+        listed.append(code)
+        refresh_store()
+        status_cb(f"Added {names.get(code, code)}.")
+
+    def remove_layout(_button=None) -> None:
+        model, row = layout_tree.get_selection().get_selected()
+        if row is None:
+            status_cb("Select a layout to remove.")
+            return
+        if len(listed) <= 1:
+            status_cb("Keep at least one layout.")
+            return
+        code = model[row][0]
+        listed.remove(code)
+        refresh_store()
+        if combo.get_active_id() == code:
+            combo.set_active_id(listed[0])
+        status_cb(f"Removed {code}.")
+
+    add_btn = button("Add", variant="outline", size="sm")
+    add_btn.connect("clicked", add_layout)
+    remove_btn = button("Remove", variant="outline", size="sm")
+    remove_btn.connect("clicked", remove_layout)
+    layout_actions = Gtk.Box(spacing=8)
+    layout_actions.pack_start(combo, True, True, 0)
+    layout_actions.pack_start(add_btn, False, False, 0)
+    layout_actions.pack_start(remove_btn, False, False, 0)
 
     delay, rate = current_repeat()
-    delay_row = Gtk.Box(spacing=12)
-    delay_row.pack_start(label("Repeat delay", "fos-text"), False, False, 0)
     delay_scale = add_classes(Gtk.Scale.new_with_range(Gtk.Orientation.HORIZONTAL, 100, 1000, 10), "fos-scale")
     delay_scale.set_value(delay)
-    delay_scale.set_hexpand(True)
     delay_scale.set_draw_value(True)
-    delay_row.pack_start(delay_scale, True, True, 0)
-    root.pack_start(delay_row, False, False, 0)
-
-    rate_row = Gtk.Box(spacing=12)
-    rate_row.pack_start(label("Repeat rate", "fos-text"), False, False, 0)
+    delay_scale.set_size_request(160, -1)
     rate_scale = add_classes(Gtk.Scale.new_with_range(Gtk.Orientation.HORIZONTAL, 1, 100, 1), "fos-scale")
     rate_scale.set_value(rate)
-    rate_scale.set_hexpand(True)
     rate_scale.set_draw_value(True)
-    rate_row.pack_start(rate_scale, True, True, 0)
-    root.pack_start(rate_row, False, False, 0)
+    rate_scale.set_size_request(160, -1)
 
     def apply(_button=None) -> None:
-        code = combo.get_active_id() or "us"
-        apply_repeat(int(delay_scale.get_value()), int(rate_scale.get_value()))
-        prefs = load_kv("keyboard", {"layout": "us", "delay": "600", "rate": "25"})
-        prefs["layout"] = code
-        prefs["delay"] = str(int(delay_scale.get_value()))
-        prefs["rate"] = str(int(rate_scale.get_value()))
-        listed = [part.strip() for part in prefs.get("layouts", "").split(",") if part.strip()]
+        code = combo.get_active_id() or listed[0]
         if code not in listed:
             listed.insert(0, code)
-            prefs["layouts"] = ",".join(listed)
-        save_kv("keyboard", prefs)
+        apply_repeat(int(delay_scale.get_value()), int(rate_scale.get_value()))
+        values = {
+            "layout": code,
+            "delay": str(int(delay_scale.get_value())),
+            "rate": str(int(rate_scale.get_value())),
+            "layouts": ",".join(listed),
+        }
+        save_kv("keyboard", values)
         apply_layout(code)
         _request_shell_reload()
         status_cb("Keyboard settings applied for this session.")
 
     apply_btn = button("Apply", variant="default")
     apply_btn.connect("clicked", apply)
-    root.pack_start(apply_btn, False, False, 0)
+    root.pack_start(
+        settings_section(
+            "Layouts",
+            settings_row("Primary and extras", "Taskbar layout picker uses this list", trailing=None),
+        ),
+        False,
+        False,
+        0,
+    )
+    root.pack_start(scroller, False, False, 0)
+    root.pack_start(layout_actions, False, False, 0)
+    root.pack_start(
+        settings_section(
+            "Key repeat",
+            settings_row("Repeat delay", "Milliseconds before repeat starts", trailing=delay_scale),
+            settings_row("Repeat rate", "Characters per second", trailing=rate_scale),
+            settings_row("Save", "Apply layout and repeat", trailing=apply_btn),
+        ),
+        False,
+        False,
+        0,
+    )
+    tip = label(
+        "Change desktop shortcuts under Input → Keyboard shortcuts.",
+        "fos-small",
+        "fos-muted",
+    )
+    tip.set_line_wrap(True)
+    root.pack_start(tip, False, False, 0)
     return root
 
 
@@ -420,7 +516,10 @@ def build_mouse(status_cb) -> Gtk.Box:
         False,
         0,
     )
-    prefs = load_kv("mouse", {"accel": "2.0", "threshold": "10", "tapping": "1"})
+    prefs = load_kv(
+        "mouse",
+        {"accel": "2.0", "threshold": "10", "tapping": "1", "natural": "0"},
+    )
     numer, threshold = current_accel()
     accel = numer / 10.0
 
@@ -459,6 +558,15 @@ def build_mouse(status_cb) -> Gtk.Box:
         tapping.set_active(live_tap)
         root.pack_start(tapping, False, False, 0)
 
+    live_natural = current_natural_scrolling()
+    natural = Gtk.CheckButton(label="Natural scrolling")
+    if live_natural is None:
+        natural.set_active(truthy(prefs.get("natural"), False))
+        natural.set_sensitive(False)
+    else:
+        natural.set_active(live_natural)
+    root.pack_start(natural, False, False, 0)
+
     def apply(_button=None) -> None:
         value = scale.get_value()
         numer_v = max(1, int(round(value * 10)))
@@ -467,12 +575,16 @@ def build_mouse(status_cb) -> Gtk.Box:
         tap_on = tapping.get_active()
         if tapping.get_sensitive():
             apply_tapping(tap_on)
+        natural_on = natural.get_active()
+        if natural.get_sensitive():
+            apply_natural_scrolling(natural_on)
         save_kv(
             "mouse",
             {
                 "accel": str(value),
                 "threshold": str(thr_v),
                 "tapping": "1" if tap_on else "0",
+                "natural": "1" if natural_on else "0",
             },
         )
         status_cb("Mouse and touchpad settings applied for this session.")
@@ -555,50 +667,98 @@ def _request_shell_reload() -> None:
 
 def build_wallpaper(status_cb) -> Gtk.Box:
     from .desktop import load_desktop_prefs, save_desktop_prefs
+    from .ui import fos_file_chooser
     from .wallpaper import THEMES
 
     root = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=16)
     root.pack_start(
-        pack_header("Wallpaper", "Drawn FosOS backgrounds. Login and lock screens stay on Dawn Aperture."),
+        pack_header(
+            "Wallpaper",
+            "Drawn themes or a picture. Login and lock screens stay on Dawn Aperture.",
+        ),
         False,
         False,
         0,
     )
     prefs = load_desktop_prefs()
     current = prefs.get("wallpaper", "dawn")
+    image_path = prefs.get("wallpaper_image", "")
+    use_image = current == "image" and bool(image_path)
     group = None
     radios: dict[str, Gtk.RadioButton] = {}
     for theme_id, title in THEMES:
         radio = Gtk.RadioButton.new_with_label_from_widget(group, title)
         if group is None:
             group = radio
-        if theme_id == current:
+        if theme_id == current and not use_image:
             radio.set_active(True)
         radios[theme_id] = radio
         root.pack_start(radio, False, False, 0)
 
+    image_radio = Gtk.RadioButton.new_with_label_from_widget(group, "Picture…")
+    if use_image:
+        image_radio.set_active(True)
+    root.pack_start(image_radio, False, False, 0)
+    image_label = label(image_path or "No picture selected", "fos-small", "fos-muted")
+    image_label.set_line_wrap(True)
+    root.pack_start(image_label, False, False, 0)
+    chosen_image = {"path": image_path}
+
+    def pick_image(_button=None) -> None:
+        filt = Gtk.FileFilter()
+        filt.set_name("Images")
+        for pattern in ("*.png", "*.jpg", "*.jpeg", "*.webp", "*.bmp"):
+            filt.add_pattern(pattern)
+        path = fos_file_chooser(
+            None,
+            title="Choose wallpaper",
+            action=Gtk.FileChooserAction.OPEN,
+            ok_label="Choose",
+            filters=[filt],
+        )
+        if not path:
+            return
+        dest_dir = CONFIG / "wallpapers"
+        dest_dir.mkdir(parents=True, exist_ok=True)
+        dest = dest_dir / Path(path).name
+        try:
+            shutil.copy2(path, dest)
+        except OSError:
+            status_cb("Could not copy the picture.")
+            return
+        chosen_image["path"] = str(dest)
+        image_label.set_text(str(dest))
+        image_radio.set_active(True)
+        status_cb("Picture ready — press Apply.")
+
+    pick_btn = button("Browse…", variant="outline", size="sm")
+    pick_btn.connect("clicked", pick_image)
+    root.pack_start(pick_btn, False, False, 0)
+
     def apply(_button=None) -> None:
         values = load_desktop_prefs()
-        chosen = "dawn"
-        for theme_id, radio in radios.items():
-            if radio.get_active():
-                chosen = theme_id
-                break
-        values["wallpaper"] = chosen
+        if image_radio.get_active():
+            if not chosen_image["path"]:
+                status_cb("Choose a picture first.")
+                return
+            values["wallpaper"] = "image"
+            values["wallpaper_image"] = chosen_image["path"]
+            msg = "Picture wallpaper applied. Desktop refreshes shortly."
+        else:
+            chosen = "dawn"
+            for theme_id, radio in radios.items():
+                if radio.get_active():
+                    chosen = theme_id
+                    break
+            values["wallpaper"] = chosen
+            msg = f"Wallpaper set to {dict(THEMES).get(chosen, chosen)}. Desktop refreshes shortly."
         save_desktop_prefs(values)
         _request_shell_reload()
-        status_cb(f"Wallpaper set to {dict(THEMES).get(chosen, chosen)}. Desktop refreshes shortly.")
+        status_cb(msg)
 
     apply_btn = button("Apply", variant="default")
     apply_btn.connect("clicked", apply)
     root.pack_start(apply_btn, False, False, 0)
-    tip = label(
-        "Image file wallpapers are not supported yet — keep the branded drawn look.",
-        "fos-small",
-        "fos-muted",
-    )
-    tip.set_line_wrap(True)
-    root.pack_start(tip, False, False, 0)
     return root
 
 
@@ -1003,9 +1163,39 @@ def build_display(status_cb) -> Gtk.Box:
 
         root.pack_start(settings_section(title, *rows), False, False, 0)
 
+    primary = next((d for d in displays if d.primary), displays[0] if displays else None)
+    others = [d for d in displays if primary and d.name != primary.name]
+    if primary and others:
+        from .settings_helpers import set_display_beside
+
+        arrange_rows: list[Gtk.Widget] = []
+        for other in others:
+            box = Gtk.Box(spacing=8)
+            left_btn = button("Left of main", variant="outline", size="sm")
+            right_btn = button("Right of main", variant="outline", size="sm")
+
+            def on_left(_b, name=other.name, base=primary.name) -> None:
+                if set_display_beside(name, base, "left"):
+                    status_cb(f"{name} placed left of {base}.")
+                else:
+                    status_cb(f"Could not move {name}.")
+
+            def on_right(_b, name=other.name, base=primary.name) -> None:
+                if set_display_beside(name, base, "right"):
+                    status_cb(f"{name} placed right of {base}.")
+                else:
+                    status_cb(f"Could not move {name}.")
+
+            left_btn.connect("clicked", on_left)
+            right_btn.connect("clicked", on_right)
+            box.pack_start(left_btn, False, False, 0)
+            box.pack_start(right_btn, False, False, 0)
+            arrange_rows.append(settings_row(other.name, "Quick arrange relative to the main display", trailing=box))
+        root.pack_start(settings_section("Arrange displays", *arrange_rows), False, False, 0)
+
     advanced = Gtk.Box(spacing=8)
     if shutil.which("arandr"):
-        layout_btn = button("Rearrange displays", variant="outline", size="sm")
+        layout_btn = button("Advanced layout…", variant="outline", size="sm")
         layout_btn.connect(
             "clicked",
             lambda _b: status_cb("Opened display layout.")
@@ -1014,7 +1204,7 @@ def build_display(status_cb) -> Gtk.Box:
         )
         advanced.pack_start(layout_btn, False, False, 0)
     tip = label(
-        "Use Rearrange displays for multi-monitor positions. Changes apply immediately.",
+        "Quick arrange covers two-monitor left/right. Use Advanced layout for complex setups.",
         "fos-small",
         "fos-muted",
     )
@@ -1166,10 +1356,11 @@ def build_sound(status_cb) -> Gtk.Box:
 def build_network(status_cb) -> Gtk.Box:
     from . import apps as appmod
     from .indicators import WifiPicker
+    from .settings_helpers import settings_row, settings_section
 
     root = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=16)
     root.pack_start(
-        pack_header("Network", "Turn Wi-Fi on, join a network, or manage saved connections."),
+        pack_header("Network", "Wi-Fi, Ethernet status, and VPN connections."),
         False,
         False,
         0,
@@ -1184,6 +1375,51 @@ def build_network(status_cb) -> Gtk.Box:
     card.pack_start(picker, False, False, 0)
     root.pack_start(card, False, False, 0)
 
+    eth_lines: list[str] = []
+    vpn_rows: list[Gtk.Widget] = []
+    nm_out = run(["nmcli", "-t", "-f", "DEVICE,TYPE,STATE,CONNECTION", "device"]) or ""
+    for line in nm_out.splitlines():
+        parts = line.split(":")
+        if len(parts) < 4:
+            continue
+        device, dtype, state, conn = parts[0], parts[1], parts[2], parts[3]
+        if dtype == "ethernet":
+            eth_lines.append(f"{device}: {state}" + (f" — {conn}" if conn else ""))
+    if eth_lines:
+        root.pack_start(
+            settings_section(
+                "Ethernet",
+                settings_row("Wired", "\n".join(eth_lines)),
+            ),
+            False,
+            False,
+            0,
+        )
+
+    vpn_out = run(["nmcli", "-t", "-f", "NAME,TYPE,ACTIVE", "connection"]) or ""
+    for line in vpn_out.splitlines():
+        parts = line.split(":")
+        if len(parts) < 3:
+            continue
+        name, ctype, active = parts[0], parts[1], parts[2]
+        if "vpn" not in ctype.lower() and "wireguard" not in ctype.lower():
+            continue
+        is_on = active in ("yes", "true", "1")
+        toggle = button("Disconnect" if is_on else "Connect", variant="outline", size="sm")
+
+        def on_vpn(_b, vpn_name=name, connected=is_on) -> None:
+            action = "down" if connected else "up"
+            code = subprocess.run(["nmcli", "connection", action, vpn_name], check=False).returncode
+            if code == 0:
+                status_cb(f"VPN {vpn_name} {'disconnected' if connected else 'connected'}. Reopen Network to refresh.")
+            else:
+                status_cb(f"Could not change VPN {vpn_name}.")
+
+        toggle.connect("clicked", on_vpn)
+        vpn_rows.append(settings_row(name, ctype, trailing=toggle))
+    if vpn_rows:
+        root.pack_start(settings_section("VPN", *vpn_rows), False, False, 0)
+
     def open_advanced(_button=None) -> None:
         if appmod.spawn(["nm-connection-editor"]):
             status_cb("Opened advanced network connections.")
@@ -1194,13 +1430,12 @@ def build_network(status_cb) -> Gtk.Box:
     advanced.connect("clicked", open_advanced)
     root.pack_start(advanced, False, False, 0)
     tip = label(
-        "Use Advanced for VPN, bridges, and saved profiles. Everyday Wi-Fi is above.",
+        "Use Advanced for bridges and editing profiles. Everyday Wi-Fi is above.",
         "fos-small",
         "fos-muted",
     )
     tip.set_line_wrap(True)
     root.pack_start(tip, False, False, 0)
-    # Async list + soft rescan; do not block Settings on nmcli --rescan.
     picker.refresh(rescan=False)
 
     def soft_rescan() -> bool:
@@ -1213,13 +1448,9 @@ def build_network(status_cb) -> Gtk.Box:
 
 
 def build_bluetooth(status_cb) -> Gtk.Box:
-    return build_tool_page(
-        "Bluetooth",
-        "Pair and manage Bluetooth devices.",
-        ["blueman-manager"],
-        "Open Bluetooth manager",
-        status_cb,
-    )
+    from .settings_more import build_bluetooth_full
+
+    return build_bluetooth_full(status_cb)
 
 
 def reboot_required() -> bool:
@@ -1773,6 +2004,7 @@ def build_power(status_cb) -> Gtk.Box:
             0,
         )
 
+    power_prefs = load_kv("power", {"blank": "300", "sleep": "0", "lock": "300", "lid": "suspend"})
     timeout = idle_timeout_seconds()
     blank_combo = Gtk.ComboBoxText()
     blank_choices = [
@@ -1786,12 +2018,24 @@ def build_power(status_cb) -> Gtk.Box:
     ]
     for value, text in blank_choices:
         blank_combo.append(str(value), text)
-    # Pick nearest saved value.
-    nearest = min(blank_choices, key=lambda item: abs(item[0] - timeout))[0]
+    try:
+        blank_saved = int(power_prefs.get("blank", str(timeout)))
+    except ValueError:
+        blank_saved = timeout
+    nearest = min(blank_choices, key=lambda item: abs(item[0] - blank_saved))[0]
     blank_combo.set_active_id(str(nearest))
 
+    lock_combo = Gtk.ComboBoxText()
+    for value, text in blank_choices:
+        lock_combo.append(str(value), text)
+    try:
+        lock_saved = int(power_prefs.get("lock", "300"))
+    except ValueError:
+        lock_saved = 300
+    lock_nearest = min(blank_choices, key=lambda item: abs(item[0] - lock_saved))[0]
+    lock_combo.set_active_id(str(lock_nearest))
+
     sleep_combo = Gtk.ComboBoxText()
-    sleep_prefs = load_kv("power", {"blank": "300", "sleep": "0"})
     sleep_choices = [
         (0, "Never"),
         (900, "15 minutes"),
@@ -1802,11 +2046,24 @@ def build_power(status_cb) -> Gtk.Box:
     for value, text in sleep_choices:
         sleep_combo.append(str(value), text)
     try:
-        sleep_saved = int(sleep_prefs.get("sleep", "0"))
+        sleep_saved = int(power_prefs.get("sleep", "0"))
     except ValueError:
         sleep_saved = 0
     sleep_nearest = min(sleep_choices, key=lambda item: abs(item[0] - sleep_saved))[0]
     sleep_combo.set_active_id(str(sleep_nearest))
+
+    lid_combo = Gtk.ComboBoxText()
+    for code, text in (
+        ("suspend", "Suspend"),
+        ("hibernate", "Hibernate"),
+        ("lock", "Lock"),
+        ("ignore", "Do nothing"),
+        ("poweroff", "Shut down"),
+    ):
+        lid_combo.append(code, text)
+    lid_combo.set_active_id(power_prefs.get("lid", "suspend") if power_prefs.get("lid") in (
+        "suspend", "hibernate", "lock", "ignore", "poweroff"
+    ) else "suspend")
 
     def apply_power(_button=None) -> None:
         try:
@@ -1814,35 +2071,60 @@ def build_power(status_cb) -> Gtk.Box:
         except ValueError:
             blank = 0
         try:
+            lock = int(lock_combo.get_active_id() or "0")
+        except ValueError:
+            lock = 0
+        try:
             sleep = int(sleep_combo.get_active_id() or "0")
         except ValueError:
             sleep = 0
-        apply_idle_timeout(blank)
-        # DPMS off time ≈ “sleep” for the display (session-level).
+        # Screensaver timeout drives xss-lock; blank uses the same when lock is Never.
+        apply_idle_timeout(lock if lock > 0 else blank)
         if sleep <= 0:
             subprocess.run(["xset", "dpms", "0", "0", "0"], check=False)
         else:
             subprocess.run(["xset", "dpms", str(sleep), str(sleep), str(sleep)], check=False)
-        CONFIG.mkdir(parents=True, exist_ok=True)
-        (CONFIG / "power").write_text(f"blank={blank}\nsleep={sleep}\n", encoding="utf-8")
+        lid = lid_combo.get_active_id() or "suspend"
+        save_kv(
+            "power",
+            {
+                "blank": str(blank),
+                "lock": str(lock),
+                "sleep": str(sleep),
+                "lid": lid,
+            },
+        )
+        policy = Path("/usr/libexec/fosos-settings-policy")
+        if shutil.which("pkexec") and policy.is_file():
+            subprocess.Popen(["pkexec", str(policy), "set-lid", lid])
         status_cb("Power settings saved for this session.")
 
     apply_btn = button("Apply", variant="default", size="sm")
     apply_btn.connect("clicked", apply_power)
     root.pack_start(
         settings_section(
-            "Screen and sleep",
+            "Screen, lock and sleep",
             settings_row(
                 "Turn off my screen after",
-                "Idle blanking (xset). Lock still uses Super+L / xss-lock.",
+                "Idle blanking preference (paired with lock below)",
                 trailing=blank_combo,
+            ),
+            settings_row(
+                "Lock screen after",
+                "xss-lock idle timer (Super+L still locks immediately)",
+                trailing=lock_combo,
             ),
             settings_row(
                 "Make my device sleep after",
                 "Display power management (DPMS). Full system sleep uses Suspend.",
                 trailing=sleep_combo,
             ),
-            settings_row("Save power settings", "Apply blank and sleep timers", trailing=apply_btn),
+            settings_row(
+                "Lid close",
+                "System-wide logind policy (needs authentication)",
+                trailing=lid_combo,
+            ),
+            settings_row("Save power settings", "Apply timers and lid policy", trailing=apply_btn),
         ),
         False,
         False,
@@ -1872,14 +2154,6 @@ def build_power(status_cb) -> Gtk.Box:
         False,
         0,
     )
-
-    tip = label(
-        "Lid close behaviour follows systemd-logind. Change it system-wide if needed.",
-        "fos-small",
-        "fos-muted",
-    )
-    tip.set_line_wrap(True)
-    root.pack_start(tip, False, False, 0)
     return root
 
 
@@ -1901,6 +2175,26 @@ PAGES = {
     "updates": ("Updates", build_updates),
     "storage": ("Storage", build_storage),
 }
+
+
+def register_extra_pages() -> None:
+    """Attach pages from settings_more (call after both modules are imported)."""
+    from . import settings_more as more
+
+    PAGES.update(
+        {
+            "datetime": ("Date & time", more.build_datetime),
+            "accounts": ("Accounts", more.build_accounts),
+            "appearance": ("Appearance", more.build_appearance),
+            "shortcuts": ("Keyboard shortcuts", more.build_shortcuts),
+            "startup": ("Startup", more.build_startup),
+            "accessibility": ("Accessibility", more.build_accessibility),
+            "privacy": ("Privacy", more.build_privacy),
+            "multitasking": ("Multitasking", more.build_multitasking),
+            "nightlight": ("Night light", more.build_nightlight),
+            "bluetooth": ("Bluetooth", more.build_bluetooth_full),
+        }
+    )
 
 
 def restore_session_region() -> None:
@@ -1940,6 +2234,7 @@ def restore_session_input() -> None:
         except ValueError:
             pass
         apply_tapping(truthy(values.get("tapping"), True))
+        apply_natural_scrolling(truthy(values.get("natural"), False))
     else:
         # Match system Xorg default when the user has never opened Mouse settings.
         apply_tapping(True)
@@ -1947,9 +2242,15 @@ def restore_session_input() -> None:
     if power.is_file():
         values = dict(line.split("=", 1) for line in power.read_text(encoding="utf-8").splitlines() if "=" in line)
         try:
-            apply_idle_timeout(int(values.get("blank", "300")))
+            lock = int(values.get("lock", values.get("blank", "300")))
         except ValueError:
-            pass
+            lock = 300
+        try:
+            blank = int(values.get("blank", "300"))
+        except ValueError:
+            blank = 300
+        # xss-lock watches the X screensaver; prefer explicit lock timeout.
+        apply_idle_timeout(lock if lock > 0 else blank)
         try:
             sleep = int(values.get("sleep", "0"))
         except ValueError:
@@ -1958,3 +2259,15 @@ def restore_session_input() -> None:
             subprocess.run(["xset", "dpms", "0", "0", "0"], check=False)
         else:
             subprocess.run(["xset", "dpms", str(sleep), str(sleep), str(sleep)], check=False)
+    try:
+        from .nightlight import restore_session_night_light
+
+        restore_session_night_light()
+    except Exception:
+        pass
+    try:
+        from .settings_more import restore_session_accessibility
+
+        restore_session_accessibility()
+    except Exception:
+        pass
