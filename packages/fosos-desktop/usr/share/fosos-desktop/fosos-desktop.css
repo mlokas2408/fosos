@@ -914,8 +914,12 @@ tooltip label {
 .fos-app-header {
   background-color: @fos_titlebar;
   border-bottom: 1px solid @fos_frame_inactive;
-  /* Match Cursor custom titlebar (~30–31px); extra left inset for app icon. */
-  padding: 0 4px 0 12px;
+  min-height: 30px;
+}
+
+.fos-app-header-inner {
+  /* Match Cursor custom titlebar; left inset clears the frame for the app icon. */
+  padding: 0 4px 0 16px;
   min-height: 30px;
 }
 
@@ -972,13 +976,63 @@ tooltip label {
   min-height: 28px;
 }
 
+.fos-term-tab-chip {
+  background-color: transparent;
+}
+
 .fos-term-tab {
-  min-width: 96px;
+  min-width: 84px;
+  min-height: 28px;
+}
+
+.fos-term-tab-close {
+  min-width: 22px;
   min-height: 28px;
 }
 
 .fos-term-body {
   background-color: @fos_card;
+}
+
+/* Inset around VTE (VTE itself ignores CSS padding). Scheme bg set in code. */
+.fos-term-page {
+  padding: 8px 10px;
+}
+
+.fos-term-drag {
+  background-color: transparent;
+  min-width: 24px;
+  min-height: 28px;
+}
+
+.fos-term-settings {
+  background-color: @fos_card;
+  padding: 16px 20px;
+}
+
+.fos-term-settings-header {
+  padding: 0 0 12px 0;
+  border-bottom: 1px solid @fos_border;
+  margin-bottom: 4px;
+}
+
+.fos-term-palette {
+  background-color: transparent;
+}
+
+.fos-term-palette-list {
+  background-color: transparent;
+  border: 1px solid @fos_border;
+}
+
+.fos-term-palette-row {
+  background-color: transparent;
+  border-bottom: 1px solid alpha(@fos_border, 0.6);
+}
+
+.fos-term-palette-row:hover,
+.fos-term-palette-list row:selected {
+  background-color: alpha(@fos_fg, 0.08);
 }
 
 .fos-editor-view {

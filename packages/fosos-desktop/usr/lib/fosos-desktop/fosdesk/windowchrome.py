@@ -129,9 +129,17 @@ class CardWindow(Gtk.ApplicationWindow):
         self.frame = add_classes(Gtk.Box(orientation=Gtk.Orientation.VERTICAL), "fos-card", "fos-app-frame")
         self.add(self.frame)
 
-        self.header = add_classes(Gtk.Box(spacing=4), "fos-app-header")
+        # EventBox owns the titlebar Gdk window so empty chrome (and Terminal
+        # tab filler) can begin_move_drag. Undecorated windows have no Openbox
+        # Titlebar context — move is entirely app-driven. Gtk.Box cannot
+        # set_has_window(True).
+        self.header_shell = add_classes(Gtk.EventBox(), "fos-app-header")
+        self.header_shell.set_visible_window(True)
         # Match Cursor / VS Code custom titlebar (~30–31px).
-        self.header.set_size_request(-1, 30)
+        self.header_shell.set_size_request(-1, 30)
+        # Padding lives on the inner box — EventBox ignores CSS padding for layout.
+        self.header = add_classes(Gtk.Box(spacing=4), "fos-app-header-inner")
+        self.header_shell.add(self.header)
 
         # Plain icon like Cursor — no fos-tile background plate.
         self.header_icon = icon(icon_name, 14)
@@ -167,13 +175,13 @@ class CardWindow(Gtk.ApplicationWindow):
             captions.pack_start(btn, False, False, 0)
         self.header.pack_start(captions, False, False, 0)
 
-        self.header.add_events(
+        self.header_shell.add_events(
             Gdk.EventMask.BUTTON_PRESS_MASK
             | Gdk.EventMask.BUTTON_RELEASE_MASK
             | Gdk.EventMask.BUTTON1_MOTION_MASK
         )
-        self.header.connect("button-press-event", self._on_header_press)
-        self.frame.pack_start(self.header, False, False, 0)
+        self.header_shell.connect("button-press-event", self._on_header_press)
+        self.frame.pack_start(self.header_shell, False, False, 0)
 
         self.body = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
         self.body.set_hexpand(True)
@@ -259,6 +267,25 @@ class CardWindow(Gtk.ApplicationWindow):
         self.max_btn.set_tooltip_text("Restore" if self._maximized else "Maximize")
         return False
 
+    def begin_titlebar_move(self, event: Gdk.EventButton) -> bool:
+        """Start an interactive window move from a titlebar / drag-area press."""
+        if event.button != 1:
+            return False
+        if event.type == Gdk.EventType._2BUTTON_PRESS:
+            self.toggle_maximize()
+            return True
+        window = self.get_window()
+        if window is None:
+            return False
+        Gdk.Window.begin_move_drag(
+            window,
+            int(event.button),
+            int(event.x_root),
+            int(event.y_root),
+            int(event.time),
+        )
+        return True
+
     def _on_header_press(self, _widget, event: Gdk.EventButton) -> bool:
         if event.button == 3:
             self._popup_title_menu(event)
@@ -266,17 +293,4 @@ class CardWindow(Gtk.ApplicationWindow):
         if event.button != 1:
             return False
         # Gtk.Button children consume their own presses; remaining header clicks drag.
-        if event.type == Gdk.EventType._2BUTTON_PRESS:
-            self.toggle_maximize()
-            return True
-        window = self.get_window()
-        if window is not None:
-            Gdk.Window.begin_move_drag(
-                window,
-                int(event.button),
-                int(event.x_root),
-                int(event.y_root),
-                int(event.time),
-            )
-            return True
-        return False
+        return self.begin_titlebar_move(event)
