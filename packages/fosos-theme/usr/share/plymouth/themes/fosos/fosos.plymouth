@@ -1,6 +1,6 @@
 [Plymouth Theme]
 Name=FosOS
-Description=FosOS boot splash — Dawn Aperture logo and spinner (logo is in throbber frames)
+Description=FosOS boot splash — centred Dawn Aperture logo, spinner mid lower half
 ModuleName=two-step
 
 [two-step]
@@ -13,10 +13,13 @@ DialogHorizontalAlignment=.5
 DialogVerticalAlignment=.5
 TitleHorizontalAlignment=.5
 TitleVerticalAlignment=.82
+# Spinner-only throbber: image centre at 3/4 height; ring offset in PNG so it
+# sits midway between logo bottom and screen bottom on any resolution.
 HorizontalAlignment=.5
-VerticalAlignment=.45
+VerticalAlignment=.75
+# Logo-only watermark — true screen centre on any resolution.
 WatermarkHorizontalAlignment=.5
-WatermarkVerticalAlignment=.96
+WatermarkVerticalAlignment=.5
 Transition=none
 TransitionDuration=0.0
 BackgroundStartColor=0x0a0a0a

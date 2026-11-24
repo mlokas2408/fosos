@@ -1,5 +1,11 @@
 # FosOS release notes
 
+## FosOS theme 0.7.9 — Resolution-independent splash layout
+
+- Logo is the centred watermark (true vertical + horizontal centre on any panel)
+- Spinner-only throbber sits midway between logo bottom and screen bottom
+  (alignment `.75` plus a fixed PNG offset for the logo half-height)
+
 ## FosOS theme 0.7.8 — Splash spacing; no bottom watermark
 
 - More space between Dawn Aperture mark and spinner on the Plymouth splash
