@@ -52,6 +52,9 @@ sudo
 # APT recommends are off: without locales, LANG=en_US.UTF-8 is unsettable and
 # GTK apps warn "Locale not supported". Calamares localecfg also needs it.
 locales
+# Well-known home folders (Documents, Downloads, Pictures, …). FosOS session
+# runs xdg-user-dirs-update on login; /etc/skel seeds them at user create.
+xdg-user-dirs
 xarchiver
 firmware-linux
 # Laptop Wi-Fi: free firmware-linux is not enough. Explicit non-free-firmware

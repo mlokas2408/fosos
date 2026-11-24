@@ -1,0 +1,10 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=Recycle Bin
+Comment=Recover deleted files
+Icon=user-trash
+Exec=sh -c "exec fosos-files \"${XDG_DATA_HOME:-$HOME/.local/share}/Trash/files\""
+Terminal=false
+StartupNotify=true
+Categories=System;

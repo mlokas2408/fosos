@@ -22,6 +22,21 @@ data=/usr/share/fosos-desktop
 config="${XDG_CONFIG_HOME:-$HOME/.config}/fosos-desktop"
 mkdir -p "$config"
 
+# Create XDG user folders (Documents, Downloads, Pictures, Music, Videos,
+# Desktop, …) on first login for every account. FosOS does not run the
+# generic XDG autostart list, so call the updater here. LC_MESSAGES=C keeps
+# English folder names even when the session locale is localized.
+if command -v xdg-user-dirs-update >/dev/null 2>&1; then
+	LC_MESSAGES=C.UTF-8 xdg-user-dirs-update >/dev/null 2>&1 || true
+fi
+
+# Seed default Desktop launchers (Computer / Files / Recycle Bin) if missing.
+if command -v python3 >/dev/null 2>&1; then
+	PYTHONPATH="/usr/lib/fosos-desktop${PYTHONPATH:+:$PYTHONPATH}" \
+		python3 -c 'from fosdesk.desktop import ensure_default_desktop_entries; ensure_default_desktop_entries()' \
+		>/dev/null 2>&1 || true
+fi
+
 rc="$data/openbox/rc.xml"
 if [ -f "$config/openbox/rc.xml" ]; then
 	rc="$config/openbox/rc.xml"

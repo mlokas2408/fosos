@@ -146,7 +146,7 @@ class StartMenu(Popup):
         footer.pack_start(user, False, False, 0)
         power = button(
             icon_name="system-shutdown-symbolic",
-            variant="outline",
+            variant="ghost",
             size="icon-sm",
             tooltip="Power",
         )
@@ -288,10 +288,10 @@ class StartMenu(Popup):
     # Rows and tiles
 
     def _pinned_tile(self, app: appmod.App) -> Gtk.Button:
-        widget = button(variant="outline")
+        widget = button(variant="ghost")
         add_classes(widget, "tile")
         box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
-        box.pack_start(tile(app.icon_name(), "primary"), False, False, 0)
+        box.pack_start(tile(app.icon_name(symbolic=False), "primary", size=32), False, False, 0)
         name = label(app.name, "fos-small", "fos-strong", xalign=0.5, ellipsize=True)
         name.set_max_width_chars(12)
         box.pack_start(name, False, False, 0)

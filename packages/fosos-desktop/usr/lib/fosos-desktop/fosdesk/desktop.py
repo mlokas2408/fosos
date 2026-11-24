@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import shutil
 from functools import lru_cache
 from pathlib import Path
 
@@ -11,11 +12,11 @@ gi.require_version("Gdk", "3.0")
 gi.require_version("GdkPixbuf", "2.0")
 gi.require_version("Gtk", "3.0")
 gi.require_version("PangoCairo", "1.0")
-from gi.repository import Gdk, GdkPixbuf, GLib, Gtk, Pango, PangoCairo
+from gi.repository import Gdk, GdkPixbuf, Gio, GLib, Gtk, Pango, PangoCairo
 
 from . import apps as appmod
 from .panel import HEIGHT as PANEL_HEIGHT
-from .ui import BRAND, DATA_DIR, add_classes, button, full_icon, label, set_class
+from .ui import BRAND, DATA_DIR, add_classes, full_icon, label, set_class
 
 try:
     from .wallpaper import draw_wallpaper
@@ -142,6 +143,79 @@ def save_desktop_prefs(values: dict[str, str]) -> None:
 # Retired defaults kept out of the active set (1.13.14 dropped Home).
 RETIRED_ICON_IDS = frozenset({"home"})
 
+# Pre-1.13.23 virtual icon ids → real Desktop launcher filenames.
+POSITION_ALIASES = {
+    "computer": "Computer.desktop",
+    "files": "Files.desktop",
+    "trash": "Recycle Bin.desktop",
+    "install": "Install FosOS.desktop",
+}
+
+DEFAULTS_DIR = DATA_DIR / "desktop-defaults"
+DEFAULTS_LIVE_DIR = DATA_DIR / "desktop-defaults-live"
+
+
+def ensure_default_desktop_entries() -> None:
+    """Seed ~/Desktop with Computer / Files / Recycle Bin (and Install on live)."""
+    folder = desktop_dir()
+    sources = [DEFAULTS_DIR]
+    if appmod.is_live():
+        sources.append(DEFAULTS_LIVE_DIR)
+    for src_dir in sources:
+        if not src_dir.is_dir():
+            continue
+        try:
+            entries = list(src_dir.iterdir())
+        except OSError:
+            continue
+        for src in entries:
+            if not src.is_file() or src.name.startswith("."):
+                continue
+            dest = folder / src.name
+            if dest.exists():
+                continue
+            try:
+                shutil.copy2(src, dest)
+            except OSError:
+                pass
+
+
+def desktop_entry_icon(path: Path) -> str:
+    if path.is_dir():
+        return "folder"
+    if path.suffix.lower() == ".desktop":
+        try:
+            info = Gio.DesktopAppInfo.new_from_filename(str(path))
+        except GLib.Error:
+            info = None
+        if info is not None:
+            gicon = info.get_icon()
+            if isinstance(gicon, Gio.ThemedIcon):
+                names = gicon.get_names()
+                if names:
+                    return names[0]
+        return "application-x-executable"
+    mime, _ = Gio.content_type_guess(str(path), None)
+    if mime:
+        themed = Gio.content_type_get_icon(mime)
+        if isinstance(themed, Gio.ThemedIcon):
+            names = themed.get_names()
+            if names:
+                return names[0]
+    return "text-x-generic"
+
+
+def desktop_entry_title(path: Path) -> str:
+    if path.suffix.lower() == ".desktop":
+        try:
+            info = Gio.DesktopAppInfo.new_from_filename(str(path))
+        except GLib.Error:
+            info = None
+        if info is not None and info.get_name():
+            return info.get_name()
+        return path.stem
+    return path.name
+
 
 def load_icon_positions() -> dict[str, tuple[int, int]]:
     path = config_dir() / POSITIONS_FILE
@@ -163,6 +237,12 @@ def load_icon_positions() -> dict[str, tuple[int, int]]:
             positions[icon_id] = (int(parts[0]), int(parts[1]))
     except (OSError, ValueError):
         pass
+    # Migrate virtual shell icon ids to Desktop launcher filenames.
+    for old, new in POSITION_ALIASES.items():
+        if old in positions and new not in positions:
+            positions[new] = positions.pop(old)
+        elif old in positions:
+            del positions[old]
     return positions
 
 
@@ -171,7 +251,7 @@ def save_icon_positions(positions: dict[str, tuple[int, int]]) -> None:
     active = {
         key: value
         for key, value in positions.items()
-        if key not in RETIRED_ICON_IDS
+        if key not in RETIRED_ICON_IDS and key not in POSITION_ALIASES
     }
     text = "".join(f"{key}={x},{y}\n" for key, (x, y) in sorted(active.items()))
     (config_dir() / POSITIONS_FILE).write_text(text, encoding="utf-8")
@@ -355,18 +435,13 @@ class Desktop(Gtk.Window):
         self.positions = load_icon_positions()
         self.selected: DesktopIcon | None = None
         self._prefs = load_desktop_prefs()
+        self._monitor: Gio.FileMonitor | None = None
+        self._reload_pending = False
 
-        # Default desktop: Computer, Files, Recycle Bin (no Home).
-        self._add_icon("computer", "Computer", "computer", lambda: self._open_folder(Path("/")))
-        self._add_icon("files", "Files", "system-file-manager", lambda: self._launch("fosos-files.desktop"))
-        self._add_icon("trash", "Recycle Bin", "user-trash", lambda: self._open_trash())
-        if appmod.is_live() and appmod.load_app("calamares-install-fosos.desktop"):
-            self._add_icon(
-                "install",
-                "Install FosOS",
-                "system-software-install",
-                lambda: self._launch("calamares-install-fosos.desktop"),
-            )
+        # Icons come from ~/Desktop (real files). Seed Computer / Files / Recycle Bin.
+        ensure_default_desktop_entries()
+        self.reload_icons()
+        self._watch_desktop()
 
         screen = Gdk.Screen.get_default()
         screen.connect("monitors-changed", lambda _s: self.place())
@@ -401,6 +476,87 @@ class Desktop(Gtk.Window):
         self.icons.append(item)
         self.icon_by_id[icon_id] = item
         self.fixed.put(item, 0, 0)
+
+    def reload_icons(self) -> None:
+        """Rebuild icons from ~/Desktop so File Explorer and the wallpaper match."""
+        selected_id = self.selected.icon_id if self.selected is not None else None
+        for item in list(self.icons):
+            self.fixed.remove(item)
+            item.destroy()
+        self.icons = []
+        self.icon_by_id = {}
+        self.selected = None
+
+        folder = desktop_dir()
+        try:
+            entries = sorted(
+                (p for p in folder.iterdir() if not p.name.startswith(".")),
+                key=lambda p: (not p.is_dir(), p.name.lower()),
+            )
+        except OSError:
+            entries = []
+
+        for path in entries:
+            icon_id = path.name
+            title = desktop_entry_title(path)
+            icon_name = desktop_entry_icon(path)
+            self._add_icon(icon_id, title, icon_name, lambda p=path: self._activate_path(p))
+
+        if selected_id and selected_id in self.icon_by_id:
+            self.select(self.icon_by_id[selected_id])
+        self.place()
+        self.show_all()
+
+    def _watch_desktop(self) -> None:
+        folder = desktop_dir()
+        if self._monitor is not None:
+            self._monitor.cancel()
+            self._monitor = None
+        try:
+            self._monitor = Gio.File.new_for_path(str(folder)).monitor_directory(
+                Gio.FileMonitorFlags.NONE, None
+            )
+        except GLib.Error:
+            self._monitor = None
+            return
+        self._monitor.connect("changed", self._on_desktop_changed)
+
+    def _on_desktop_changed(self, _monitor, _file, _other, _event) -> None:
+        if self._reload_pending:
+            return
+        self._reload_pending = True
+
+        def _run() -> bool:
+            self._reload_pending = False
+            self.reload_icons()
+            return False
+
+        GLib.timeout_add(200, _run)
+
+    def _activate_path(self, path: Path) -> None:
+        if not path.exists():
+            self.reload_icons()
+            return
+        if path.is_dir():
+            self._open_folder(path)
+            return
+        if path.suffix.lower() == ".desktop":
+            try:
+                info = Gio.DesktopAppInfo.new_from_filename(str(path))
+            except GLib.Error:
+                info = None
+            if info is not None:
+                try:
+                    info.launch([], None)
+                    return
+                except GLib.Error:
+                    pass
+            return
+        context = Gdk.Display.get_default().get_app_launch_context()
+        try:
+            Gio.AppInfo.launch_default_for_uri(path.as_uri(), context)
+        except GLib.Error:
+            pass
 
     def icon_pos(self, icon_id: str) -> tuple[int, int]:
         if icon_id in self.positions:
@@ -470,18 +626,8 @@ class Desktop(Gtk.Window):
         save_icon_positions(self.positions)
         self.queue_draw()
 
-    def _launch(self, app_id: str) -> None:
-        app = appmod.load_app(app_id)
-        if app is not None:
-            app.launch()
-
     def _open_folder(self, path: Path) -> None:
         appmod.spawn(["fosos-files", str(path)])
-
-    def _open_trash(self) -> None:
-        trash = Path.home() / ".local/share/Trash/files"
-        trash.mkdir(parents=True, exist_ok=True)
-        self._open_folder(trash)
 
     def place(self) -> None:
         screen = Gdk.Screen.get_default()
@@ -502,13 +648,8 @@ class Desktop(Gtk.Window):
         self.reload_prefs()
         # Re-read positions so a Settings "Reset icon positions" takes effect.
         self.positions = load_icon_positions()
-        for item in self.icons:
-            if item.icon_id not in self.positions:
-                index = list(self.icon_by_id).index(item.icon_id)
-                self.positions[item.icon_id] = cell_to_pixel(
-                    *default_cell(index, self._primary()), self._primary()
-                )
-        self.place()
+        ensure_default_desktop_entries()
+        self.reload_icons()
         self.queue_draw()
 
     def _primary(self) -> Gdk.Rectangle:
@@ -597,7 +738,7 @@ class Desktop(Gtk.Window):
             target.mkdir(exist_ok=False)
         except OSError:
             return
-        self._open_folder(folder)
+        self.reload_icons()
 
     def _on_key(self, _widget, event: Gdk.EventKey) -> bool:
         if event.keyval == Gdk.KEY_Escape:

@@ -12,6 +12,11 @@ data=/usr/share/fosos-desktop
 config="${XDG_CONFIG_HOME:-$HOME/.config}/fosos-desktop"
 mkdir -p "$config"
 
+# Same as fosos-session: ensure XDG user folders exist (English names).
+if command -v xdg-user-dirs-update >/dev/null 2>&1; then
+	LC_MESSAGES=C.UTF-8 xdg-user-dirs-update >/dev/null 2>&1 || true
+fi
+
 rc="$data/openbox/rc.xml"
 if [ -f "$config/openbox/rc.xml" ]; then
 	rc="$config/openbox/rc.xml"

@@ -1,0 +1,10 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=Computer
+Comment=Browse this PC
+Icon=computer
+Exec=fosos-files /
+Terminal=false
+StartupNotify=true
+Categories=System;

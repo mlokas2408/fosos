@@ -1,0 +1,11 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=Install FosOS
+Comment=Install FosOS on this computer
+Icon=system-software-install
+Exec=calamares-install-fosos
+TryExec=calamares-install-fosos
+Terminal=false
+StartupNotify=true
+Categories=System;

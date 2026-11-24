@@ -146,11 +146,11 @@ class QuickSettings(Popup):
         frame.pack_start(footer, False, False, 0)
 
     def _toggle_tile(self, icon_name: str, caption: str) -> Gtk.Button:
-        widget = button(variant="outline")
+        widget = button(variant="ghost")
         add_classes(widget, "fos-qs-tile")
         box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
         box.set_halign(Gtk.Align.CENTER)
-        box.pack_start(tile(icon_name, "muted", small=True), False, False, 0)
+        box.pack_start(tile(icon_name, "muted", size=22, small=True), False, False, 0)
         box.pack_start(label(caption, "fos-small", xalign=0.5), False, False, 0)
         widget.add(box)
         widget.set_tooltip_text(caption)

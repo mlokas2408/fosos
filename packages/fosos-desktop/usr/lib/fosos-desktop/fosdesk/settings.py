@@ -399,10 +399,10 @@ class SettingsWindow(CardWindow):
         self.content.show_all()
 
     def _panel_tile(self, title: str, desc: str, icon_name: str, action: dict) -> Gtk.Button:
-        widget = button(variant="outline")
+        widget = button(variant="ghost")
         add_classes(widget, "row", "fos-settings-tile")
         row = Gtk.Box(spacing=12)
-        row.pack_start(tile(icon_name, "primary"), False, False, 0)
+        row.pack_start(tile(icon_name, "primary", size=28), False, False, 0)
         texts = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
         texts.set_valign(Gtk.Align.CENTER)
         texts.pack_start(label(title, "fos-text", "fos-strong", ellipsize=True), False, False, 0)

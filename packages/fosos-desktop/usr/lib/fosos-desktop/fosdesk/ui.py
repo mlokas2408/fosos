@@ -87,10 +87,29 @@ def icon(name: str, size: int = 16) -> Gtk.Image:
 
 
 def full_icon(name: str, size: int = 48) -> Gtk.Image:
-    """Large themed icon for the desktop (prefer full-color over -symbolic)."""
+    """Themed icon as pixbuf — prefer regular (non-symbolic) glyphs.
+
+    FosOS GTK sets `-gtk-icon-style: symbolic`, so Gtk.Image.new_from_icon_name
+    remaps to Adwaita plate-style MIME icons. Loading a pixbuf with FORCE_REGULAR
+    keeps FosOS stroke icons for file listings and desktop cells.
+    """
     theme = Gtk.IconTheme.get_default()
     base = name[:-9] if name.endswith("-symbolic") else name
-    for candidate in (base, name, f"{base}-symbolic"):
+    flags = Gtk.IconLookupFlags.FORCE_SIZE | Gtk.IconLookupFlags.FORCE_REGULAR
+    for candidate in (base, name):
+        if not theme.has_icon(candidate):
+            continue
+        try:
+            pixbuf = theme.load_icon(candidate, size, flags)
+        except GLib.Error:
+            continue
+        if pixbuf is None:
+            continue
+        image = Gtk.Image.new_from_pixbuf(pixbuf)
+        image.set_pixel_size(size)
+        return image
+    # Last resort: allow symbolic if nothing else exists.
+    for candidate in (f"{base}-symbolic", name):
         if not theme.has_icon(candidate):
             continue
         try:
@@ -247,10 +266,15 @@ def kbd(text: str) -> Gtk.Label:
 
 
 def tile(icon_name: str, kind: str = "primary", size: int = 16, small: bool = False) -> Gtk.Box:
+    """Icon glyph without a bordered plate (Windows-like). `kind` kept for call sites."""
     box = Gtk.Box()
     box.set_halign(Gtk.Align.CENTER)
     box.set_valign(Gtk.Align.CENTER)
-    box.pack_start(icon(icon_name, size), True, True, 0)
+    # Prefer a full-color glyph when available; fall back to symbolic.
+    if size >= 24:
+        box.pack_start(full_icon(icon_name, size), True, True, 0)
+    else:
+        box.pack_start(icon(icon_name, size), True, True, 0)
     add_classes(box, "fos-tile", kind, "small" if small else "")
     return box
 

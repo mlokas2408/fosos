@@ -165,6 +165,34 @@ button.fos-btn.outline:hover {
   background-color: alpha(@fos_fg, 0.075);
 }
 
+/* Icon cells (Start pins, Files grid, etc.): bare icons, Win11-style — no bordered plate. */
+button.fos-btn.tile,
+button.fos-btn.outline.tile,
+button.fos-btn.secondary.tile,
+button.fos-btn.ghost.tile {
+  background-color: transparent;
+  background-image: none;
+  border: none;
+  box-shadow: none;
+  padding: 8px 6px;
+}
+
+button.fos-btn.tile:hover,
+button.fos-btn.outline.tile:hover,
+button.fos-btn.ghost.tile:hover {
+  background-color: alpha(@fos_fg, 0.08);
+  border: none;
+}
+
+button.fos-btn.tile.secondary,
+button.fos-btn.tile:active,
+button.fos-btn.outline.tile.secondary,
+button.fos-btn.tile.fos-start-selected,
+button.fos-btn.tile.selected {
+  background-color: alpha(@fos_fg, 0.14);
+  border: none;
+}
+
 button.fos-btn.destructive {
   background-color: alpha(@fos_destructive, 0.2);
   color: @fos_destructive;
@@ -245,18 +273,8 @@ button.fos-btn.size-icon-xs {
   padding: 0;
 }
 
-button.fos-btn.tile {
-  padding: 12px 8px;
-}
-
 button.fos-btn.row {
   padding: 8px;
-}
-
-button.fos-btn.fos-start-selected,
-button.fos-btn.tile.fos-start-selected {
-  background-color: alpha(@fos_fg, 0.12);
-  border-color: @fos_ring;
 }
 
 /* Brand mark: Dawn Aperture logo (image) */
@@ -391,10 +409,24 @@ button.fos-btn.fos-login-power-item:hover {
   background-color: alpha(@fos_fg, 0.08);
 }
 
-/* Quick Settings tiles */
-button.fos-btn.fos-qs-tile {
+/* Quick Settings tiles — soft fill without an inner icon plate */
+button.fos-btn.fos-qs-tile,
+button.fos-btn.outline.fos-qs-tile {
   min-height: 72px;
   padding: 10px 6px;
+  background-color: alpha(@fos_fg, 0.06);
+  border-color: transparent;
+}
+
+button.fos-btn.fos-qs-tile:hover,
+button.fos-btn.outline.fos-qs-tile:hover {
+  background-color: alpha(@fos_fg, 0.10);
+  border-color: transparent;
+}
+
+button.fos-btn.fos-qs-tile.secondary {
+  background-color: alpha(@fos_fg, 0.16);
+  border-color: transparent;
 }
 
 /* Status Notifier tray icons on the panel */
@@ -546,28 +578,28 @@ button.fos-btn.size-icon.fos-taskview-btn {
   min-height: 22px;
 }
 
-/* Icon tiles in menus and on the desktop */
+/* Icon plates — transparent; show the glyph only (Windows-like). */
 .fos-tile {
-  min-width: 36px;
-  min-height: 36px;
+  min-width: 28px;
+  min-height: 28px;
+  background-color: transparent;
+  border: none;
+  color: @fos_fg;
 }
 
-.fos-tile.primary {
-  background-color: @fos_primary;
-  color: @fos_primary_fg;
-}
-
-.fos-tile.muted {
-  background-color: @fos_muted;
+.fos-tile.primary,
+.fos-tile.muted,
+.fos-tile.avatar {
+  background-color: transparent;
+  color: @fos_fg;
 }
 
 .fos-tile.small {
-  min-width: 32px;
-  min-height: 32px;
+  min-width: 24px;
+  min-height: 24px;
 }
 
 .fos-tile.avatar {
-  background-color: @fos_muted;
   min-width: 24px;
   min-height: 24px;
 }
@@ -863,13 +895,18 @@ button.fos-btn.fos-settings-nav-item.secondary {
   margin: 0 16px;
 }
 
-button.fos-btn.fos-settings-tile {
+button.fos-btn.fos-settings-tile,
+button.fos-btn.outline.fos-settings-tile {
   min-height: 64px;
   padding: 12px 14px;
+  background-color: transparent;
+  border-color: transparent;
 }
 
-button.fos-btn.fos-settings-tile:hover {
-  border-color: @fos_frame;
+button.fos-btn.fos-settings-tile:hover,
+button.fos-btn.outline.fos-settings-tile:hover {
+  background-color: alpha(@fos_fg, 0.06);
+  border-color: transparent;
 }
 
 /* Dark tooltips — readable on the Dawn desktop (Win11 dark style). */
@@ -945,9 +982,74 @@ tooltip label {
   background-color: transparent;
 }
 
-.fos-files-sidebar {
+.fos-files-paned > separator {
+  background-color: @fos_border;
+  min-width: 1px;
+  /* Wider drag hit-target while keeping a 1px rule look via padding. */
+  padding-left: 2px;
+  padding-right: 2px;
+  background-clip: content-box;
+}
+
+.fos-files-sidebar-scroll {
   background-color: alpha(@fos_muted, 0.35);
-  border-right: 1px solid @fos_border;
+}
+
+.fos-files-sidebar {
+  background-color: transparent;
+  padding: 8px 6px;
+}
+
+.fos-files-nav-sep {
+  background-color: @fos_border;
+  min-height: 1px;
+}
+
+.fos-files-nav-section {
+  margin-top: 6px;
+  margin-bottom: 2px;
+  padding-left: 28px;
+  letter-spacing: 0.04em;
+}
+
+.fos-files-nav-item {
+  min-height: 28px;
+  padding: 2px 6px;
+}
+
+.fos-files-nav-active {
+  background-color: alpha(@fos_fg, 0.10);
+}
+
+.fos-files-nav-tree-row {
+  min-height: 28px;
+}
+
+.fos-files-nav-gutter,
+.fos-files-nav-chevron {
+  min-width: 22px;
+  min-height: 28px;
+  padding: 0;
+}
+
+.fos-files-nav-children {
+  margin: 0;
+  padding: 0;
+}
+
+.fos-files-nav-child-row {
+  padding-left: 12px;
+}
+
+.fos-files-navrow {
+  padding: 6px 8px;
+}
+
+.fos-files-commandbar {
+  background-color: @fos_card;
+  border-bottom: 1px solid @fos_border;
+  padding: 4px 8px;
+  min-height: 36px;
 }
 
 .fos-breadcrumb {
@@ -957,18 +1059,151 @@ tooltip label {
   padding: 0 6px;
 }
 
+.fos-files-listing {
+  padding: 0;
+  margin: 0;
+}
+
 .fos-files-table {
-  border: 1px solid @fos_border;
+  border: none;
+  margin: 0;
+  padding: 0;
 }
 
 .fos-files-table-header {
-  background-color: alpha(@fos_muted, 0.5);
-  padding: 4px 10px;
+  background-color: transparent;
+  border-bottom: 1px solid @fos_border;
+  padding: 2px 4px;
+  margin: 0;
 }
 
-.fos-files-row {
-  border-top: 1px solid @fos_border;
+.fos-files-sort-header {
+  min-height: 24px;
+}
+
+/* Flat list rows — no bordered/filled plates around file icons (Win11-like). */
+button.fos-btn.fos-files-row,
+button.fos-btn.ghost.fos-files-row,
+button.fos-btn.secondary.fos-files-row,
+button.fos-btn.outline.fos-files-row {
+  background-color: transparent;
+  background-image: none;
+  border: none;
+  box-shadow: none;
   padding: 2px 4px;
+  min-height: 28px;
+}
+
+button.fos-btn.fos-files-row:hover,
+button.fos-btn.ghost.fos-files-row:hover {
+  background-color: alpha(@fos_fg, 0.06);
+  border: none;
+}
+
+button.fos-btn.fos-files-row.selected,
+button.fos-btn.fos-files-row.secondary,
+button.fos-btn.secondary.fos-files-row {
+  background-color: alpha(@fos_fg, 0.12);
+  border: none;
+}
+
+button.fos-btn.fos-files-tile,
+button.fos-btn.ghost.fos-files-tile,
+button.fos-btn.secondary.fos-files-tile,
+button.fos-btn.outline.fos-files-tile,
+button.fos-btn.fos-files-drive,
+button.fos-btn.ghost.fos-files-drive,
+button.fos-btn.tile.fos-files-tile,
+button.fos-btn.tile.fos-files-drive {
+  background-color: transparent;
+  background-image: none;
+  border: none;
+  box-shadow: none;
+}
+
+button.fos-btn.fos-files-tile:hover,
+button.fos-btn.fos-files-drive:hover,
+button.fos-btn.tile.fos-files-tile:hover {
+  background-color: alpha(@fos_fg, 0.08);
+  border: none;
+}
+
+button.fos-btn.fos-files-tile.selected,
+button.fos-btn.fos-files-tile.secondary,
+button.fos-btn.secondary.fos-files-tile,
+button.fos-btn.tile.fos-files-tile.selected {
+  background-color: alpha(@fos_fg, 0.14);
+  border: none;
+}
+
+.fos-files-details {
+  background-color: alpha(@fos_muted, 0.28);
+  border-left: 1px solid @fos_border;
+}
+
+.fos-files-statusbar {
+  padding: 2px 8px;
+  min-height: 26px;
+}
+
+.fos-files-view-cluster {
+  border: 1px solid @fos_border;
+  background-color: alpha(@fos_fg, 0.03);
+}
+
+.fos-files-tabs {
+  background-color: transparent;
+  min-height: 28px;
+}
+
+.fos-files-tab-chip {
+  background-color: transparent;
+}
+
+.fos-files-tab {
+  min-width: 84px;
+  min-height: 28px;
+}
+
+.fos-files-tab-close {
+  min-width: 22px;
+  min-height: 28px;
+}
+
+.fos-files-flow {
+  background-color: transparent;
+  border: none;
+  padding: 0;
+  margin: 0;
+}
+
+.fos-files-flow > flowboxchild {
+  padding: 0;
+  margin: 0;
+  background-color: transparent;
+  border: none;
+  min-width: 0;
+  min-height: 0;
+}
+
+button.fos-btn.fos-files-tile {
+  min-width: 0;
+}
+
+/* Keep listing glyphs regular — theme defaults to symbolic (Adwaita plates). */
+.fos-files-row image,
+.fos-files-tile image,
+.fos-files-drive image,
+.fos-files-details image {
+  -gtk-icon-style: regular;
+}
+
+.fos-files-drive {
+  min-height: 72px;
+}
+
+.fos-files-usage {
+  min-height: 4px;
 }
 
 .fos-term-tabs {

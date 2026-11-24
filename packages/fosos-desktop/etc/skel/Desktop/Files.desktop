@@ -1,0 +1,10 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=Files
+Comment=Open File Explorer
+Icon=system-file-manager
+Exec=fosos-files
+Terminal=false
+StartupNotify=true
+Categories=System;FileManager;
