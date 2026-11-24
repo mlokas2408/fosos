@@ -1,5 +1,13 @@
 # FosOS release notes
 
+## FosOS 1.13.18 — Real audio + Start Quick Link menu
+
+- Ship `firmware-sof-signed`, `firmware-intel-sound`, and `alsa-ucm-conf`
+  (APT recommends are off). Without them Intel SOF/SST machines only expose
+  PipeWire “Dummy Output” and volume has no hardware device
+- Start button right-click opens the Win+X Quick Link menu (Terminal, Files,
+  Settings, power submenu, Desktop, …) like Windows 11
+
 ## FosOS 1.13.17 — Volume click + unmute on adjust
 
 - Play the freedesktop `audio-volume-change` click (debounced) when changing

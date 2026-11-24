@@ -311,6 +311,8 @@ class Panel(Gtk.Window):
         self.start_icon = start_icon(cell=12, gap=2)
         self.start_button.add(self.start_icon)
         self.start_button.connect("clicked", lambda _b: self.shell.toggle_start(self))
+        # Windows 11: right-click Start → Quick Link menu (same as Win+X).
+        self.start_button.connect("button-press-event", self._on_start_press)
         row.pack_start(self.start_button, False, False, 0)
 
         # Task View (Win+Tab) — overlapping-windows glyph like Windows 11.
@@ -611,6 +613,12 @@ class Panel(Gtk.Window):
             return
         if persist_layout(code):
             self.refresh_keyboard()
+
+    def _on_start_press(self, _widget, event: Gdk.EventButton) -> bool:
+        if event.button != 3:
+            return False
+        self.shell.toggle_quick_links(self)
+        return True
 
     def _on_panel_press(self, _widget, event: Gdk.EventButton) -> bool:
         if event.button != 3:

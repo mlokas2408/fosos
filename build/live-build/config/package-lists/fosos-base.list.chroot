@@ -41,6 +41,11 @@ polkitd
 # satisfies polkit-1-auth-agent with ukui-polkit, which pulls in OpenCV.
 # fosos-session and fosos-theme start lxpolkit for FosOS.
 lxpolkit
+# APT recommends are off: without these, Intel SOF / SST laptops only get
+# PipeWire "Dummy Output" (no real ALSA card). ThinkPad Tiger Lake needs SOF.
+firmware-sof-signed
+firmware-intel-sound
+alsa-ucm-conf
 
 # Essential user and compatibility tools
 sudo

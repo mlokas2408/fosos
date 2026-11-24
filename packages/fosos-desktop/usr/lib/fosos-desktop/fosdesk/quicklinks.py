@@ -1,47 +1,73 @@
-"""Win+X style quick links menu near the Start button."""
+"""Win+X / Start right-click Quick Link menu (Windows 11 style)."""
 
 from __future__ import annotations
 
 import gi
 
+gi.require_version("Gdk", "3.0")
 gi.require_version("Gtk", "3.0")
-from gi.repository import Gtk
+from gi.repository import Gdk, Gtk
 
 from .popup import Popup
-from .ui import add_classes, button, label, separator
+from .ui import add_classes, button, separator
 
 
 class QuickLinks(Popup):
+    """Flyout anchored near Start — same surface as Win+X and Start right-click."""
+
     def __init__(self, shell) -> None:
         super().__init__(width=280)
         self.shell = shell
         frame = add_classes(Gtk.Box(orientation=Gtk.Orientation.VERTICAL), "fos-card")
         self.add(frame)
-        header = add_classes(Gtk.Box(), "fos-card-header")
-        header.pack_start(label("Quick links", "fos-title"), False, False, 0)
-        frame.pack_start(header, False, False, 0)
 
         body = add_classes(Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2), "fos-card-content")
         frame.pack_start(body, False, False, 0)
 
-        for text, icon_name, action in (
-            ("Terminal", "utilities-terminal-symbolic", "terminal"),
-            ("Files", "folder-symbolic", "files"),
-            ("Settings", "preferences-system-symbolic", "settings"),
-            ("Run…", "system-run-symbolic", "run"),
-        ):
-            item = button(text, icon_name=icon_name, variant="ghost")
-            item.get_child().set_halign(Gtk.Align.START)
-            item.connect("clicked", lambda _b, a=action: self._run(a))
-            body.pack_start(item, False, False, 0)
-
+        self._add_items(
+            body,
+            (
+                ("Terminal", "utilities-terminal-symbolic", "terminal"),
+                ("Files", "folder-symbolic", "files"),
+            ),
+        )
+        body.pack_start(separator(vertical=False), False, False, 4)
+        self._add_items(
+            body,
+            (
+                ("Installed apps", "system-software-install-symbolic", "apps"),
+                ("Power options", "preferences-system-power-symbolic", "power"),
+                ("Network connections", "network-wired-symbolic", "network"),
+                ("Storage", "drive-harddisk-symbolic", "storage"),
+            ),
+        )
+        body.pack_start(separator(vertical=False), False, False, 4)
+        self._add_items(
+            body,
+            (
+                ("Task View", "view-grid-symbolic", "taskview"),
+                ("Settings", "preferences-system-symbolic", "settings"),
+                ("Search", "system-search-symbolic", "search"),
+                ("Run…", "system-run-symbolic", "run"),
+            ),
+        )
         body.pack_start(separator(vertical=False), False, False, 4)
 
-        for text, icon_name, action in (
-            ("Lock", "system-lock-screen-symbolic", "lock"),
-            ("Sign out", "system-log-out-symbolic", "logout"),
-            ("Shut down", "system-shutdown-symbolic", "poweroff"),
-        ):
+        power = button("Shut down or sign out", icon_name="system-shutdown-symbolic", variant="ghost")
+        power.get_child().set_halign(Gtk.Align.START)
+        power.connect("clicked", self._on_power_menu)
+        body.pack_start(power, False, False, 0)
+
+        self._add_items(
+            body,
+            (
+                ("Lock", "system-lock-screen-symbolic", "lock"),
+                ("Desktop", "user-desktop-symbolic", "desktop"),
+            ),
+        )
+
+    def _add_items(self, body: Gtk.Box, items: tuple[tuple[str, str, str], ...]) -> None:
+        for text, icon_name, action in items:
             item = button(text, icon_name=icon_name, variant="ghost")
             item.get_child().set_halign(Gtk.Align.START)
             item.connect("clicked", lambda _b, a=action: self._run(a))
@@ -52,8 +78,36 @@ class QuickLinks(Popup):
         if self.get_visible():
             self.dismiss()
             return
+        # Close Start if it was open (Windows replaces Start with Quick Link).
+        if self.shell.start_menu.get_visible():
+            self.shell.start_menu.dismiss()
         area = panel.area()
         self.show_at(area.x + 8, panel.top(), area)
+
+    def _on_power_menu(self, widget: Gtk.Button) -> None:
+        menu = Gtk.Menu()
+        add_classes(menu, "context-menu")
+        for text, action in (
+            ("Sign out", "logout"),
+            ("Suspend", "suspend"),
+            ("Restart", "reboot"),
+            ("Shut down", "poweroff"),
+        ):
+            item = Gtk.MenuItem(label=text)
+            item.connect("activate", lambda _i, a=action: self._run(a))
+            menu.append(item)
+        menu.show_all()
+        # Keep this flyout open while the nested menu steals the seat grab.
+        self._hold_grab = True
+        menu.connect("deactivate", lambda *_a: self._on_power_menu_closed())
+        menu.popup_at_widget(widget, Gdk.Gravity.NORTH_EAST, Gdk.Gravity.NORTH_WEST, None)
+
+    def _on_power_menu_closed(self) -> None:
+        self._hold_grab = False
+        if self.get_visible():
+            from gi.repository import GLib
+
+            GLib.idle_add(self._grab)
 
     def _run(self, action: str) -> None:
         self.dismiss()
@@ -71,8 +125,26 @@ class QuickLinks(Popup):
             if app is None or not app.launch():
                 appmod.spawn(["fosos-files"])
             return
+        if action == "apps":
+            self.shell.open_settings("defaults")
+            return
+        if action == "power":
+            self.shell.open_settings("power")
+            return
+        if action == "network":
+            self.shell.open_settings("network")
+            return
+        if action == "storage":
+            self.shell.open_settings("storage")
+            return
+        if action == "taskview":
+            self.shell.toggle_task_view()
+            return
         if action == "settings":
             self.shell.open_settings()
+            return
+        if action == "search":
+            self.shell.toggle_start()
             return
         if action == "run":
             self.shell.open_run()
@@ -80,5 +152,8 @@ class QuickLinks(Popup):
         if action == "lock":
             self.shell.lock_screen()
             return
-        if action in ("logout", "poweroff"):
+        if action == "desktop":
+            self.shell.toggle_show_desktop()
+            return
+        if action in ("logout", "suspend", "reboot", "poweroff"):
             self.shell.end_session(action)
