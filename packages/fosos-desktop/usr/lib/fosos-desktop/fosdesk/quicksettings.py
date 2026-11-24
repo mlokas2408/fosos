@@ -229,7 +229,10 @@ class QuickSettings(Popup):
             return
         level = int(scale.get_value())
         self.vol_percent.set_text(f"{level}%")
-        set_volume(level)
+        if set_volume(level):
+            self.vol_icon.get_child().set_from_icon_name(volume_icon(level, False), Gtk.IconSize.MENU)
+            self._set_tile_active(self.mute_tile, False, True)
+            self.mute_tile.set_tooltip_text("Mute")
         self.shell.update_status()
 
     def _on_brightness(self, scale: Gtk.Scale) -> None:

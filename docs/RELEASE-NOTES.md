@@ -1,5 +1,18 @@
 # FosOS release notes
 
+## FosOS 1.13.17 — Volume click + unmute on adjust
+
+- Play the freedesktop `audio-volume-change` click (debounced) when changing
+  volume or unmuting — Windows-like OSD feedback via `pw-play`
+- Moving the volume slider unmutes the sink so level changes are audible
+- Depend on `sound-theme-freedesktop` and `pipewire-bin` for the feedback sound
+
+## FosOS 1.13.16 — Brightness actually works
+
+- Depend on `brightness-udev` so laptop backlight sysfs is writable by the
+  `video` group (APT recommends are off on the ISO, so `brightnessctl` alone
+  left the slider moving with no screen change)
+
 ## FosOS 1.13.15 — Full-screen Settings (Windows-like)
 
 - Settings opens maximized with a left nav, search, Home hero and Back

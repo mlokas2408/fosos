@@ -17,6 +17,8 @@ from .ui import FosDialog, add_classes, button, clear, icon, label
 SINK = "@DEFAULT_AUDIO_SINK@"
 POWER_SUPPLY = Path("/sys/class/power_supply")
 BACKLIGHT = Path("/sys/class/backlight")
+VOLUME_CHANGE_SOUND = Path("/usr/share/sounds/freedesktop/stereo/audio-volume-change.oga")
+_volume_sound_timer: int | None = None
 
 
 def run(argv: list[str], timeout: float = 2.0) -> str | None:
@@ -42,19 +44,6 @@ def run_ok(argv: list[str], timeout: float = 2.0) -> bool:
     return result.returncode == 0
 
 
-def set_volume(level: int) -> bool:
-    """Set default sink volume 0–100%. wpctl global options must precede the command."""
-    level = max(0, min(100, int(level)))
-    # WirePlumber: `wpctl [OPTION] set-volume ID VOL` — `-l` before the verb.
-    if run_ok(["wpctl", "-l", "1.0", "set-volume", SINK, f"{level}%"]):
-        return True
-    return run_ok(["wpctl", "set-volume", SINK, f"{level}%"])
-
-
-def toggle_mute() -> bool:
-    return run_ok(["wpctl", "set-mute", SINK, "toggle"])
-
-
 def run_async(argv: list[str], done=None) -> None:
     """Run without blocking the shell. `done(ok, output)` runs on completion."""
     if shutil.which(argv[0]) is None:
@@ -72,6 +61,59 @@ def run_async(argv: list[str], done=None) -> None:
             done(process.get_successful(), stdout or "")
 
     proc.communicate_utf8_async(None, None, finished)
+
+
+def play_volume_feedback() -> None:
+    """Play the freedesktop volume-change click (Windows-like OSD ding)."""
+    if not VOLUME_CHANGE_SOUND.is_file():
+        return
+    path = str(VOLUME_CHANGE_SOUND)
+    if shutil.which("pw-play"):
+        run_async(["pw-play", path])
+    elif shutil.which("paplay"):
+        run_async(["paplay", path])
+
+
+def schedule_volume_feedback(delay_ms: int = 120) -> None:
+    """Debounce feedback so slider drags play one click after the last change."""
+    global _volume_sound_timer
+    if _volume_sound_timer is not None:
+        GLib.source_remove(_volume_sound_timer)
+        _volume_sound_timer = None
+
+    def _fire() -> bool:
+        global _volume_sound_timer
+        _volume_sound_timer = None
+        play_volume_feedback()
+        return False
+
+    _volume_sound_timer = GLib.timeout_add(delay_ms, _fire)
+
+
+def set_volume(level: int, *, feedback: bool = True) -> bool:
+    """Set default sink volume 0–100%. wpctl global options must precede the command."""
+    level = max(0, min(100, int(level)))
+    # WirePlumber: `wpctl [OPTION] set-volume ID VOL` — `-l` before the verb.
+    ok = run_ok(["wpctl", "-l", "1.0", "set-volume", SINK, f"{level}%"])
+    if not ok:
+        ok = run_ok(["wpctl", "set-volume", SINK, f"{level}%"])
+    if not ok:
+        return False
+    # Windows-like: moving the slider unmutes so the new level is audible.
+    run_ok(["wpctl", "set-mute", SINK, "0"])
+    if feedback and level > 0:
+        schedule_volume_feedback()
+    return True
+
+
+def toggle_mute(*, feedback: bool = True) -> bool:
+    before = read_volume()
+    if not run_ok(["wpctl", "set-mute", SINK, "toggle"]):
+        return False
+    # Click when unmuting so silence → sound is obvious.
+    if feedback and before is not None and before[1]:
+        schedule_volume_feedback()
+    return True
 
 
 def popup_header(title: str) -> Gtk.Box:
@@ -160,6 +202,11 @@ class VolumePopup(Popup):
         self.percent.set_text(f"{level}%")
         if not set_volume(level):
             self.status.set_text("Could not change volume.")
+        else:
+            self.status.set_text("Output: default device")
+            child = self.mute.get_child()
+            if isinstance(child, Gtk.Image):
+                child.set_from_icon_name(volume_icon(level, False), Gtk.IconSize.MENU)
         self.shell.update_status()
 
     def _toggle_mute(self) -> None:
