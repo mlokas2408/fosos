@@ -61,13 +61,14 @@ See [DESKTOP.md](docs/DESKTOP.md) and [ISO-SIZE.md](docs/ISO-SIZE.md).
 Prioritized. Prefer Windows *behavior* over Windows *pixels*; keep square
 FosOS cards, Dawn Aperture, Inter. Prefer baremetal soak over Hyper-V.
 
-### 0 — Baremetal release hardening — partial (1.13.20 / theme 0.7.4)
+### 0 — Baremetal release hardening — partial (1.13.20 / theme 0.7.5)
 
 ThinkPad / laptop: **F04** / **G04** cleared; **J04** USB smoke and **J06**
 Secure Boot (live + post-install) passed on baremetal and Hyper-V Gen2.
-Quiet boot in `fosos-theme` 0.7.4 (`plymouth.use-simpledrm`). Still open on
-hardware: greeter sign-out, suspend/resume, Network flyout join, Files
-trash/clipboard. `fos upgrade` uses `full-upgrade` (cli 0.2.6).
+Quiet boot in `fosos-theme` 0.7.5 (early KMS + framebuffer splash; Debian
+has no SimpleDRM). Still open on hardware: greeter sign-out, suspend/resume,
+Network flyout join, Files trash/clipboard. `fos upgrade` uses
+`full-upgrade` (cli 0.2.6).
 
 ### 1 — Start menu and search polish — done (1.7.0)
 

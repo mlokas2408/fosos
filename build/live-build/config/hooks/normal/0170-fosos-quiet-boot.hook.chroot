@@ -14,7 +14,34 @@ if [ ! -f /usr/share/plymouth/themes/fosos/fosos.plymouth ]; then
   exit 1
 fi
 
+if [ ! -f /usr/share/initramfs-tools/modules.d/fosos-kms ]; then
+  echo "fosos-kms modules.d drop-in missing from fosos-theme (early KMS)." >&2
+  exit 1
+fi
+
+if [ ! -f /usr/share/initramfs-tools/hooks/zz-fosos-plymouth ]; then
+  echo "zz-fosos-plymouth initramfs hook missing from fosos-theme." >&2
+  exit 1
+fi
+
 plymouth-set-default-theme -R fosos
+
+# Keys outside [Daemon] are ignored; keep DeviceTimeout high so a slow GPU
+# probe does not fall back to the grey three-dot text theme.
+conf=/etc/plymouth/plymouthd.conf
+if [ -f "$conf" ]; then
+  sed -i \
+    -e '/^Theme[[:blank:]]*=/d' \
+    -e '/^ShowDelay[[:blank:]]*=/d' \
+    -e '/^DeviceTimeout[[:blank:]]*=/d' \
+    "$conf"
+  if grep -qE '^\[Daemon\]' "$conf"; then
+    sed -i '/^\[Daemon\]/a Theme=fosos\nShowDelay=0\nDeviceTimeout=45' "$conf"
+  else
+    printf '\n[Daemon]\nTheme=fosos\nShowDelay=0\nDeviceTimeout=45\n' >>"$conf"
+  fi
+  update-initramfs -u
+fi
 
 if [ ! -f /etc/default/grub.d/fosos-boot.cfg ]; then
   echo "fosos-boot.cfg missing from fosos-theme." >&2

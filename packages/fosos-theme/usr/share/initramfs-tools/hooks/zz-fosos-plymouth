@@ -1,0 +1,33 @@
+#!/bin/sh
+# Run after the plymouth hook: restore FosOS theme assets that Debian's
+# plymouth initramfs hook overwrites for two-step themes (watermark.png),
+# and ship Liberation Sans so shutdown/reboot titles render in the initramfs.
+set -e
+
+PREREQ="plymouth"
+
+prereqs() {
+  echo "$PREREQ"
+}
+
+case "${1:-}" in
+prereqs)
+  prereqs
+  exit 0
+  ;;
+esac
+
+. /usr/share/initramfs-tools/hook-functions
+
+THEME_DIR=/usr/share/plymouth/themes/fosos
+DEST_THEME="${DESTDIR}${THEME_DIR}"
+
+if [ -d "$DEST_THEME" ] && [ -f "${THEME_DIR}/watermark.png" ]; then
+  cp -a "${THEME_DIR}/watermark.png" "${DEST_THEME}/watermark.png"
+fi
+
+FONT=/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf
+if [ -f "$FONT" ]; then
+  mkdir -p "${DESTDIR}/usr/share/fonts/truetype/liberation"
+  cp -a "$FONT" "${DESTDIR}/usr/share/fonts/truetype/liberation/"
+fi

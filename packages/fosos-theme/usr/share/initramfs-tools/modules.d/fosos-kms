@@ -1,0 +1,12 @@
+# FosOS: load KMS before Plymouth so the logo+spinner theme can use DRM.
+# Debian trixie kernels ship without CONFIG_DRM_SIMPLEDRM, and plymouth
+# 24.x here has no plymouth.use-simpledrm — waiting on a late GPU probe
+# falls back to the grey three-dot text theme. Modules listed here are
+# forced into /conf/modules and loaded before init-premount/plymouth.
+# Missing hardware simply fails modprobe; that is fine.
+drm
+i915 modeset=1
+amdgpu
+radeon
+nouveau
+hyperv_drm

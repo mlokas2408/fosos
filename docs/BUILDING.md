@@ -27,8 +27,9 @@ Debian-signed GRUB on the EFI path. Installed systems hide the GRUB menu
 (`GRUB_TIMEOUT_STYLE=hidden`) and show Dawn Aperture Plymouth until the
 greeter; hold Shift to open GRUB. Live bootappend includes `quiet splash`.
 Shut down and restart use the same Plymouth splash with Shutting down /
-Restarting titles (not console stop text). `plymouth.use-simpledrm` keeps
-the graphical theme when the GPU driver is late.
+Restarting titles (not console stop text). Early KMS (`fosos-kms` modules)
+plus `plymouth.force-frame-buffer-on-boot` keep the graphical theme when the
+GPU driver is late (Debian kernels lack SimpleDRM).
 After a build, `file output/FosOS-trixie-amd64.iso` should mention
 `DOS/MBR boot sector`. If Etcher says “Missing partition table”, the image
 is not hybrid — rebuild; do not Continue past that warning for laptop USB.

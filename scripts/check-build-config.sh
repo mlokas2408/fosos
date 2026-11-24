@@ -272,8 +272,8 @@ if ! grep -q -- 'systemd.show_status=false' "$repo_root/scripts/build-iso.sh"; t
   echo "build-iso.sh bootappend-live must include systemd.show_status=false (quiet shutdown)." >&2
   exit 1
 fi
-if ! grep -q -- 'plymouth.use-simpledrm' "$repo_root/scripts/build-iso.sh"; then
-  echo "build-iso.sh bootappend-live must include plymouth.use-simpledrm (avoid grey three-dot fallback)." >&2
+if ! grep -q -- 'plymouth.force-frame-buffer-on-boot' "$repo_root/scripts/build-iso.sh"; then
+  echo "build-iso.sh bootappend-live must include plymouth.force-frame-buffer-on-boot (no SIMPLEDRM on Debian)." >&2
   exit 1
 fi
 if ! grep -q -- 'systemd.show_status=false' \
@@ -281,9 +281,21 @@ if ! grep -q -- 'systemd.show_status=false' \
   echo "fosos-boot.cfg must include systemd.show_status=false (quiet shutdown)." >&2
   exit 1
 fi
-if ! grep -q -- 'plymouth.use-simpledrm' \
+if ! grep -q -- 'plymouth.force-frame-buffer-on-boot' \
   "$repo_root/packages/fosos-theme/etc/default/grub.d/fosos-boot.cfg"; then
-  echo "fosos-boot.cfg must include plymouth.use-simpledrm (avoid grey three-dot fallback)." >&2
+  echo "fosos-boot.cfg must include plymouth.force-frame-buffer-on-boot (avoid grey three-dot fallback)." >&2
+  exit 1
+fi
+if [[ ! -f "$repo_root/packages/fosos-theme/usr/share/initramfs-tools/modules.d/fosos-kms" ]]; then
+  echo "fosos-theme must ship initramfs-tools modules.d/fosos-kms (early i915/amdgpu/nouveau)." >&2
+  exit 1
+fi
+if [[ ! -f "$repo_root/packages/fosos-theme/usr/share/initramfs-tools/hooks/zz-fosos-plymouth" ]]; then
+  echo "fosos-theme must ship zz-fosos-plymouth initramfs hook." >&2
+  exit 1
+fi
+if ! grep -q 'DeviceTimeout=45' "$repo_root/packages/fosos-theme/DEBIAN/postinst"; then
+  echo "fosos-theme postinst must set DeviceTimeout=45 inside [Daemon]." >&2
   exit 1
 fi
 if ! grep -qE '^Title=Shutting down' \

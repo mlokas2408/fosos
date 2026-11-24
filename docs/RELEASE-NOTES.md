@@ -1,5 +1,18 @@
 # FosOS release notes
 
+## FosOS theme 0.7.5 — Real quiet boot on Debian (no SIMPLEDRM)
+
+- Debian trixie kernels have `CONFIG_DRM_SIMPLEDRM` disabled and plymouth
+  24.x here ignores `plymouth.use-simpledrm`, so 0.7.4 still fell back to the
+  grey three-dot text splash when the GPU probe was late
+- Load KMS early via `initramfs-tools/modules.d/fosos-kms` (i915/amdgpu/…)
+- `plymouth.force-frame-buffer-on-boot` paints logo+spinner on the EFI
+  framebuffer until DRM is ready
+- Fix postinst so `DeviceTimeout=45` / `ShowDelay=0` land inside `[Daemon]`
+  (keys outside the section were ignored)
+- Restore FosOS watermark + Liberation Sans into the initramfs after Debian's
+  plymouth hook
+
 ## FosOS installer 1.0.5 — Install-step slideshow images
 
 - Calamares Install page uses a plain image slideshow (`slide1`–`slide4`) so the
@@ -7,13 +20,12 @@
 - Ship a Dawn Aperture `welcome.png` tile for the sidebar (not the full wallpaper)
 - Regenerated feature slides; `show.qml` kept as a dark-background fallback
 
-## FosOS theme 0.7.4 — Real graphical splash (not grey three dots)
+## FosOS theme 0.7.4 — Attempted simpledrm splash (superseded by 0.7.5)
 
-- Add `plymouth.use-simpledrm` so Plymouth keeps the FosOS logo+spinner when
-  the GPU driver is late (avoids the grey three-dot text fallback)
-- `plymouth.ignore-serial-consoles` to cut early terminal flashes
-- Shutdown / Restart titles; Liberation Sans fonts in the theme (initramfs-safe)
-- Longer DeviceTimeout and explicit Theme=fosos in plymouthd.conf via postinst
+- Added `plymouth.use-simpledrm` / longer DeviceTimeout; ineffective on Debian
+  trixie (no `CONFIG_DRM_SIMPLEDRM`, plymouth binary has no use-simpledrm, and
+  DeviceTimeout was written outside `[Daemon]`). Fixed in 0.7.5.
+- `plymouth.ignore-serial-consoles`; shutdown titles; Liberation Sans
 
 ## FosOS theme 0.7.3 — Fix plymouthd.conf file conflict
 

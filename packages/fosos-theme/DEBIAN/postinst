@@ -1,33 +1,45 @@
 #!/bin/sh
 set -e
 
+# Write Theme / ShowDelay / DeviceTimeout inside [Daemon]. Keys outside the
+# section are ignored, which left DeviceTimeout at the distribution default
+# of 8s and made Plymouth fall back to the grey three-dot text theme when
+# the GPU probe was slow (and simpledrm is unavailable on Debian trixie).
+fosos_plymouthd_conf() {
+	conf=/etc/plymouth/plymouthd.conf
+	[ -f "$conf" ] || return 0
+
+	sed -i \
+		-e '/^Theme[[:blank:]]*=/d' \
+		-e '/^ShowDelay[[:blank:]]*=/d' \
+		-e '/^DeviceTimeout[[:blank:]]*=/d' \
+		"$conf" || true
+
+	if grep -qE '^\[Daemon\]' "$conf"; then
+		sed -i '/^\[Daemon\]/a Theme=fosos\nShowDelay=0\nDeviceTimeout=45' "$conf" || true
+	else
+		printf '\n[Daemon]\nTheme=fosos\nShowDelay=0\nDeviceTimeout=45\n' >>"$conf" || true
+	fi
+}
+
 case "$1" in
 configure)
+	fosos_plymouthd_conf
+
 	# Graphical Plymouth (logo + spinner). -R rebuilds initramfs so splash
 	# appears before the root filesystem is mounted. Do not ship
 	# /etc/plymouth/plymouthd.conf (owned by plymouth); edit it in place.
-	if [ -f /etc/plymouth/plymouthd.conf ]; then
-		if grep -qE '^Theme=' /etc/plymouth/plymouthd.conf; then
-			sed -i 's/^Theme=.*/Theme=fosos/' /etc/plymouth/plymouthd.conf || true
-		else
-			printf '\nTheme=fosos\n' >> /etc/plymouth/plymouthd.conf || true
-		fi
-		if grep -qE '^ShowDelay=' /etc/plymouth/plymouthd.conf; then
-			sed -i 's/^ShowDelay=.*/ShowDelay=0/' /etc/plymouth/plymouthd.conf || true
-		else
-			printf 'ShowDelay=0\n' >> /etc/plymouth/plymouthd.conf || true
-		fi
-		if grep -qE '^DeviceTimeout=' /etc/plymouth/plymouthd.conf; then
-			sed -i 's/^DeviceTimeout=.*/DeviceTimeout=30/' /etc/plymouth/plymouthd.conf || true
-		else
-			printf 'DeviceTimeout=30\n' >> /etc/plymouth/plymouthd.conf || true
-		fi
-	fi
 	if command -v plymouth-set-default-theme >/dev/null 2>&1; then
+		# Re-apply Daemon keys after plymouth-set-default-theme (it only
+		# guarantees Theme= under [Daemon]).
 		if plymouth-set-default-theme -R fosos >/dev/null 2>&1; then
-			:
+			fosos_plymouthd_conf
+			if command -v update-initramfs >/dev/null 2>&1; then
+				update-initramfs -u >/dev/null 2>&1 || true
+			fi
 		else
 			plymouth-set-default-theme fosos >/dev/null 2>&1 || true
+			fosos_plymouthd_conf
 			if command -v update-initramfs >/dev/null 2>&1; then
 				update-initramfs -u >/dev/null 2>&1 || true
 			fi

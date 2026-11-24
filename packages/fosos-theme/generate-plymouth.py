@@ -108,8 +108,15 @@ def main() -> None:
     # Keep animation frames branded too (end-animation / future toggles).
     _write_logo_spinner_sequence(mark, "animation", 36)
 
-    # Empty watermark: mark already lives in throbber/animation frames.
-    Image.new("RGBA", (1, 1), (0, 0, 0, 0)).save(OUT / "watermark.png")
+    # Small bottom watermark (Debian's plymouth hook may overwrite this for
+    # two-step themes; zz-fosos-plymouth restores our copy into the initramfs).
+    wm = Image.new("RGBA", (160, 160), (0, 0, 0, 0))
+    mw, mh = mark.size
+    scale = 120 / max(mw, mh)
+    tw, th = max(1, int(mw * scale)), max(1, int(mh * scale))
+    scaled = mark.resize((tw, th), Image.Resampling.LANCZOS)
+    wm.paste(scaled, ((160 - tw) // 2, (160 - th) // 2), scaled)
+    wm.save(OUT / "watermark.png")
 
     if SPINNER.is_dir():
         for name in (
