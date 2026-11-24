@@ -1,0 +1,44 @@
+---
+description: Iterate locally without version bumps until the user asks to ship
+alwaysApply: true
+---
+
+# Local iterate, then ship on request
+
+Default for package / UI / functionality work: change code, apply it on
+**this** FosOS install, and leave Version / git / APT alone until the user
+explicitly asks to bump, commit, push, or publish.
+
+## While iterating (default)
+
+- Do **not** change `Version:` in any `packages/*/DEBIAN/control`
+- Do **not** commit, push, run APT publish/promote, or build an ISO unless
+  the user asks
+- After edits under `packages/`, rebuild the touched package(s) with
+  `scripts/stage-deb.sh` / `stage_deb` at the **current** version and
+  reinstall with `sudo dpkg -i` (same-version reinstall is intentional)
+- Restart what the change needs so the user can judge it: desktop shell /
+  panel for `fosos-desktop` UI; greeter restart for greeter-only; reboot
+  for Plymouth / GRUB / theme boot path
+- Keep working this way across many small changes until they say they are
+  satisfied
+
+## When the user asks to ship
+
+Only then, in the order they request (typical: bump → commit → push →
+publish testing):
+
+1. Bump `Version:` only for packages that actually changed in the batch
+2. Commit (and push) when asked
+3. Publish to **testing** when asked (Actions → APT publish, or
+   `sudo bash scripts/apt-archive.sh publish`)
+
+Still give the ISO vs APT delivery warning from `iso-vs-apt-warn` for what
+changed. Live-image / `build/live-build/` work cannot be hot-installed; say
+so and do not pretend a local `.deb` reinstall covers it.
+
+## Do not
+
+- Bump versions “to be safe” before each local install
+- Publish or promote because a local apply succeeded
+- Assume satisfaction; wait for an explicit ship request
