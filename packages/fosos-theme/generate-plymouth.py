@@ -1,5 +1,12 @@
 #!/usr/bin/env python3
-"""Generate FosOS Plymouth two-step frames (logo + spinner on transparent)."""
+"""Generate FosOS Plymouth two-step frames (logo + spinner on transparent).
+
+With UseEndAnimation=false, Plymouth's two-step plugin shows throbber-* during
+boot and never plays animation-*. The Dawn Aperture mark must therefore live in
+the throbber frames (not only in animation frames).
+
+Requires Pillow (`pip install Pillow` or `python3-pil`).
+"""
 
 from __future__ import annotations
 
@@ -9,76 +16,100 @@ import sys
 from pathlib import Path
 
 try:
-    import cairo
+    from PIL import Image, ImageDraw
 except ImportError:
-    print("generate-plymouth.py requires python3-cairo", file=sys.stderr)
+    print("generate-plymouth.py requires Pillow (python3-pil)", file=sys.stderr)
     sys.exit(1)
 
 ROOT = Path(__file__).resolve().parent
 OUT = ROOT / "usr/share/plymouth/themes/fosos"
-LOGO_SRC = ROOT / "usr/share/fosos/logo/fosos-dawn-aperture-256.png"
+LOGO_CANDIDATES = (
+    ROOT / "usr/share/fosos/logo/fosos-dawn-aperture-512.png",
+    ROOT / "usr/share/fosos/logo/fosos-dawn-aperture-256.png",
+)
 SPINNER = Path("/usr/share/plymouth/themes/spinner")
 
-FG = (250 / 255, 250 / 255, 250 / 255)
+FG = (250, 250, 250, 250)
+FG_DIM = (250, 250, 250, 51)
+
+# Sized for 1080p+ / HiDPI laptops: logo ~280px, spinner ~128px diameter.
+# Compact frame so logo+spinner read as one centred unit.
+FRAME_W, FRAME_H = 480, 520
+LOGO_TARGET = 280
+SPINNER_RADIUS = 64
+SPINNER_LINE = 9
+LOGO_TOP = 36
+# Spinner centre sits just under the mark.
+SPINNER_CY = LOGO_TOP + LOGO_TARGET + 56
+
+
+def _mark_image(logo_path: Path) -> Image.Image:
+    """White-on-black logo PNG → white mark on transparent (RGBA)."""
+    src = Image.open(logo_path).convert("RGBA")
+    pixels = src.load()
+    w, h = src.size
+    for y in range(h):
+        for x in range(w):
+            r, g, b, a = pixels[x, y]
+            lum = (r + g + b) // 3
+            if lum < 40:
+                pixels[x, y] = (0, 0, 0, 0)
+            else:
+                pixels[x, y] = (250, 250, 250, max(lum, a))
+    return src
+
+
+def _paste_mark(frame: Image.Image, mark: Image.Image) -> None:
+    mw, mh = mark.size
+    scale = LOGO_TARGET / max(mw, mh)
+    tw, th = max(1, int(mw * scale)), max(1, int(mh * scale))
+    scaled = mark.resize((tw, th), Image.Resampling.LANCZOS)
+    x = (FRAME_W - tw) // 2
+    frame.paste(scaled, (x, LOGO_TOP), scaled)
+
+
+def _draw_spinner(draw: ImageDraw.ImageDraw, angle: float) -> None:
+    cx = FRAME_W / 2
+    cy = SPINNER_CY
+    bbox = [
+        cx - SPINNER_RADIUS,
+        cy - SPINNER_RADIUS,
+        cx + SPINNER_RADIUS,
+        cy + SPINNER_RADIUS,
+    ]
+    draw.arc(bbox, start=0, end=360, fill=FG_DIM, width=SPINNER_LINE)
+    start_deg = math.degrees(angle)
+    end_deg = start_deg + math.degrees(1.45)
+    draw.arc(bbox, start=start_deg, end=end_deg, fill=FG, width=SPINNER_LINE)
+
+
+def _write_logo_spinner_sequence(mark: Image.Image, prefix: str, count: int) -> None:
+    for i in range(1, count + 1):
+        angle = (i - 1) / count * 2 * math.pi
+        frame = Image.new("RGBA", (FRAME_W, FRAME_H), (0, 0, 0, 0))
+        _paste_mark(frame, mark)
+        _draw_spinner(ImageDraw.Draw(frame), angle)
+        frame.save(OUT / f"{prefix}-{i:04d}.png")
 
 
 def main() -> None:
-    if not LOGO_SRC.is_file():
-        print(f"missing logo: {LOGO_SRC}", file=sys.stderr)
+    logo_src = next((p for p in LOGO_CANDIDATES if p.is_file()), None)
+    if logo_src is None:
+        print(
+            f"missing logo; tried: {', '.join(str(p) for p in LOGO_CANDIDATES)}",
+            file=sys.stderr,
+        )
         sys.exit(1)
     OUT.mkdir(parents=True, exist_ok=True)
-    logo = cairo.ImageSurface.create_from_png(str(LOGO_SRC))
-    logo_w, logo_h = logo.get_width(), logo.get_height()
+    mark = _mark_image(logo_src)
 
-    width, height = 320, 400
-    for i in range(1, 37):
-        angle = (i - 1) / 36 * 2 * math.pi
-        surf = cairo.ImageSurface(cairo.FORMAT_ARGB32, width, height)
-        cr = cairo.Context(surf)
-        cr.set_operator(cairo.OPERATOR_CLEAR)
-        cr.paint()
-        cr.set_operator(cairo.OPERATOR_OVER)
-        target = 128
-        scale = target / max(logo_w, logo_h)
-        tw, th = logo_w * scale, logo_h * scale
-        cr.save()
-        cr.translate((width - tw) / 2, 48)
-        cr.scale(scale, scale)
-        cr.set_source_surface(logo, 0, 0)
-        cr.paint()
-        cr.restore()
-        cx, cy = width / 2, height - 90
-        radius = 18
-        cr.set_line_width(3.0)
-        cr.set_source_rgba(*FG, 0.18)
-        cr.arc(cx, cy, radius, 0, 2 * math.pi)
-        cr.stroke()
-        cr.set_source_rgba(*FG, 0.95)
-        cr.arc(cx, cy, radius, angle, angle + 1.5)
-        cr.stroke()
-        surf.write_to_png(str(OUT / f"animation-{i:04d}.png"))
+    # Boot path (UseEndAnimation=false): throbber is what the user sees.
+    _write_logo_spinner_sequence(mark, "throbber", 30)
+    # Keep animation frames branded too (end-animation / future toggles).
+    _write_logo_spinner_sequence(mark, "animation", 36)
 
-    for i in range(1, 31):
-        angle = (i - 1) / 30 * 2 * math.pi
-        size = 64
-        surf = cairo.ImageSurface(cairo.FORMAT_ARGB32, size, size)
-        cr = cairo.Context(surf)
-        cr.set_operator(cairo.OPERATOR_CLEAR)
-        cr.paint()
-        cr.set_operator(cairo.OPERATOR_OVER)
-        cx = cy = size / 2
-        radius = size * 0.28
-        cr.set_line_width(3.0)
-        cr.set_source_rgba(*FG, 0.18)
-        cr.arc(cx, cy, radius, 0, 2 * math.pi)
-        cr.stroke()
-        cr.set_source_rgba(*FG, 0.95)
-        cr.arc(cx, cy, radius, angle, angle + 1.5)
-        cr.stroke()
-        surf.write_to_png(str(OUT / f"throbber-{i:04d}.png"))
-
-    wm = cairo.ImageSurface(cairo.FORMAT_ARGB32, 1, 1)
-    wm.write_to_png(str(OUT / "watermark.png"))
+    # Empty watermark: mark already lives in throbber/animation frames.
+    Image.new("RGBA", (1, 1), (0, 0, 0, 0)).save(OUT / "watermark.png")
 
     if SPINNER.is_dir():
         for name in (
@@ -93,7 +124,7 @@ def main() -> None:
             if src.is_file():
                 shutil.copy2(src, OUT / name)
 
-    print(f"Wrote Plymouth frames under {OUT}")
+    print(f"Wrote Plymouth frames under {OUT} (logo from {logo_src.name})")
 
 
 if __name__ == "__main__":

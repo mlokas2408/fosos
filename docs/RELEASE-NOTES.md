@@ -1,5 +1,19 @@
 # FosOS release notes
 
+## FosOS theme 0.7.2 — Quiet shut down / restart splash
+
+- Same Dawn Aperture Plymouth logo+spinner covers shut down and restart
+  (not a scrolling systemd console)
+- Kernel cmdline and systemd `ShowStatus=no` suppress unit stop text;
+  Plymouth `SuppressMessages` on shutdown/reboot modes
+
+## FosOS theme 0.7.1 — Visible Plymouth logo + larger spinner
+
+- Boot splash now puts the Dawn Aperture mark in `throbber-*` frames (what
+  Plymouth shows with `UseEndAnimation=false`); previously the logo lived
+  only in unused `animation-*` frames, so boots showed a tiny spinner alone
+- Larger mark (~280px) and spinner (~128px) for 1080p / HiDPI screens
+
 ## FosOS theme 0.7.0 — Quiet boot (logo + spinner)
 
 - After the firmware logo: hidden GRUB (Shift shows menu), Dawn Aperture

@@ -1,6 +1,6 @@
 [Plymouth Theme]
 Name=FosOS
-Description=FosOS boot splash — Dawn Aperture logo and spinner
+Description=FosOS boot splash — Dawn Aperture logo and spinner (logo is in throbber frames)
 ModuleName=two-step
 
 [two-step]
@@ -28,9 +28,11 @@ UseEndAnimation=false
 
 [shutdown]
 UseEndAnimation=false
+SuppressMessages=true
 
 [reboot]
 UseEndAnimation=false
+SuppressMessages=true
 
 [updates]
 SuppressMessages=true

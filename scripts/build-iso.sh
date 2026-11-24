@@ -89,7 +89,7 @@ fosos_lb_config() {
     --binary-images iso-hybrid \
     --bootloaders "grub-pc grub-efi" \
     --uefi-secure-boot enable \
-    --bootappend-live "boot=live components hostname=fosos nottyautologin quiet splash loglevel=3 vt.global_cursor_default=0" \
+    --bootappend-live "boot=live components hostname=fosos nottyautologin quiet splash loglevel=3 rd.systemd.show_status=false systemd.show_status=false vt.global_cursor_default=0" \
     --debian-installer none \
     --distribution "$suite" \
     --firmware-binary false \

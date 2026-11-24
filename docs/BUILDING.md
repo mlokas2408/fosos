@@ -26,6 +26,7 @@ target). `--uefi-secure-boot enable` installs Microsoft-trusted `shim` and
 Debian-signed GRUB on the EFI path. Installed systems hide the GRUB menu
 (`GRUB_TIMEOUT_STYLE=hidden`) and show Dawn Aperture Plymouth until the
 greeter; hold Shift to open GRUB. Live bootappend includes `quiet splash`.
+Shut down and restart use the same Plymouth splash (not console stop text).
 After a build, `file output/FosOS-trixie-amd64.iso` should mention
 `DOS/MBR boot sector`. If Etcher says “Missing partition table”, the image
 is not hybrid — rebuild; do not Continue past that warning for laptop USB.

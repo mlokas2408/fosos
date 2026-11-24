@@ -261,6 +261,30 @@ if ! grep -qE -- 'quiet splash' "$repo_root/scripts/build-iso.sh"; then
   echo "build-iso.sh bootappend-live must include quiet splash." >&2
   exit 1
 fi
+if ! grep -q -- 'systemd.show_status=false' "$repo_root/scripts/build-iso.sh"; then
+  echo "build-iso.sh bootappend-live must include systemd.show_status=false (quiet shutdown)." >&2
+  exit 1
+fi
+if ! grep -q -- 'systemd.show_status=false' \
+  "$repo_root/packages/fosos-theme/etc/default/grub.d/fosos-boot.cfg"; then
+  echo "fosos-boot.cfg must include systemd.show_status=false (quiet shutdown)." >&2
+  exit 1
+fi
+if [[ ! -f "$repo_root/packages/fosos-theme/etc/systemd/system.conf.d/10-fosos-quiet.conf" ]]; then
+  echo "fosos-theme must ship systemd ShowStatus=no drop-in for quiet shutdown." >&2
+  exit 1
+fi
+if [[ ! -f "$repo_root/packages/fosos-theme/etc/plymouth/plymouthd.conf" ]]; then
+  echo "fosos-theme must ship /etc/plymouth/plymouthd.conf." >&2
+  exit 1
+fi
+if ! grep -qE '\[shutdown\]' \
+  "$repo_root/packages/fosos-theme/usr/share/plymouth/themes/fosos/fosos.plymouth" \
+  || ! grep -qE 'SuppressMessages=true' \
+  "$repo_root/packages/fosos-theme/usr/share/plymouth/themes/fosos/fosos.plymouth"; then
+  echo "fosos.plymouth must SuppressMessages on shutdown/reboot." >&2
+  exit 1
+fi
 
 if [[ ! -f "$repo_root/build/live-build/config/hooks/normal/0170-fosos-quiet-boot.hook.chroot" ]]; then
   echo "Missing 0170-fosos-quiet-boot.hook.chroot (Plymouth in initramfs)." >&2
