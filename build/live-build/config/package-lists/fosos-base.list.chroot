@@ -49,6 +49,9 @@ alsa-ucm-conf
 
 # Essential user and compatibility tools
 sudo
+# APT recommends are off: without locales, LANG=en_US.UTF-8 is unsettable and
+# GTK apps warn "Locale not supported". Calamares localecfg also needs it.
+locales
 xarchiver
 firmware-linux
 # Laptop Wi-Fi: free firmware-linux is not enough. Explicit non-free-firmware

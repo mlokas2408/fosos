@@ -101,6 +101,13 @@ if command -v nm-applet >/dev/null 2>&1; then
 	nm-applet >/dev/null 2>&1 &
 fi
 
+# Blueman registers the BlueZ agent that confirms passkeys for pairing.
+# Without it, bluetoothctl/Settings connect attempts fail with
+# AuthenticationFailed / "No agent available for request type 2".
+if command -v blueman-applet >/dev/null 2>&1; then
+	blueman-applet >/dev/null 2>&1 &
+fi
+
 # Lock on idle, lid close and before suspend. Super+L and Start > Lock also
 # run fosos-lock directly.
 if command -v xss-lock >/dev/null 2>&1 && command -v fosos-lock >/dev/null 2>&1; then
@@ -165,6 +172,9 @@ pkill -u "$(id -u)" -x fosos-lock 2>/dev/null || true
 pkill -u "$(id -u)" -x xss-lock 2>/dev/null || true
 pkill -u "$(id -u)" -x xsettingsd 2>/dev/null || true
 pkill -u "$(id -u)" -x xcape 2>/dev/null || true
+pkill -u "$(id -u)" -x blueman-applet 2>/dev/null || true
+pkill -u "$(id -u)" -x blueman-tray 2>/dev/null || true
+pkill -u "$(id -u)" -x nm-applet 2>/dev/null || true
 if command -v systemctl >/dev/null 2>&1; then
 	systemctl --user unset-environment XDG_CURRENT_DESKTOP XDG_SESSION_DESKTOP DESKTOP_SESSION GTK_THEME GTK_ICON_THEME_NAME \
 		>/dev/null 2>&1 || true

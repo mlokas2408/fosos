@@ -86,8 +86,8 @@ for stub in "firefox-esr:Firefox ESR"; do
   printf '[Desktop Entry]\nType=Application\nName=%s\nExec=true\nIcon=%s\n' "$name" "$id" \
     > "$root/usr/local/share/applications/$id.desktop"
 done
-for tool in arandr pavucontrol nm-connection-editor blueman-manager scrot xsettingsd \
-  setxkbmap xset fosos-welcome; do
+for tool in arandr pavucontrol nm-connection-editor blueman-manager blueman-applet \
+  scrot xsettingsd setxkbmap xset fosos-welcome; do
   printf '#!/bin/sh\nexit 0\n' > "$root/usr/local/bin/$tool"
   chmod 755 "$root/usr/local/bin/$tool"
 done

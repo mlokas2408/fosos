@@ -1,5 +1,21 @@
 # FosOS release notes
 
+## FosOS 1.13.20 — Baremetal soak fixes (icons + locales)
+
+- Prune retired **Home** desktop-icon positions and ignore orphan ids so
+  Computer / Files / Recycle Bin cannot share a cell after upgrades
+- Depend on `locales`; postinst enables/generates `en_US.UTF-8` (and the
+  system LANG when set) so GTK no longer warns “Locale not supported”
+- Live image: ship `locales` and generate the Region Settings locale set
+- Sync Settings About / `VERSION` with the package (was stuck on 1.13.0)
+- Region labels: add Croatian (`hr_HR.UTF-8`)
+
+## FosOS 1.13.19 — Bluetooth pairing agent
+
+- Start `blueman-applet` with the desktop session so BlueZ always has an agent
+  to confirm passkeys (mice/keyboards no longer fail with AuthenticationFailed)
+- Depend on `blueman` alongside the existing Settings → Bluetooth UI
+
 ## FosOS 1.13.18 — Real audio + Start Quick Link menu
 
 - Ship `firmware-sof-signed`, `firmware-intel-sound`, and `alsa-ucm-conf`

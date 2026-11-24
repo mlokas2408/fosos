@@ -139,6 +139,10 @@ def save_desktop_prefs(values: dict[str, str]) -> None:
     (config_dir() / PREFS_FILE).write_text("".join(lines), encoding="utf-8")
 
 
+# Retired defaults kept out of the active set (1.13.14 dropped Home).
+RETIRED_ICON_IDS = frozenset({"home"})
+
+
 def load_icon_positions() -> dict[str, tuple[int, int]]:
     path = config_dir() / POSITIONS_FILE
     positions: dict[str, tuple[int, int]] = {}
@@ -150,10 +154,13 @@ def load_icon_positions() -> dict[str, tuple[int, int]]:
             if not line or line.startswith("#") or "=" not in line:
                 continue
             key, value = line.split("=", 1)
+            icon_id = key.strip()
+            if icon_id in RETIRED_ICON_IDS:
+                continue
             parts = value.split(",")
             if len(parts) != 2:
                 continue
-            positions[key.strip()] = (int(parts[0]), int(parts[1]))
+            positions[icon_id] = (int(parts[0]), int(parts[1]))
     except (OSError, ValueError):
         pass
     return positions
@@ -161,7 +168,12 @@ def load_icon_positions() -> dict[str, tuple[int, int]]:
 
 def save_icon_positions(positions: dict[str, tuple[int, int]]) -> None:
     config_dir().mkdir(parents=True, exist_ok=True)
-    text = "".join(f"{key}={x},{y}\n" for key, (x, y) in sorted(positions.items()))
+    active = {
+        key: value
+        for key, value in positions.items()
+        if key not in RETIRED_ICON_IDS
+    }
+    text = "".join(f"{key}={x},{y}\n" for key, (x, y) in sorted(active.items()))
     (config_dir() / POSITIONS_FILE).write_text(text, encoding="utf-8")
 
 
@@ -414,21 +426,29 @@ class Desktop(Gtk.Window):
         if persist:
             save_icon_positions(self.positions)
 
+    def _prune_orphan_positions(self) -> None:
+        """Drop retired/unknown icon ids so ghosts cannot block cells or overlap."""
+        known = set(self.icon_by_id)
+        for icon_id in list(self.positions):
+            if icon_id not in known or icon_id in RETIRED_ICON_IDS:
+                del self.positions[icon_id]
+
     def _occupied_cells(self, exclude: str | None = None) -> set[tuple[int, int]]:
         primary = self._primary()
         occupied: set[tuple[int, int]] = set()
         for icon_id, (px, py) in self.positions.items():
-            if icon_id == exclude:
+            if icon_id == exclude or icon_id not in self.icon_by_id:
                 continue
             occupied.add(pixel_to_cell(px, py, primary))
         return occupied
 
     def _snap_all_to_grid(self, persist: bool = True) -> None:
         """Snap saved/free positions onto the grid and resolve collisions."""
+        self._prune_orphan_positions()
         primary = self._primary()
         _, _, cols, rows = grid_bounds(primary)
         occupied: set[tuple[int, int]] = set()
-        for index, item in enumerate(self.icons):
+        for item in self.icons:
             x, y = self.positions.get(item.icon_id, self.icon_pos(item.icon_id))
             col, row = pixel_to_cell(x, y, primary)
             col, row = nearest_free_cell(col, row, occupied, cols, rows)
@@ -441,6 +461,7 @@ class Desktop(Gtk.Window):
 
     def auto_arrange(self) -> None:
         """Pack icons into the default column/flow and persist."""
+        self._prune_orphan_positions()
         primary = self._primary()
         for index, item in enumerate(self.icons):
             px, py = cell_to_pixel(*default_cell(index, primary), primary)

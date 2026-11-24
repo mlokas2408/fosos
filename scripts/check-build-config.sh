@@ -47,6 +47,7 @@ required_files=(
   "$repo_root/packages/fosos-archive-keyring/usr/lib/fosos-archive-keyring/fosos.sources"
   "$repo_root/packages/fosos-archive-keyring/usr/libexec/fosos-enable-archive"
   "$repo_root/build/live-build/config/hooks/normal/0150-fosos-archive-source.hook.chroot"
+  "$repo_root/build/live-build/config/hooks/normal/0160-fosos-locales.hook.chroot"
   "$repo_root/packages/fosos-archive-keyring/usr/share/keyrings/fosos-archive-keyring.gpg"
   "$repo_root/packages/fosos-cli/DEBIAN/control"
   "$repo_root/packages/fosos-cli/usr/bin/fos"
@@ -251,6 +252,16 @@ if ! grep -qx 'console-setup' "$repo_root/build/live-build/config/package-lists/
   echo "The image package list must install console-setup so the text console uses the chosen keyboard layout." >&2
   exit 1
 fi
+
+if ! grep -qx 'locales' "$repo_root/build/live-build/config/package-lists/fosos-base.list.chroot"; then
+  echo "The image package list must install locales (APT recommends are off; needed for LANG / GTK)." >&2
+  exit 1
+fi
+
+if ! grep -q 'locales' "$repo_root/packages/fosos-desktop/DEBIAN/control"; then
+  echo "fosos-desktop must Depend on locales so upgrades fix missing UTF-8 locales." >&2
+  exit 1
+fi
 # Hyper-V: avoid hyperv_fb input freeze; need DRM path + libinput + guest daemons.
 if ! grep -q 'module_blacklist=hyperv_fb' "$repo_root/build/live-build/config/binary"; then
   echo "LB_BOOTAPPEND_LIVE must include module_blacklist=hyperv_fb for Hyper-V Gen2." >&2
@@ -361,6 +372,14 @@ if ! grep -q 'gnome-keyring-daemon --start' "$repo_root/packages/fosos-desktop/u
 fi
 if ! grep -qE 'gnome-keyring|libpam-gnome-keyring' "$repo_root/packages/fosos-desktop/DEBIAN/control"; then
   echo "fosos-desktop must Depend on gnome-keyring and libpam-gnome-keyring." >&2
+  exit 1
+fi
+if ! grep -q 'blueman-applet' "$repo_root/packages/fosos-desktop/usr/bin/fosos-session"; then
+  echo "fosos-session must start blueman-applet so BlueZ has a pairing agent." >&2
+  exit 1
+fi
+if ! grep -qE '(^|,)[[:space:]]*blueman([,[:space:]]|$)' "$repo_root/packages/fosos-desktop/DEBIAN/control"; then
+  echo "fosos-desktop must Depend on blueman (pairing agent + Settings UI)." >&2
   exit 1
 fi
 sh -n "$repo_root/packages/fosos-desktop/usr/bin/fosos-session"

@@ -1,9 +1,9 @@
 # FosOS testing
 
-Aligned to the current product (`fosos-desktop` **1.12.1**). Development
-images are built in Debian WSL and tested in Hyper-V. A release image is
-built again on the dedicated Debian 13 VM, then put through the same soak
-before USB. See [BUILDING.md](BUILDING.md).
+Aligned to the current product (`fosos-desktop` **1.13.20**). Development
+images are built in Debian WSL and tested on bare metal (and optionally
+Hyper-V). A release image is built again on the dedicated Debian 13 VM,
+then put through the same soak before USB. See [BUILDING.md](BUILDING.md).
 
 ## How to record results
 
@@ -133,7 +133,7 @@ the soak log.
 | F01 | Files: Ctrl+C/X/V, multi-select, Delete → Recycle Bin, restore |
 | F02 | Files: F2, Alt+Up, Ctrl+L; Search keeps focus; Esc clears Search |
 | F03 | Files context menus (item vs empty folder); drag into folders |
-| F04 | Desktop icons (Home, Computer, Files, Recycle Bin); grid snap; no overlap; restart keeps place |
+| F04 | Desktop icons (Computer, Files, Recycle Bin — no Home); grid snap; no overlap; restart keeps place |
 | F05 | Desktop right-click: Refresh, Auto arrange, Display, Personalize, New folder, Open Files/Terminal |
 | F06 | Personalize single-click vs double-click; Reset icon positions + F5 |
 
@@ -144,7 +144,7 @@ the soak log.
 | G01 | Settings card chrome (min/max/close) matches Files |
 | G02 | Wallpaper Apply refreshes desktop; Taskbar toggles Task View / clock date / bell |
 | G03 | Notifications: Focus assist + per-app mute list after apps have notified |
-| G04 | Keyboard, mouse, default apps, power panels; Display (`arandr`) apply |
+| G04 | Keyboard, mouse, default apps, power panels; Display (`arandr`) apply; `en_US.UTF-8` (or chosen LANG) present in `locale -a` with no Gtk locale warnings |
 | G05 | Updates / About / Storage sensible; Check/Install updates open Terminal with `fos …` |
 | G06 | Theme: Welcome `--again`, greeter/lock card tokens, shared 16px popup padding |
 

@@ -33,7 +33,7 @@ Debian supplies the kernel, drivers, libraries, and optional software.
 The `mockup/` directory is a visual reference only. Do not build, ship, or
 import it.
 
-## Current baseline (`fosos-desktop` 1.12.1)
+## Current baseline (`fosos-desktop` 1.13.20)
 
 - Live and installable Debian-based ISO with Calamares and FosOS APT keyring
 - FosOS Desktop as the only full session; Recovery + TTY documented
@@ -59,7 +59,14 @@ See [DESKTOP.md](docs/DESKTOP.md) and [ISO-SIZE.md](docs/ISO-SIZE.md).
 ## Next work
 
 Prioritized. Prefer Windows *behavior* over Windows *pixels*; keep square
-FosOS cards, Dawn Aperture, Inter.
+FosOS cards, Dawn Aperture, Inter. Prefer baremetal soak over Hyper-V.
+
+### 0 — Baremetal release hardening — in progress (1.13.20)
+
+Soak fails from the ThinkPad T14 pass: prune overlapping/retired desktop
+icon positions (Home); ship and generate `locales` / `en_US.UTF-8`. Still
+open on hardware: greeter sign-out round-trip, suspend/resume, Network
+flyout join, Files trash/clipboard — then clear the soak log `fail` rows.
 
 ### 1 — Start menu and search polish — done (1.7.0)
 

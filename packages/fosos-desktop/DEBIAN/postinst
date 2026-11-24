@@ -5,6 +5,47 @@ if command -v gtk-update-icon-cache >/dev/null 2>&1; then
 	gtk-update-icon-cache -f -t /usr/share/icons/FosOS >/dev/null 2>&1 || true
 fi
 
+# APT recommends are off: without locales + a generated UTF-8 locale, GTK
+# falls back with "Locale not supported" and Settings → Region is empty.
+_fosos_enable_locale() {
+	code="$1"
+	[ -n "$code" ] || return 0
+	case "$code" in
+		C|POSIX|C.UTF-8|C.utf8) return 0 ;;
+	esac
+	case "$code" in
+		*.utf8) code="${code%.utf8}.UTF-8" ;;
+		*.utf-8) code="${code%.utf-8}.UTF-8" ;;
+	esac
+	entry="$code UTF-8"
+	esc=$(printf '%s' "$code" | sed 's/[.]/[.]/g')
+	if grep -qE "^#[[:space:]]*${esc}[[:space:]]" /etc/locale.gen 2>/dev/null; then
+		# Uncomment the matching locale.gen line (first hit).
+		sed -i -E "s/^#[[:space:]]*(${esc})[[:space:]].*/${entry}/" /etc/locale.gen
+		return 0
+	fi
+	if ! grep -qE "^${esc}[[:space:]]" /etc/locale.gen 2>/dev/null; then
+		printf '%s\n' "$entry" >> /etc/locale.gen
+	fi
+}
+
+if [ -f /etc/locale.gen ] && command -v locale-gen >/dev/null 2>&1; then
+	need_gen=0
+	_fosos_enable_locale "en_US.UTF-8"
+	if [ -f /etc/default/locale ]; then
+		# shellcheck disable=SC1091
+		. /etc/default/locale
+		_fosos_enable_locale "${LANG:-}"
+		_fosos_enable_locale "${LC_ALL:-}"
+	fi
+	if ! locale -a 2>/dev/null | grep -qiE '^en_US\.(utf8|UTF-8)$'; then
+		need_gen=1
+	fi
+	if [ "$need_gen" = 1 ]; then
+		locale-gen en_US.UTF-8 >/dev/null 2>&1 || locale-gen >/dev/null 2>&1 || true
+	fi
+fi
+
 # Remote Desktop (xrdp) stays off until Settings enables it.
 if command -v systemctl >/dev/null 2>&1 \
 	&& { [ -d /lib/systemd/system ] || [ -d /usr/lib/systemd/system ]; }; then

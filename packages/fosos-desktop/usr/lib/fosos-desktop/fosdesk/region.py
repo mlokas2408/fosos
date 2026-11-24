@@ -12,6 +12,7 @@ from pathlib import Path
 LOCALE_LABELS: dict[str, str] = {
     "en_US.UTF-8": "English (United States)",
     "en_GB.UTF-8": "English (United Kingdom)",
+    "hr_HR.UTF-8": "Croatian (Croatia)",
     "pl_PL.UTF-8": "Polish (Poland)",
     "de_DE.UTF-8": "German (Germany)",
     "fr_FR.UTF-8": "French (France)",
