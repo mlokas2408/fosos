@@ -23,8 +23,11 @@ stage_deb() {
 
   if [[ "$name" == "fosos-installer" ]]; then
     mkdir -p "$stage/usr/share/calamares/branding/fosos"
-    cp -a "$repo_root/packages/fosos-theme/usr/share/backgrounds/fosos/fosos-wallpaper.png" \
-      "$stage/usr/share/calamares/branding/fosos/welcome.png"
+    # Prefer the packaged Dawn mark tile; fall back to wallpaper only if missing.
+    if [[ ! -f "$stage/usr/share/calamares/branding/fosos/welcome.png" ]]; then
+      cp -a "$repo_root/packages/fosos-theme/usr/share/backgrounds/fosos/fosos-wallpaper.png" \
+        "$stage/usr/share/calamares/branding/fosos/welcome.png"
+    fi
   fi
 
   find "$stage" -type d -exec chmod 755 {} +

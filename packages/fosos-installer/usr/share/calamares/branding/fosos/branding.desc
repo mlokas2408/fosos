@@ -28,8 +28,14 @@ images:
   productIcon: "welcome.png"
   productWelcome: "welcome.png"
 
-slideshow: "show.qml"
-slideshowAPI: 2
+# Plain image slideshow (not QML) so the Install step never shows a blank
+# white pane if Qt Quick modules fail to load on the live image.
+slideshow:
+  - slide1.png
+  - slide2.png
+  - slide3.png
+  - slide4.png
+
 
 style:
   SidebarBackground: "#0a0a0a"

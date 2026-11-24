@@ -1,5 +1,20 @@
 # FosOS release notes
 
+## FosOS installer 1.0.5 — Install-step slideshow images
+
+- Calamares Install page uses a plain image slideshow (`slide1`–`slide4`) so the
+  centre pane is never blank white when QML fails to load
+- Ship a Dawn Aperture `welcome.png` tile for the sidebar (not the full wallpaper)
+- Regenerated feature slides; `show.qml` kept as a dark-background fallback
+
+## FosOS theme 0.7.4 — Real graphical splash (not grey three dots)
+
+- Add `plymouth.use-simpledrm` so Plymouth keeps the FosOS logo+spinner when
+  the GPU driver is late (avoids the grey three-dot text fallback)
+- `plymouth.ignore-serial-consoles` to cut early terminal flashes
+- Shutdown / Restart titles; Liberation Sans fonts in the theme (initramfs-safe)
+- Longer DeviceTimeout and explicit Theme=fosos in plymouthd.conf via postinst
+
 ## FosOS theme 0.7.3 — Fix plymouthd.conf file conflict
 
 - Stop shipping `/etc/plymouth/plymouthd.conf` (owned by `plymouth`); it broke

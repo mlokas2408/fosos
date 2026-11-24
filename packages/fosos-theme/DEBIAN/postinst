@@ -5,12 +5,22 @@ case "$1" in
 configure)
 	# Graphical Plymouth (logo + spinner). -R rebuilds initramfs so splash
 	# appears before the root filesystem is mounted. Do not ship
-	# /etc/plymouth/plymouthd.conf (owned by plymouth); set Theme here.
+	# /etc/plymouth/plymouthd.conf (owned by plymouth); edit it in place.
 	if [ -f /etc/plymouth/plymouthd.conf ]; then
+		if grep -qE '^Theme=' /etc/plymouth/plymouthd.conf; then
+			sed -i 's/^Theme=.*/Theme=fosos/' /etc/plymouth/plymouthd.conf || true
+		else
+			printf '\nTheme=fosos\n' >> /etc/plymouth/plymouthd.conf || true
+		fi
 		if grep -qE '^ShowDelay=' /etc/plymouth/plymouthd.conf; then
 			sed -i 's/^ShowDelay=.*/ShowDelay=0/' /etc/plymouth/plymouthd.conf || true
 		else
-			printf '\nShowDelay=0\n' >> /etc/plymouth/plymouthd.conf || true
+			printf 'ShowDelay=0\n' >> /etc/plymouth/plymouthd.conf || true
+		fi
+		if grep -qE '^DeviceTimeout=' /etc/plymouth/plymouthd.conf; then
+			sed -i 's/^DeviceTimeout=.*/DeviceTimeout=30/' /etc/plymouth/plymouthd.conf || true
+		else
+			printf 'DeviceTimeout=30\n' >> /etc/plymouth/plymouthd.conf || true
 		fi
 	fi
 	if command -v plymouth-set-default-theme >/dev/null 2>&1; then

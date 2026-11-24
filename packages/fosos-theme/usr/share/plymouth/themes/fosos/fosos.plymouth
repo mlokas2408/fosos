@@ -4,15 +4,17 @@ Description=FosOS boot splash — Dawn Aperture logo and spinner (logo is in thr
 ModuleName=two-step
 
 [two-step]
-Font=Inter 11
-TitleFont=Inter 11
+# Liberation Sans ships with fosos-theme and is available in the initramfs;
+# Inter may be missing early and can break title rendering.
+Font=Liberation Sans 12
+TitleFont=Liberation Sans 28
 ImageDir=/usr/share/plymouth/themes/fosos
 DialogHorizontalAlignment=.5
 DialogVerticalAlignment=.5
 TitleHorizontalAlignment=.5
-TitleVerticalAlignment=.4
+TitleVerticalAlignment=.82
 HorizontalAlignment=.5
-VerticalAlignment=.5
+VerticalAlignment=.45
 WatermarkHorizontalAlignment=.5
 WatermarkVerticalAlignment=.96
 Transition=none
@@ -29,10 +31,12 @@ UseEndAnimation=false
 [shutdown]
 UseEndAnimation=false
 SuppressMessages=true
+Title=Shutting down
 
 [reboot]
 UseEndAnimation=false
 SuppressMessages=true
+Title=Restarting
 
 [updates]
 SuppressMessages=true

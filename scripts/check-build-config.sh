@@ -35,6 +35,7 @@ required_files=(
   "$repo_root/packages/fosos-installer/usr/libexec/fosos-grub-install"
   "$repo_root/packages/fosos-installer/usr/share/polkit-1/actions/com.fosos.installer.policy"
   "$repo_root/packages/fosos-installer/usr/share/calamares/branding/fosos/show.qml"
+  "$repo_root/packages/fosos-installer/usr/share/calamares/branding/fosos/welcome.png"
   "$repo_root/packages/fosos-installer/usr/share/calamares/branding/fosos/slide1.png"
   "$repo_root/packages/fosos-installer/usr/share/calamares/branding/fosos/slide2.png"
   "$repo_root/packages/fosos-installer/usr/share/calamares/branding/fosos/slide3.png"
@@ -119,6 +120,12 @@ for file in "${required_files[@]}"; do
     exit 1
   fi
 done
+
+if ! grep -qE '^\s*-\s*slide1\.png' \
+  "$repo_root/packages/fosos-installer/usr/share/calamares/branding/fosos/branding.desc"; then
+  echo "Calamares branding.desc must list slide1.png..slide4.png for the Install slideshow." >&2
+  exit 1
+fi
 
 agent_desktop="$repo_root/packages/fosos-theme/etc/xdg/autostart/fosos-polkit-agent.desktop"
 if ! grep -q '^OnlyShowIn=FosOS;$' "$agent_desktop" || ! grep -q '^Exec=/usr/bin/lxpolkit$' "$agent_desktop"; then
@@ -265,9 +272,25 @@ if ! grep -q -- 'systemd.show_status=false' "$repo_root/scripts/build-iso.sh"; t
   echo "build-iso.sh bootappend-live must include systemd.show_status=false (quiet shutdown)." >&2
   exit 1
 fi
+if ! grep -q -- 'plymouth.use-simpledrm' "$repo_root/scripts/build-iso.sh"; then
+  echo "build-iso.sh bootappend-live must include plymouth.use-simpledrm (avoid grey three-dot fallback)." >&2
+  exit 1
+fi
 if ! grep -q -- 'systemd.show_status=false' \
   "$repo_root/packages/fosos-theme/etc/default/grub.d/fosos-boot.cfg"; then
   echo "fosos-boot.cfg must include systemd.show_status=false (quiet shutdown)." >&2
+  exit 1
+fi
+if ! grep -q -- 'plymouth.use-simpledrm' \
+  "$repo_root/packages/fosos-theme/etc/default/grub.d/fosos-boot.cfg"; then
+  echo "fosos-boot.cfg must include plymouth.use-simpledrm (avoid grey three-dot fallback)." >&2
+  exit 1
+fi
+if ! grep -qE '^Title=Shutting down' \
+  "$repo_root/packages/fosos-theme/usr/share/plymouth/themes/fosos/fosos.plymouth" \
+  || ! grep -qE '^Title=Restarting' \
+  "$repo_root/packages/fosos-theme/usr/share/plymouth/themes/fosos/fosos.plymouth"; then
+  echo "fosos.plymouth must set Title=Shutting down / Restarting." >&2
   exit 1
 fi
 if [[ ! -f "$repo_root/packages/fosos-theme/etc/systemd/system.conf.d/10-fosos-quiet.conf" ]]; then
