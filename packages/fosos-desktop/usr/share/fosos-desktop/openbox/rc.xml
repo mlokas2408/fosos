@@ -110,6 +110,9 @@
     <keybind key="C-A-t">
       <action name="Execute"><command>fosos-terminal</command></action>
     </keybind>
+    <keybind key="C-S-Escape">
+      <action name="Execute"><command>fosos-taskmgr</command></action>
+    </keybind>
     <keybind key="W-i">
       <action name="Execute"><command>fosos-settings</command></action>
     </keybind>

@@ -1,5 +1,5 @@
 Package: fosos-desktop
-Version: 1.13.23
+Version: 1.13.24
 Section: x11
 Priority: optional
 Architecture: all
@@ -8,7 +8,7 @@ Recommends: freerdp3-x11, xrdp, xorgxrdp, pinentry-gnome3
 Maintainer: FosOS <dev@fosos.local>
 Description: FosOS Desktop session
  The FosOS panel, Start menu, desktop, Files, Terminal, Notepad,
- Remote Desktop client, notifications, lock screen, LightDM greeter and
+ Task Manager, Remote Desktop client, notifications, lock screen, LightDM greeter and
  settings shell, running on the Openbox window manager. It is the default
  login session. A minimal FosOS Recovery session and text consoles are the
  fallback when the shell fails. Inbound RDP uses xrdp for a separate FosOS

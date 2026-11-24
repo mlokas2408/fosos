@@ -978,6 +978,48 @@ tooltip label {
   min-height: 28px;
 }
 
+.fos-taskmgr-tree {
+  background-color: @fos_card;
+}
+
+.fos-taskmgr-tree header button {
+  background-color: @fos_card;
+  border: none;
+  border-bottom: 1px solid @fos_border;
+  border-radius: 0;
+  padding: 6px 8px;
+  font-weight: 600;
+}
+
+.fos-taskmgr-tree:selected {
+  background-color: alpha(@fos_fg, 0.10);
+}
+
+.fos-taskmgr-tabs {
+  border-bottom: 1px solid @fos_border;
+}
+
+.fos-taskmgr-toolbar {
+  padding: 4px 0 8px;
+}
+
+.fos-taskmgr-table-page {
+  padding: 8px 12px 12px;
+}
+
+.fos-taskmgr-perf-nav {
+  min-width: 148px;
+}
+
+.fos-taskmgr-perf-panel {
+  background-color: @fos_card;
+}
+
+.fos-taskmgr-graph {
+  background-color: #171717;
+  border: 1px solid @fos_border;
+}
+
 .fos-files-hit {
   background-color: transparent;
 }
@@ -1274,4 +1316,58 @@ button.fos-btn.fos-files-tile {
   background-color: @fos_card;
   color: @fos_fg;
   font-family: "Liberation Mono", "DejaVu Sans Mono", monospace;
+}
+
+.fos-editor-tabs {
+  background-color: transparent;
+  min-height: 28px;
+}
+
+.fos-editor-tab-chip {
+  background-color: transparent;
+}
+
+.fos-editor-tab {
+  min-width: 84px;
+  min-height: 28px;
+}
+
+.fos-editor-tab-close {
+  min-width: 22px;
+  min-height: 28px;
+}
+
+.fos-editor-drag {
+  background-color: transparent;
+  min-height: 28px;
+}
+
+.fos-editor-body {
+  background-color: @fos_card;
+}
+
+.fos-editor-page {
+  background-color: @fos_card;
+}
+
+.fos-editor-menubar {
+  background-color: @fos_card;
+  border-bottom: 1px solid @fos_border;
+  padding: 0 4px;
+  min-height: 28px;
+}
+
+.fos-editor-fmtbar {
+  border-bottom: 1px solid @fos_border;
+  padding: 4px 8px;
+}
+
+.fos-editor-style {
+  min-width: 110px;
+}
+
+.fos-editor-footer {
+  border-top: 1px solid @fos_border;
+  padding: 2px 10px;
+  min-height: 26px;
 }

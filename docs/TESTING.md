@@ -92,7 +92,7 @@ the soak log.
 | C04 | Start: Down/Up highlight + Enter launch; All apps under home with A–Z; Account left / Power right |
 | C05 | Start Account menu: home, Lock, Sign out; Power confirm (Shut down / Restart / Suspend / Lock) |
 | C06 | Taskbar: pin/unpin, drag reorder survives restart, middle-click opens new window |
-| C07 | Taskbar right-click empty → Taskbar settings; Show Desktop strip = Win+D |
+| C07 | Taskbar right-click empty → Task Manager / Taskbar settings / Show desktop; Show Desktop strip = Win+D; Ctrl+Shift+Esc opens Task Manager (Processes / Performance / Startup apps / Details) |
 | C08 | Super+V clipboard history: several copies listed; pick pastes; Clear all empties |
 | C09 | Status Notifier tray left of status cluster (e.g. nm-applet); left-click activates |
 
@@ -100,7 +100,7 @@ the soak log.
 
 | ID | Check |
 | --- | --- |
-| D01 | Super+E / Super+I / Ctrl+Alt+T / Super+L / Super+R / Super+X work |
+| D01 | Super+E / Super+I / Ctrl+Alt+T / Ctrl+Shift+Esc / Super+L / Super+R / Super+X work |
 | D02 | Alt+Tab: larger selected tile; Esc cancels without switch; release Alt focuses |
 | D03 | Super+↑ maximize; Super+←/→ tile above panel; Super+↓ restore-from-snap then minimize |
 | D04 | Drag to edge/corner: zone preview then half/quarter; top edge maximizes |

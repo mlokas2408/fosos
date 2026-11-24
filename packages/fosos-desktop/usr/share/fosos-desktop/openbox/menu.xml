@@ -11,6 +11,9 @@
     <item label="Notepad">
       <action name="Execute"><command>fosos-notepad</command></action>
     </item>
+    <item label="Task Manager">
+      <action name="Execute"><command>fosos-taskmgr</command></action>
+    </item>
     <item label="Settings">
       <action name="Execute"><command>fosos-settings</command></action>
     </item>

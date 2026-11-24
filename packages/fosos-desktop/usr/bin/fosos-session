@@ -111,23 +111,20 @@ if command -v xcape >/dev/null 2>&1; then
 	xcape -e 'Super_L=Alt_L|F1;Super_R=Alt_L|F1' >/dev/null 2>&1 &
 fi
 
-# nm-applet has no tray here, but it still asks for Wi-Fi passwords.
-if command -v nm-applet >/dev/null 2>&1; then
-	nm-applet >/dev/null 2>&1 &
-fi
-
-# Blueman registers the BlueZ agent that confirms passkeys for pairing.
-# Without it, bluetoothctl/Settings connect attempts fail with
-# AuthenticationFailed / "No agent available for request type 2".
-if command -v blueman-applet >/dev/null 2>&1; then
-	blueman-applet >/dev/null 2>&1 &
-fi
-
 # Lock on idle, lid close and before suspend. Super+L and Start > Lock also
 # run fosos-lock directly.
 if command -v xss-lock >/dev/null 2>&1 && command -v fosos-lock >/dev/null 2>&1; then
 	xset s 300 5 >/dev/null 2>&1 || true
 	xss-lock -l --transfer-sleep-lock -- fosos-lock >/dev/null 2>&1 &
+fi
+
+# XDG autostart (Task Manager → Startup apps): nm-applet, blueman, Welcome, …
+# Skips session plumbing already started above. Enable/disable is per-user under
+# ~/.config/autostart.
+if command -v python3 >/dev/null 2>&1; then
+	PYTHONPATH="/usr/lib/fosos-desktop${PYTHONPATH:+:$PYTHONPATH}" \
+		python3 -c 'from fosdesk.taskmgr import run_session_autostart; run_session_autostart()' \
+		>/dev/null 2>&1 || true
 fi
 
 open_recovery_terminal() {
@@ -172,10 +169,6 @@ shell_loop=$!
 # Fallback root colour if the shell desktop window is slow or missing.
 if command -v xsetroot >/dev/null 2>&1; then
 	xsetroot -solid "#0a0a0a" >/dev/null 2>&1 || true
-fi
-
-if command -v fosos-welcome >/dev/null 2>&1; then
-	fosos-welcome >/dev/null 2>&1 &
 fi
 
 openbox --config-file "$rc"

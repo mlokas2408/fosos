@@ -848,6 +848,9 @@ class Panel(Gtk.Window):
     def _popup_taskbar_menu(self, event: Gdk.EventButton) -> None:
         self.shell.close_popups()
         menu = Gtk.Menu()
+        taskmgr = Gtk.MenuItem(label="Task Manager")
+        taskmgr.connect("activate", lambda _i: appmod.spawn(["fosos-taskmgr"]))
+        menu.append(taskmgr)
         settings = Gtk.MenuItem(label="Taskbar settings")
         settings.connect(
             "activate",

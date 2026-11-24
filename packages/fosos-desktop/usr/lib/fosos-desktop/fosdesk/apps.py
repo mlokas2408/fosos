@@ -30,6 +30,7 @@ KNOWN_APPS = {
     "fosos-welcome.desktop": ("Welcome", "help-about-symbolic"),
     "org.pulseaudio.pavucontrol.desktop": ("Sound", "audio-volume-high-symbolic"),
     "fosos-screenshot.desktop": ("Screenshot", "camera-photo-symbolic"),
+    "fosos-taskmgr.desktop": ("Task Manager", "utilities-system-monitor-symbolic"),
 }
 
 

@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Name=Task Manager
+GenericName=System Monitor
+Comment=View and end running processes
+Exec=fosos-taskmgr
+Icon=utilities-system-monitor
+Terminal=false
+Categories=System;Monitor;
+Keywords=task;process;cpu;memory;kill;end;
+StartupWMClass=fosos-taskmgr
+OnlyShowIn=FosOS;

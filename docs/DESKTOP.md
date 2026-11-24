@@ -67,6 +67,7 @@ Revisit Wayland when the shell is stable for daily use.
 | `fosos-shell` | Taskbar, Start menu, desktop, notifications, status menus |
 | `fosos-lock` | Fullscreen lock screen (same layout + power menu) |
 | `fosos-settings` | Settings shell (card chrome; Wallpaper, Taskbar, Notifications, Remote Desktop, Updates, Storage, chromed system tools) |
+| `fosos-taskmgr` | Task Manager (Processes, Performance, Startup apps, Details; Ctrl+Shift+Esc / taskbar menu) |
 | `fosos-remote` | RDP client (card chrome; FreeRDP to Windows / Ubuntu / other hosts) |
 | `fosos-welcome` | First-login / `--again` welcome (card chrome; guide, install, updates) |
 | `fosos-screenshot` | Full / region / window capture |
@@ -84,6 +85,7 @@ Revisit Wayland when the shell is stable for daily use.
 | Super+R | Run |
 | Super+E | Files |
 | Ctrl+Alt+T | Terminal |
+| Ctrl+Shift+Esc | Task Manager |
 | Super+I | Settings |
 | Super+L | Lock |
 | Super+D | Show desktop (also far-right taskbar strip) |
