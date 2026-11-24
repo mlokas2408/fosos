@@ -1,5 +1,9 @@
 # FosOS release notes
 
+## FosOS theme 0.7.7 — Smaller Plymouth spinner
+
+- Boot / shut down / restart splash spinner halved (~64px diameter, was ~128px)
+
 ## FosOS theme 0.7.6 — Executable initramfs hook
 
 - `stage-deb.sh` was chmodding all files to 644, so `zz-fosos-plymouth` shipped

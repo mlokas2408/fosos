@@ -32,15 +32,15 @@ SPINNER = Path("/usr/share/plymouth/themes/spinner")
 FG = (250, 250, 250, 250)
 FG_DIM = (250, 250, 250, 51)
 
-# Sized for 1080p+ / HiDPI laptops: logo ~280px, spinner ~128px diameter.
+# Sized for 1080p+ / HiDPI laptops: logo ~280px, spinner ~64px diameter.
 # Compact frame so logo+spinner read as one centred unit.
 FRAME_W, FRAME_H = 480, 520
 LOGO_TARGET = 280
-SPINNER_RADIUS = 64
-SPINNER_LINE = 9
+SPINNER_RADIUS = 32
+SPINNER_LINE = 5
 LOGO_TOP = 36
 # Spinner centre sits just under the mark.
-SPINNER_CY = LOGO_TOP + LOGO_TARGET + 56
+SPINNER_CY = LOGO_TOP + LOGO_TARGET + 28
 
 
 def _mark_image(logo_path: Path) -> Image.Image:
