@@ -1,5 +1,10 @@
 # FosOS release notes
 
+## FosOS theme 0.7.6 — Executable initramfs hook
+
+- `stage-deb.sh` was chmodding all files to 644, so `zz-fosos-plymouth` shipped
+  non-executable and never ran; keep initramfs-tools hooks mode 755
+
 ## FosOS theme 0.7.5 — Real quiet boot on Debian (no SIMPLEDRM)
 
 - Debian trixie kernels have `CONFIG_DRM_SIMPLEDRM` disabled and plymouth

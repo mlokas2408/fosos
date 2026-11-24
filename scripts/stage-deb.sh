@@ -52,6 +52,11 @@ stage_deb() {
   if [[ -d "$stage/usr/libexec" ]]; then
     find "$stage/usr/libexec" -type f -exec chmod 755 {} +
   fi
+  # initramfs-tools ignores non-executable hooks (would leave Debian's
+  # plymouth watermark overwrite in place for fosos-theme).
+  if [[ -d "$stage/usr/share/initramfs-tools/hooks" ]]; then
+    find "$stage/usr/share/initramfs-tools/hooks" -type f -exec chmod 755 {} +
+  fi
 
   version="$(awk '/^Version:/{print $2; exit}' "$stage/DEBIAN/control")"
   if [[ -z "$version" ]]; then

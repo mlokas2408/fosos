@@ -298,6 +298,10 @@ if ! grep -q 'DeviceTimeout=45' "$repo_root/packages/fosos-theme/DEBIAN/postinst
   echo "fosos-theme postinst must set DeviceTimeout=45 inside [Daemon]." >&2
   exit 1
 fi
+if ! grep -q 'initramfs-tools/hooks' "$repo_root/scripts/stage-deb.sh"; then
+  echo "stage-deb.sh must chmod 755 initramfs-tools/hooks (hooks are ignored if not executable)." >&2
+  exit 1
+fi
 if ! grep -qE '^Title=Shutting down' \
   "$repo_root/packages/fosos-theme/usr/share/plymouth/themes/fosos/fosos.plymouth" \
   || ! grep -qE '^Title=Restarting' \
