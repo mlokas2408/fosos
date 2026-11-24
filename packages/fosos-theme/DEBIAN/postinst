@@ -4,7 +4,15 @@ set -e
 case "$1" in
 configure)
 	# Graphical Plymouth (logo + spinner). -R rebuilds initramfs so splash
-	# appears before the root filesystem is mounted.
+	# appears before the root filesystem is mounted. Do not ship
+	# /etc/plymouth/plymouthd.conf (owned by plymouth); set Theme here.
+	if [ -f /etc/plymouth/plymouthd.conf ]; then
+		if grep -qE '^ShowDelay=' /etc/plymouth/plymouthd.conf; then
+			sed -i 's/^ShowDelay=.*/ShowDelay=0/' /etc/plymouth/plymouthd.conf || true
+		else
+			printf '\nShowDelay=0\n' >> /etc/plymouth/plymouthd.conf || true
+		fi
+	fi
 	if command -v plymouth-set-default-theme >/dev/null 2>&1; then
 		if plymouth-set-default-theme -R fosos >/dev/null 2>&1; then
 			:

@@ -1,5 +1,11 @@
 # FosOS release notes
 
+## FosOS theme 0.7.3 — Fix plymouthd.conf file conflict
+
+- Stop shipping `/etc/plymouth/plymouthd.conf` (owned by `plymouth`); it broke
+  ISO builds and fresh installs with a dpkg overwrite error
+- postinst still sets Theme via `plymouth-set-default-theme` and ShowDelay=0
+
 ## FosOS theme 0.7.2 — Quiet shut down / restart splash
 
 - Same Dawn Aperture Plymouth logo+spinner covers shut down and restart

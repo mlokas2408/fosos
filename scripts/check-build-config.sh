@@ -274,8 +274,10 @@ if [[ ! -f "$repo_root/packages/fosos-theme/etc/systemd/system.conf.d/10-fosos-q
   echo "fosos-theme must ship systemd ShowStatus=no drop-in for quiet shutdown." >&2
   exit 1
 fi
-if [[ ! -f "$repo_root/packages/fosos-theme/etc/plymouth/plymouthd.conf" ]]; then
-  echo "fosos-theme must ship /etc/plymouth/plymouthd.conf." >&2
+# Do not ship /etc/plymouth/plymouthd.conf — it is owned by plymouth and
+# causes a dpkg unpack conflict. Theme is set via plymouth-set-default-theme.
+if [[ -e "$repo_root/packages/fosos-theme/etc/plymouth/plymouthd.conf" ]]; then
+  echo "fosos-theme must not ship /etc/plymouth/plymouthd.conf (Conflicts with plymouth)." >&2
   exit 1
 fi
 if ! grep -qE '\[shutdown\]' \
