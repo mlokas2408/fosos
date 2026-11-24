@@ -10,13 +10,13 @@ Fill this in while following [TESTING.md](TESTING.md). Prefer copying to
 
 | Field | Value |
 | --- | --- |
-| Date | 2026-11-24 (retest after fosos-cli 0.2.6 / installer 1.0.4 publish) |
-| Tester | agent (Cursor) + mlokas |
-| ISO | Installed system. Packages from `https://mlokas2408.github.io/fosos-apt` testing. |
-| Machine | Baremetal Lenovo ThinkPad T14 Gen 3 (`21AH007VSC`), hostname `marjan-21ah007vsc` |
-| Image | installed |
-| Desktop | `fosos-desktop` **1.13.20**, `fosos-cli` **0.2.6**, `fosos-theme` 0.6.2 (`fosos-installer` not installed on target — expected) |
-| Notes | No open `fail` rows. Secure Boot packages (`shim-signed` etc.) **not** on this disk yet — need new ISO / reinstall for J06. Screenshots `/tmp/fosos-soak-20261124c/`. Prior archives under `docs/soak-logs/`. |
+| Date | 2026-11-24 (J04 / J06 Secure Boot + USB) |
+| Tester | mlokas |
+| ISO | New Secure Boot ISO (live USB + Calamares install). Hyper-V Gen2 + baremetal. |
+| Machine | Baremetal laptop + Hyper-V Gen2 (`MicrosoftUEFICertificateAuthority`) |
+| Image | live + installed |
+| Desktop | Post-install from new ISO (shim Secure Boot path) |
+| Notes | No open `fail` rows. **J04** USB UEFI smoke and **J06** Secure Boot live + post-install passed on baremetal and Hyper-V (3rd-party UEFI CA required on laptop). Archive: [soak-logs/2026-11-24-j04-j06-secure-boot-usb.md](soak-logs/2026-11-24-j04-j06-secure-boot-usb.md). |
 
 ## Failed IDs (summary)
 
@@ -28,7 +28,7 @@ Fill this in while following [TESTING.md](TESTING.md). Prefer copying to
 
 | ID | Check | Status | Comment |
 | --- | --- | --- | --- |
-| A01 | GRUB splash / FosOS Live | skip | Installed boot. NVRAM entry `FosOS` → `\EFI\FosOS\grubx64.efi` (unsigned path). |
+| A01 | GRUB splash / FosOS Live | pass | Live USB + installed boot with Secure Boot (J06). |
 | A02 | Live autologin FosOS Desktop | skip | Not live. |
 | A03 | Mouse and keyboard work | pass | Active session. |
 | A04 | Greeter two-column Sign in | skip | Did not sign out. |
@@ -41,7 +41,7 @@ Fill this in while following [TESTING.md](TESTING.md). Prefer copying to
 
 | ID | Check | Status | Comment |
 | --- | --- | --- | --- |
-| B01 | Calamares Install FosOS | pass | Already installed. |
+| B01 | Calamares Install FosOS | pass | Fresh install from Secure Boot live USB (J06). |
 | B02 | Installed greeter / Desktop | pass | `fosos-shell` + Openbox. |
 | B03 | Welcome / finish setup | pass | `welcome-done` present. |
 | B04 | sudo works; root locked | pass | Passwordless sudo; root locked. |
@@ -139,6 +139,6 @@ Fill this in while following [TESTING.md](TESTING.md). Prefer copying to
 | J01 | fos update / upgrade | pass | On `fosos-desktop` 1.13.20 + `fosos-cli` 0.2.6 (`full-upgrade`). |
 | J02 | ISO size in ISO-SIZE.md | skip | No rebuild. |
 | J03 | Release VM rebuild + re-soak | skip | Deferred. |
-| J04 | USB UEFI smoke | skip | Not run. |
+| J04 | USB UEFI smoke | pass | Baremetal laptop USB (Balena); UEFI smoke OK. |
 | J05 | Laptop Wi-Fi scan/join | pass | AMAGI connected; scan OK. |
-| J06 | Secure Boot live + install | skip | No `shim-signed` on this install; boot entry is `\EFI\FosOS\grubx64.efi`. Needs new ISO. |
+| J06 | Secure Boot live + install | pass | Live USB + post-install reboot with Secure Boot on — baremetal laptop and Hyper-V Gen2. |

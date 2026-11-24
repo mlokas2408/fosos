@@ -19,7 +19,7 @@ from Debian or upstream as needed.
 | Area | Choice |
 | --- | --- |
 | Base | Debian Stable |
-| Arch / boot | x86_64/amd64, UEFI only; Secure Boot via `shim-signed` (verify on new ISO) |
+| Arch / boot | x86_64/amd64, UEFI only; Secure Boot via `shim-signed` (J06 verified) |
 | Desktop | FosOS Desktop (`fosos-desktop`) on Openbox; no XFCE session |
 | Fallback | FosOS Recovery (Openbox + terminal) and text consoles |
 | Browser | Firefox only (no Chrome by default) |
@@ -61,12 +61,13 @@ See [DESKTOP.md](docs/DESKTOP.md) and [ISO-SIZE.md](docs/ISO-SIZE.md).
 Prioritized. Prefer Windows *behavior* over Windows *pixels*; keep square
 FosOS cards, Dawn Aperture, Inter. Prefer baremetal soak over Hyper-V.
 
-### 0 — Baremetal release hardening — partial (1.13.20 / theme 0.7.0)
+### 0 — Baremetal release hardening — partial (1.13.20 / theme 0.7.4)
 
-ThinkPad T14 retest: **F04** / **G04** cleared (no open `fail` rows).
-Quiet boot (hidden GRUB + logo/spinner Plymouth) in `fosos-theme` 0.7.0.
-Still open on hardware: greeter sign-out, suspend/resume, Network flyout
-join, Files trash/clipboard. `fos upgrade` uses `full-upgrade` (cli 0.2.6).
+ThinkPad / laptop: **F04** / **G04** cleared; **J04** USB smoke and **J06**
+Secure Boot (live + post-install) passed on baremetal and Hyper-V Gen2.
+Quiet boot in `fosos-theme` 0.7.4 (`plymouth.use-simpledrm`). Still open on
+hardware: greeter sign-out, suspend/resume, Network flyout join, Files
+trash/clipboard. `fos upgrade` uses `full-upgrade` (cli 0.2.6).
 
 ### 1 — Start menu and search polish — done (1.7.0)
 
@@ -98,18 +99,17 @@ Complete a Hyper-V soak log ([TESTING.md](docs/TESTING.md) /
 [SOAK-LOG.md](docs/SOAK-LOG.md), and USB where needed) with no open `fail`
 rows before tagging a release ISO. Promote APT packages only after VM testing.
 
-### 6 — UEFI Secure Boot — implemented (pending ISO verify)
+### 6 — UEFI Secure Boot — done (J06)
 
 Live-build uses `--uefi-secure-boot enable`; the squashfs ships
 `shim-signed`, `grub-efi-amd64-signed`, and `grub-efi-amd64`. Calamares
-install prefers `grub-install --uefi-secure-boot`. Hyper-V scripts enable
-Secure Boot with template `MicrosoftUEFICertificateAuthority`. FosOS GRUB
-splash/theme stay unsigned data; EFI binaries remain Debian-signed.
+install prefers `grub-install --uefi-secure-boot`. Hyper-V uses template
+`MicrosoftUEFICertificateAuthority`. Baremetal needs firmware **Allow
+Microsoft 3rd party UEFI CA** enabled.
 
-**Still needed:** rebuild ISO, pass soak **J06** (live + installed) on Gen2
-Hyper-V and selected bare metal. Existing installs without shim need a
-reinstall from the new ISO (or a manual shim/grub-signed install +
-`grub-install`).
+**Verified:** soak **J06** live USB + post-install with Secure Boot on —
+Hyper-V Gen2 and baremetal laptop (2026-11-24). **J04** USB UEFI smoke
+passed on the same path.
 
 ## Working rules
 
