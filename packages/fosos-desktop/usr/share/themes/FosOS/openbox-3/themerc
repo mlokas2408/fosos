@@ -5,8 +5,9 @@
 
 border.width: 1
 padding.width: 8
-# Vertical padding around title text — keep total chrome ~32px like Win11.
-padding.height: 6
+# Vertical padding around title text — total chrome ~30px like Cursor.
+# height ≈ 2*padding.height + button (16) → ~30 with padding.height 7.
+padding.height: 7
 window.handle.width: 0
 window.client.padding.width: 0
 window.client.padding.height: 0

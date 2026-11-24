@@ -4,13 +4,106 @@ from __future__ import annotations
 
 import subprocess
 
+import cairo
 import gi
 
 gi.require_version("Gdk", "3.0")
+gi.require_version("GdkPixbuf", "2.0")
 gi.require_version("Gtk", "3.0")
-from gi.repository import Gdk, Gtk
+from gi.repository import Gdk, GdkPixbuf, Gtk
 
-from .ui import add_classes, badge, button, label, tile
+from .ui import add_classes, badge, button, icon, label
+
+# Pixel grids captured from Cursor window controls (# = ink), on a 12×12 canvas.
+_CAPTION_GLYPHS: dict[str, tuple[str, ...]] = {
+    "minimize": (
+        "............",
+        "............",
+        "............",
+        "............",
+        "............",
+        ".##########.",
+        "............",
+        "............",
+        "............",
+        "............",
+        "............",
+        "............",
+    ),
+    "maximize": (
+        "............",
+        ".########...",
+        ".#......#...",
+        ".#......#...",
+        ".#......#...",
+        ".#......#...",
+        ".#......#...",
+        ".#......#...",
+        ".########...",
+        "............",
+        "............",
+        "............",
+    ),
+    # Exact restore silhouette from Cursor.
+    "restore": (
+        "............",
+        "...#######..",
+        "..........#.",
+        "..######..#.",
+        ".#......#.#.",
+        ".#......#.#.",
+        ".#......#.#.",
+        ".#......#.#.",
+        ".#......#.#.",
+        ".#......#...",
+        ".########...",
+        "............",
+    ),
+    "close": (
+        "............",
+        ".#......#...",
+        "..#....#....",
+        "...#..#.....",
+        "....##......",
+        "....##......",
+        "...#..#.....",
+        "..#....#....",
+        ".#......#...",
+        "............",
+        "............",
+        "............",
+    ),
+}
+
+
+def _caption_pixbuf(kind: str) -> GdkPixbuf.Pixbuf:
+    """Rasterize Cursor-matching caption glyphs to a pixbuf."""
+    rows = _CAPTION_GLYPHS[kind]
+    height = len(rows)
+    width = len(rows[0])
+    surface = cairo.ImageSurface(cairo.FORMAT_ARGB32, width, height)
+    cr = cairo.Context(surface)
+    cr.set_source_rgba(0.96, 0.96, 0.96, 1.0)
+    for y, row in enumerate(rows):
+        for x, ch in enumerate(row):
+            if ch == "#":
+                cr.rectangle(x, y, 1, 1)
+    cr.fill()
+    pixbuf = Gdk.pixbuf_get_from_surface(surface, 0, 0, width, height)
+    if pixbuf is None:
+        pixbuf = GdkPixbuf.Pixbuf.new(GdkPixbuf.Colorspace.RGB, True, 8, width, height)
+        pixbuf.fill(0x00000000)
+    return pixbuf
+
+
+def _caption_image(kind: str) -> Gtk.Image:
+    return Gtk.Image.new_from_pixbuf(_caption_pixbuf(kind))
+
+
+def _caption_button(kind: str, tooltip: str) -> Gtk.Button:
+    widget = button(size="icon-xs", tooltip=tooltip)
+    widget.add(_caption_image(kind))
+    return widget
 
 
 class CardWindow(Gtk.ApplicationWindow):
@@ -37,9 +130,13 @@ class CardWindow(Gtk.ApplicationWindow):
         self.add(self.frame)
 
         self.header = add_classes(Gtk.Box(spacing=4), "fos-app-header")
-        self.header.set_size_request(-1, 32)
+        # Match Cursor / VS Code custom titlebar (~30–31px).
+        self.header.set_size_request(-1, 30)
 
-        self.header_icon = tile(icon_name, "primary", size=14, small=True)
+        # Plain icon like Cursor — no fos-tile background plate.
+        self.header_icon = icon(icon_name, 14)
+        self.header_icon.set_valign(Gtk.Align.CENTER)
+        self.header_icon.set_margin_end(10)
         self.header.pack_start(self.header_icon, False, False, 0)
 
         # Center slot: title by default, or tabs (Terminal), etc.
@@ -56,16 +153,19 @@ class CardWindow(Gtk.ApplicationWindow):
         self.badge_label.hide()
         self.header.pack_start(self.badge_label, False, False, 0)
 
-        self.min_btn = button(icon_name="window-minimize-symbolic", size="icon-xs", tooltip="Minimize", icon_size=12)
-        self.max_btn = button(icon_name="window-maximize-symbolic", size="icon-xs", tooltip="Maximize", icon_size=12)
-        self.close_btn = button(icon_name="window-close-symbolic", size="icon-xs", tooltip="Close", icon_size=12)
+        # Tight Cursor-like caption cluster (no gap between hit targets).
+        self.min_btn = _caption_button("minimize", "Minimize")
+        self.max_btn = _caption_button("maximize", "Maximize")
+        self.close_btn = _caption_button("close", "Close")
         add_classes(self.close_btn, "close")
         self.min_btn.connect("clicked", lambda _b: self.iconify())
         self.max_btn.connect("clicked", lambda _b: self.toggle_maximize())
         self.max_btn.connect("button-press-event", self._on_max_press)
         self.close_btn.connect("clicked", lambda _b: self.close())
+        captions = add_classes(Gtk.Box(spacing=0), "fos-caption-buttons")
         for btn in (self.min_btn, self.max_btn, self.close_btn):
-            self.header.pack_start(btn, False, False, 0)
+            captions.pack_start(btn, False, False, 0)
+        self.header.pack_start(captions, False, False, 0)
 
         self.header.add_events(
             Gdk.EventMask.BUTTON_PRESS_MASK
@@ -154,13 +254,8 @@ class CardWindow(Gtk.ApplicationWindow):
             style.remove_class("maximized")
         child = self.max_btn.get_child()
         if isinstance(child, Gtk.Image):
-            name = "window-maximize-symbolic"
-            # Prefer restore when maximized if the icon exists.
-            theme = Gtk.IconTheme.get_default()
-            if self._maximized and theme.has_icon("window-restore-symbolic"):
-                name = "window-restore-symbolic"
-            child.set_from_icon_name(name, Gtk.IconSize.MENU)
-            child.set_pixel_size(12)
+            kind = "restore" if self._maximized else "maximize"
+            child.set_from_pixbuf(_caption_pixbuf(kind))
         self.max_btn.set_tooltip_text("Restore" if self._maximized else "Maximize")
         return False
 

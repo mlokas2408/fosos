@@ -44,6 +44,7 @@ from .snaplayouts import (
     snap_right,
 )
 from .startmenu import StartMenu
+from .taskpeek import TaskPeek
 from .taskview import TaskView
 from .tray import StatusNotifierWatcher
 from .ui import add_classes, button, load_css
@@ -104,6 +105,7 @@ class Shell(Gtk.Application):
         self.edge_snap = EdgeSnap()
         self.snap_layouts = SnapLayouts(self)
         self.task_view = TaskView(self)
+        self.task_peek = TaskPeek(self)
         self.quick_settings = QuickSettings(self)
         self.volume_popup = VolumePopup(self)
         self.battery_popup = BatteryPopup(self)
@@ -195,6 +197,14 @@ class Shell(Gtk.Application):
                 command_line.printerr("Usage: fosos-shell --workspace N\n")
                 return 2
             self.switch_workspace(number)
+        elif "--pin-activate" in args:
+            index = args.index("--pin-activate")
+            try:
+                number = int(args[index + 1])
+            except (IndexError, ValueError):
+                command_line.printerr("Usage: fosos-shell --pin-activate N\n")
+                return 2
+            self.activate_pin(number)
         elif "--reload-ui" in args:
             self.reload_ui()
         elif "--lock" in args:
@@ -340,6 +350,40 @@ class Shell(Gtk.Application):
             self.snap_layouts.hide_picker()
         if keep != "taskview" and self.task_view.get_visible():
             self.task_view.hide_view()
+        if keep != "taskpeek" and self.task_peek.get_visible():
+            self.task_peek.hide_peek()
+
+    def activate_pin(self, number: int) -> None:
+        """Win+N: launch or cycle the Nth pinned app (1-based)."""
+        if self.pinned is None or number < 1:
+            return
+        apps = self.pinned.apps()
+        if number > len(apps):
+            return
+        app = apps[number - 1]
+        panel = self.panel
+        if panel is None:
+            app.launch()
+            return
+        windows = panel.windows_for(app)
+        stamp = x_timestamp(panel)
+        if not windows:
+            app.launch()
+            return
+        active = panel.active_window()
+        stacked = [w for w in panel.screen.get_windows_stacked() if w in windows]
+        if active is not None and active in windows and not active.is_minimized():
+            if len(windows) == 1:
+                active.minimize()
+                return
+            try:
+                index = stacked.index(active)
+            except ValueError:
+                index = len(stacked) - 1
+            stacked[(index + 1) % len(stacked)].activate(stamp)
+            return
+        target = stacked[-1] if stacked else windows[0]
+        target.activate(stamp)
 
     def toggle_start(self, panel: Panel | None = None) -> None:
         panel = panel or self.panel
@@ -353,6 +397,8 @@ class Shell(Gtk.Application):
         self.close_popups()
         if self.run_dialog.get_visible():
             self.run_dialog.hide()
+        if getattr(panel, "_auto_hide", False):
+            panel._reveal_panel(force=True)
         area = panel.area()
         self._set_start_open(True)
         panel.set_start_open(True)

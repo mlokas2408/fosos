@@ -109,6 +109,72 @@ class App:
         except GLib.Error:
             return False
 
+    def actions(self) -> list[tuple[str, str]]:
+        """Desktop entry Actions as (action_id, display_name) for jump lists."""
+        try:
+            names = self.info.list_actions() or []
+        except (AttributeError, GLib.Error):
+            return []
+        result = []
+        for name in names:
+            try:
+                label = self.info.get_action_name(name) or name
+            except (AttributeError, GLib.Error):
+                label = name
+            result.append((name, label))
+        return result
+
+    def launch_action(self, action: str) -> bool:
+        context = Gdk.Display.get_default().get_app_launch_context()
+        try:
+            self.info.launch_action(action, context)
+            return True
+        except (AttributeError, GLib.Error):
+            return False
+
+    def recent_files(self, limit: int = 6) -> list[Path]:
+        """Recent files associated with this app (jump-list destinations)."""
+        found: list[tuple[float, Path]] = []
+        seen: set[str] = set()
+        app_keys = {
+            self.id,
+            self.id.removesuffix(".desktop"),
+            (self.info.get_executable() or "").split("/")[-1],
+        }
+        app_keys.discard("")
+        try:
+            manager = Gtk.RecentManager.get_default()
+            items = manager.get_items()
+        except GLib.Error:
+            return []
+        for item in items:
+            if item.get_private_hint() or not item.exists():
+                continue
+            uri = item.get_uri()
+            if not uri.startswith("file://"):
+                continue
+            apps = set(item.get_applications() or [])
+            mime = item.get_mime_type() or ""
+            matched = bool(apps & app_keys)
+            if not matched and mime:
+                try:
+                    matched = bool(self.info.supports_type(mime))
+                except (AttributeError, GLib.Error):
+                    matched = False
+            if not matched:
+                continue
+            try:
+                path = Path(GLib.filename_from_uri(uri)[0])
+            except (GLib.Error, TypeError, ValueError):
+                continue
+            key = str(path)
+            if key in seen or not path.exists():
+                continue
+            seen.add(key)
+            found.append((item.get_modified(), path))
+        found.sort(key=lambda item: item[0], reverse=True)
+        return [path for _mtime, path in found[:limit]]
+
 
 def load_app(app_id: str) -> App | None:
     try:

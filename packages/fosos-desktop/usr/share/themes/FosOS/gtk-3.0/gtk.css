@@ -51,7 +51,19 @@ decoration {
 }
 
 headerbar,
-.titlebar,
+.titlebar {
+  background-color: @fos_titlebar;
+  background-image: none;
+  border-color: @fos_frame_inactive;
+  border-radius: 0;
+  box-shadow: none;
+  color: @fos_fg;
+  /* Match Cursor custom titlebar (~30–31px). */
+  min-height: 30px;
+  padding: 0 6px;
+}
+
+headerbar button.titlebutton,
 .titlebar .titlebutton {
   background-color: @fos_titlebar;
   background-image: none;
@@ -59,9 +71,9 @@ headerbar,
   border-radius: 0;
   box-shadow: none;
   color: @fos_fg;
-  /* Compact like Windows 11 titlebars (~32px). */
-  min-height: 32px;
-  padding: 0 6px;
+  min-width: 40px;
+  min-height: 30px;
+  padding: 0;
 }
 
 headerbar:backdrop,

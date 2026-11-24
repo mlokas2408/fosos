@@ -141,16 +141,44 @@
       <action name="Execute"><command>fosos-screenshot -r</command></action>
     </keybind>
 
+    <!-- Win+1…9 launch/cycle pinned apps (Windows 11). Desktops: Ctrl+Win+1–4. -->
     <keybind key="W-1">
-      <action name="GoToDesktop"><to>1</to></action>
+      <action name="Execute"><command>fosos-shell --pin-activate 1</command></action>
     </keybind>
     <keybind key="W-2">
-      <action name="GoToDesktop"><to>2</to></action>
+      <action name="Execute"><command>fosos-shell --pin-activate 2</command></action>
     </keybind>
     <keybind key="W-3">
-      <action name="GoToDesktop"><to>3</to></action>
+      <action name="Execute"><command>fosos-shell --pin-activate 3</command></action>
     </keybind>
     <keybind key="W-4">
+      <action name="Execute"><command>fosos-shell --pin-activate 4</command></action>
+    </keybind>
+    <keybind key="W-5">
+      <action name="Execute"><command>fosos-shell --pin-activate 5</command></action>
+    </keybind>
+    <keybind key="W-6">
+      <action name="Execute"><command>fosos-shell --pin-activate 6</command></action>
+    </keybind>
+    <keybind key="W-7">
+      <action name="Execute"><command>fosos-shell --pin-activate 7</command></action>
+    </keybind>
+    <keybind key="W-8">
+      <action name="Execute"><command>fosos-shell --pin-activate 8</command></action>
+    </keybind>
+    <keybind key="W-9">
+      <action name="Execute"><command>fosos-shell --pin-activate 9</command></action>
+    </keybind>
+    <keybind key="C-W-1">
+      <action name="GoToDesktop"><to>1</to></action>
+    </keybind>
+    <keybind key="C-W-2">
+      <action name="GoToDesktop"><to>2</to></action>
+    </keybind>
+    <keybind key="C-W-3">
+      <action name="GoToDesktop"><to>3</to></action>
+    </keybind>
+    <keybind key="C-W-4">
       <action name="GoToDesktop"><to>4</to></action>
     </keybind>
     <keybind key="C-A-Left">

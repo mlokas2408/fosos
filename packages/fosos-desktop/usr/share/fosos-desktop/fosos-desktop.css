@@ -196,11 +196,24 @@ button.fos-btn.fos-task-btn {
   min-height: 36px;
 }
 
-/* Taskbar keyboard layout code (US / PL / …) */
+/* Taskbar keyboard layout code (US / PL / …) — tight next to notification bell */
 button.fos-btn.fos-kbd-layout {
-  min-width: 36px;
-  padding-left: 6px;
-  padding-right: 6px;
+  min-width: 32px;
+  padding-left: 4px;
+  padding-right: 2px;
+}
+
+.fos-kbd-code {
+  font-size: 12px;
+}
+
+/* Taskbar clock — larger than fos-small for readability */
+.fos-clock-time {
+  font-size: 12px;
+}
+
+.fos-clock-date {
+  font-size: 11px;
 }
 
 button.fos-btn.size-icon-sm {
@@ -221,9 +234,15 @@ button.fos-btn.size-icon-xs {
   padding: 0;
 }
 
+.fos-app-header .fos-caption-buttons {
+  margin-left: 2px;
+}
+
 .fos-app-header button.fos-btn.size-icon-xs {
-  min-width: 36px;
-  min-height: 28px;
+  /* Match Cursor caption pitch (~31px centers); glyphs are 10px. */
+  min-width: 26px;
+  min-height: 30px;
+  padding: 0;
 }
 
 button.fos-btn.tile {
@@ -459,12 +478,23 @@ button.fos-btn.fos-taskview-window.default {
   outline: 1px solid @fos_ring;
 }
 
-/* Start button: four panes, left-aligned, larger than pinned icons */
+/* Start button: four panes, left-aligned, larger than pinned icons.
+   No primary/white fill on press or while the menu is open. */
 button.fos-btn.fos-start-btn,
-button.fos-btn.size-icon.fos-start-btn {
+button.fos-btn.size-icon.fos-start-btn,
+button.fos-btn.fos-start-btn.default,
+button.fos-btn.fos-start-btn.default:hover,
+button.fos-btn.fos-start-btn:active,
+button.fos-btn.fos-start-btn.default:active {
   min-width: 40px;
   min-height: 36px;
   padding: 4px;
+  background-color: transparent;
+  color: @fos_fg;
+}
+
+button.fos-btn.fos-start-btn:hover {
+  background-color: alpha(@fos_muted, 0.5);
 }
 
 .fos-start-icon {
@@ -479,8 +509,28 @@ button.fos-btn.size-icon.fos-start-btn {
   min-height: 12px;
 }
 
-button.fos-btn.default .fos-start-cell {
-  background-color: @fos_primary_fg;
+/* Search button on the taskbar (opens Start) */
+button.fos-btn.fos-search-btn,
+button.fos-btn.size-icon.fos-search-btn {
+  min-width: 40px;
+  min-height: 36px;
+  padding: 4px;
+}
+
+/* Hover peek strip above task buttons */
+.fos-taskpeek {
+  background-color: @fos_card;
+  border: 1px solid @fos_border;
+}
+
+button.fos-btn.fos-taskpeek-card {
+  min-width: 120px;
+  padding: 8px;
+  background-color: alpha(@fos_fg, 0.04);
+}
+
+button.fos-btn.fos-taskpeek-card:hover {
+  background-color: alpha(@fos_fg, 0.10);
 }
 
 /* Task View button: overlapping windows glyph (see icons/task-view.svg) */
@@ -864,9 +914,9 @@ tooltip label {
 .fos-app-header {
   background-color: @fos_titlebar;
   border-bottom: 1px solid @fos_frame_inactive;
-  /* Compact like Windows 11 titlebars (~32px). */
-  padding: 2px 6px;
-  min-height: 32px;
+  /* Match Cursor custom titlebar (~30–31px); extra left inset for app icon. */
+  padding: 0 4px 0 12px;
+  min-height: 30px;
 }
 
 .fos-card-window:backdrop .fos-app-header {

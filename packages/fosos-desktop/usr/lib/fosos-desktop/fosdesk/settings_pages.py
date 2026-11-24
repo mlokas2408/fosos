@@ -673,11 +673,25 @@ def build_taskbar(status_cb) -> Gtk.Box:
         False,
         0,
     )
-    prefs = load_kv("taskbar", {"task_view": "1", "clock_date": "1", "bell": "1"})
+    prefs = load_kv(
+        "taskbar",
+        {
+            "task_view": "1",
+            "clock_date": "1",
+            "bell": "1",
+            "search": "1",
+            "align": "left",
+            "auto_hide": "0",
+        },
+    )
 
     task_view = Gtk.CheckButton(label="Show Task View button")
     task_view.set_active(truthy(prefs.get("task_view"), True))
     root.pack_start(task_view, False, False, 0)
+
+    search = Gtk.CheckButton(label="Show Search button")
+    search.set_active(truthy(prefs.get("search"), True))
+    root.pack_start(search, False, False, 0)
 
     clock_date = Gtk.CheckButton(label="Show date under the clock")
     clock_date.set_active(truthy(prefs.get("clock_date"), True))
@@ -687,13 +701,32 @@ def build_taskbar(status_cb) -> Gtk.Box:
     bell.set_active(truthy(prefs.get("bell"), True))
     root.pack_start(bell, False, False, 0)
 
+    auto_hide = Gtk.CheckButton(label="Automatically hide the taskbar")
+    auto_hide.set_active(truthy(prefs.get("auto_hide"), False))
+    root.pack_start(auto_hide, False, False, 0)
+
+    align_row = Gtk.Box(spacing=12)
+    align_row.pack_start(label("Taskbar alignment", "fos-text"), False, False, 0)
+    align_left = Gtk.RadioButton.new_with_label_from_widget(None, "Left")
+    align_center = Gtk.RadioButton.new_with_label_from_widget(align_left, "Center")
+    if (prefs.get("align") or "left").strip().lower() == "center":
+        align_center.set_active(True)
+    else:
+        align_left.set_active(True)
+    align_row.pack_start(align_left, False, False, 0)
+    align_row.pack_start(align_center, False, False, 0)
+    root.pack_start(align_row, False, False, 0)
+
     def apply(_button=None) -> None:
         save_kv(
             "taskbar",
             {
                 "task_view": "1" if task_view.get_active() else "0",
+                "search": "1" if search.get_active() else "0",
                 "clock_date": "1" if clock_date.get_active() else "0",
                 "bell": "1" if bell.get_active() else "0",
+                "auto_hide": "1" if auto_hide.get_active() else "0",
+                "align": "center" if align_center.get_active() else "left",
             },
         )
         _request_shell_reload()
@@ -702,7 +735,12 @@ def build_taskbar(status_cb) -> Gtk.Box:
     apply_btn = button("Apply", variant="default")
     apply_btn.connect("clicked", apply)
     root.pack_start(apply_btn, False, False, 0)
-    tip = label("Pinned apps are managed from the taskbar (right-click → Pin).", "fos-small", "fos-muted")
+    tip = label(
+        "Pinned apps: right-click for jump list, drag to reorder, Win+1…9 to launch. "
+        "Desktops: Ctrl+Win+1–4.",
+        "fos-small",
+        "fos-muted",
+    )
     tip.set_line_wrap(True)
     root.pack_start(tip, False, False, 0)
     return root

@@ -100,6 +100,10 @@ class TaskButton(Gtk.Box):
         self.button.connect("clicked", self._on_clicked)
         self.button.connect("button-press-event", self._on_press)
         self.button.connect("button-release-event", self._on_release)
+        self.button.add_events(Gdk.EventMask.ENTER_NOTIFY_MASK | Gdk.EventMask.LEAVE_NOTIFY_MASK)
+        self.button.connect("enter-notify-event", self._on_enter)
+        self.button.connect("leave-notify-event", self._on_leave)
+        self._peek_show_id = 0
         self.indicator = Gtk.Box()
         self.indicator.set_halign(Gtk.Align.CENTER)
         self.indicator.set_no_show_all(True)
@@ -154,7 +158,40 @@ class TaskButton(Gtk.Box):
         if self.app is None and self.lone_window is not None:
             self.button.set_tooltip_text(self.lone_window.get_name())
 
+    def _on_enter(self, _widget, event: Gdk.EventCrossing) -> bool:
+        if event.detail == Gdk.NotifyType.INFERIOR:
+            return False
+        windows = self.windows()
+        if not windows:
+            return False
+        self._cancel_peek_show()
+
+        def show() -> bool:
+            self._peek_show_id = 0
+            peek = getattr(self.panel.shell, "task_peek", None)
+            if peek is not None:
+                peek.show_for(self.button, self.windows(), self.panel)
+            return False
+
+        self._peek_show_id = GLib.timeout_add(400, show)
+        return False
+
+    def _on_leave(self, _widget, event: Gdk.EventCrossing) -> bool:
+        if event.detail == Gdk.NotifyType.INFERIOR:
+            return False
+        self._cancel_peek_show()
+        peek = getattr(self.panel.shell, "task_peek", None)
+        if peek is not None:
+            peek.schedule_hide()
+        return False
+
+    def _cancel_peek_show(self) -> None:
+        if self._peek_show_id:
+            GLib.source_remove(self._peek_show_id)
+            self._peek_show_id = 0
+
     def _on_clicked(self, _button) -> None:
+        self._cancel_peek_show()
         self.panel.shell.close_popups()
         windows = self.windows()
         stamp = x_timestamp(self)
@@ -192,27 +229,51 @@ class TaskButton(Gtk.Box):
         return False
 
     def _popup_menu(self, event: Gdk.EventButton) -> None:
+        """Jump-list style menu: Actions, recent files, windows, pin, close."""
         self.panel.shell.close_popups()
+        peek = getattr(self.panel.shell, "task_peek", None)
+        if peek is not None:
+            peek.hide_peek()
         menu = Gtk.Menu()
         windows = self.windows()
+        added = False
 
         if self.app is not None:
-            pinned = self.panel.shell.pinned.contains(self.app.id)
-            pin_item = Gtk.MenuItem(label="Unpin from taskbar" if pinned else "Pin to taskbar")
-            pin_item.connect("activate", lambda _i: self._toggle_pin())
-            menu.append(pin_item)
-            new_item = Gtk.MenuItem(label="Open new window")
-            new_item.connect("activate", lambda _i: self.app.launch())
-            menu.append(new_item)
-
-        if windows:
-            if self.app is not None or len(windows) > 1:
+            for action_id, action_label in self.app.actions():
+                item = Gtk.MenuItem(label=action_label)
+                item.connect(
+                    "activate",
+                    lambda _i, aid=action_id: self.app.launch_action(aid),
+                )
+                menu.append(item)
+                added = True
+            for path in self.app.recent_files(6):
+                item = Gtk.MenuItem(label=path.name)
+                item.set_tooltip_text(str(path))
+                item.connect(
+                    "activate",
+                    lambda _i, p=path: self.app.launch([p.as_uri()]),
+                )
+                menu.append(item)
+                added = True
+            if added:
                 menu.append(Gtk.SeparatorMenuItem())
-            move_target = windows[0] if len(windows) == 1 else None
-            if move_target is not None:
+
+        for window in windows:
+            title = window.get_name() or "Window"
+            if len(title) > 48:
+                title = title[:45] + "…"
+            win_item = Gtk.MenuItem(label=title)
+            win_item.connect(
+                "activate",
+                lambda _i, w=window: w.activate(x_timestamp(self)),
+            )
+            menu.append(win_item)
+            added = True
+            if len(windows) == 1:
                 move_menu = Gtk.Menu()
                 screen = self.panel.screen
-                active_ws = move_target.get_workspace()
+                active_ws = window.get_workspace()
                 for index in range(screen.get_workspace_count()):
                     workspace = screen.get_workspace(index)
                     name = workspace.get_name() if workspace is not None else f"Desktop {index + 1}"
@@ -221,23 +282,38 @@ class TaskButton(Gtk.Box):
                         item.set_sensitive(False)
                     item.connect(
                         "activate",
-                        lambda _i, w=move_target, idx=index: self.panel.shell.move_window_to_workspace(w, idx),
+                        lambda _i, w=window, idx=index: self.panel.shell.move_window_to_workspace(
+                            w, idx
+                        ),
                     )
                     move_menu.append(item)
                 move_item = Gtk.MenuItem(label="Move to")
                 move_item.set_submenu(move_menu)
                 menu.append(move_item)
-                menu.append(Gtk.SeparatorMenuItem())
+
+        if windows:
+            menu.append(Gtk.SeparatorMenuItem())
+
+        if self.app is not None:
+            new_item = Gtk.MenuItem(label="Open new window")
+            new_item.connect("activate", lambda _i: self.app.launch())
+            menu.append(new_item)
+            pinned = self.panel.shell.pinned.contains(self.app.id)
+            pin_item = Gtk.MenuItem(label="Unpin from taskbar" if pinned else "Pin to taskbar")
+            pin_item.connect("activate", lambda _i: self._toggle_pin())
+            menu.append(pin_item)
+            added = True
+
+        if windows:
             if len(windows) == 1:
                 close_item = Gtk.MenuItem(label="Close window")
-                close_item.connect("activate", lambda _i: self._close_windows(windows))
-                menu.append(close_item)
             else:
                 close_item = Gtk.MenuItem(label=f"Close all windows ({len(windows)})")
-                close_item.connect("activate", lambda _i: self._close_windows(windows))
-                menu.append(close_item)
+            close_item.connect("activate", lambda _i: self._close_windows(windows))
+            menu.append(close_item)
+            added = True
 
-        if not menu.get_children():
+        if not added:
             return
         menu.show_all()
         menu.popup_at_pointer(event)
@@ -299,9 +375,20 @@ class Panel(Gtk.Window):
         row.set_margin_end(8)
         row.set_halign(Gtk.Align.FILL)
         self.add(row)
+        self._row = row
 
-        # Start: left-aligned; mark (~26px) larger than pinned glyphs (20px),
-        # not full panel height.
+        # Spacers: left hidden when left-aligned; both expand when centered.
+        self._left_spacer = Gtk.Box()
+        self._left_spacer.set_hexpand(True)
+        self._left_spacer.set_no_show_all(True)
+        self._left_spacer.hide()
+        row.pack_start(self._left_spacer, True, True, 0)
+
+        self.chrome = Gtk.Box(spacing=4)
+        self.chrome.set_valign(Gtk.Align.CENTER)
+        row.pack_start(self.chrome, False, False, 0)
+
+        # Start: mark (~26px) larger than pinned glyphs (20px).
         self.start_button = button(variant="ghost", size="icon", tooltip=BRAND["name"])
         add_classes(self.start_button, "fos-start-btn")
         self.start_button.set_halign(Gtk.Align.START)
@@ -313,7 +400,17 @@ class Panel(Gtk.Window):
         self.start_button.connect("clicked", lambda _b: self.shell.toggle_start(self))
         # Windows 11: right-click Start → Quick Link menu (same as Win+X).
         self.start_button.connect("button-press-event", self._on_start_press)
-        row.pack_start(self.start_button, False, False, 0)
+        self.chrome.pack_start(self.start_button, False, False, 0)
+
+        # Search icon → Start menu (search field focused on open).
+        self.search_button = button(
+            icon_name="system-search-symbolic", size="icon", tooltip="Search"
+        )
+        add_classes(self.search_button, "fos-search-btn")
+        self.search_button.set_size_request(40, 36)
+        self.search_button.set_no_show_all(True)
+        self.search_button.connect("clicked", lambda _b: self.shell.toggle_start(self))
+        self.chrome.pack_start(self.search_button, False, False, 0)
 
         # Task View (Win+Tab) — overlapping-windows glyph like Windows 11.
         self.task_view_button = button(variant="ghost", size="icon", tooltip="Task View")
@@ -325,13 +422,20 @@ class Panel(Gtk.Window):
         self.task_view_button.add(task_view_icon(22))
         self.task_view_button.set_no_show_all(True)
         self.task_view_button.connect("clicked", lambda _b: self.shell.toggle_task_view())
-        row.pack_start(self.task_view_button, False, False, 0)
-        row.pack_start(separator(), False, False, 4)
+        self.chrome.pack_start(self.task_view_button, False, False, 0)
+        self.chrome.pack_start(separator(), False, False, 4)
 
         self.tasks = Gtk.Box(spacing=2)
-        row.pack_start(self.tasks, False, False, 0)
+        self.chrome.pack_start(self.tasks, False, False, 0)
 
-        row.pack_start(Gtk.Box(), True, True, 0)
+        self._mid_spacer = Gtk.Box()
+        self._mid_spacer.set_hexpand(True)
+        row.pack_start(self._mid_spacer, True, True, 0)
+
+        self._auto_hide = False
+        self._panel_revealed = True
+        self._auto_hide_source = 0
+        self._auto_hide_hide_id = 0
 
         if is_primary and appmod.is_live():
             live = badge(BRAND["live_label"], "outline")
@@ -396,18 +500,21 @@ class Panel(Gtk.Window):
             )
             self.network_button.connect("clicked", lambda b: self.shell.toggle_popup("network", b))
             row.pack_start(self.network_button, False, False, 0)
+            row.pack_start(separator(), False, False, 4)
 
-            # Keyboard layout selector (code like US / PL), then bell + clock.
+            # Keyboard layout + notification bell (grouped tightly), then clock.
+            lang_notify = Gtk.Box(spacing=0)
+            lang_notify.set_valign(Gtk.Align.CENTER)
             self.keyboard_button = button(variant="ghost", tooltip="Keyboard layout")
             add_classes(self.keyboard_button, "fos-kbd-layout")
-            self.keyboard_label = label("US", "fos-small", "fos-strong", xalign=0.5)
+            self.keyboard_label = label("US", "fos-kbd-code", "fos-strong", xalign=0.5)
             self.keyboard_button.add(self.keyboard_label)
-            self.keyboard_button.set_size_request(36, 36)
+            self.keyboard_button.set_size_request(32, 36)
             self.keyboard_button.connect("clicked", self._on_keyboard_clicked)
-            row.pack_start(self.keyboard_button, False, False, 0)
+            lang_notify.pack_start(self.keyboard_button, False, False, 0)
             self.refresh_keyboard()
 
-            # Bell + clock → Notification Center (calendar + history, Win+N).
+            # Bell → Notification Center (calendar + history, Win+N).
             open_nc = lambda b: self.shell.toggle_popup("clock", b)
             self.bell_overlay = Gtk.Overlay()
             self.bell_button = button(
@@ -426,15 +533,16 @@ class Panel(Gtk.Window):
             add_classes(self.unread_dot, "fos-dot")
             self.bell_overlay.add_overlay(self.unread_dot)
             self.bell_overlay.set_overlay_pass_through(self.unread_dot, True)
-            row.pack_start(self.bell_overlay, False, False, 0)
+            lang_notify.pack_start(self.bell_overlay, False, False, 0)
+            row.pack_start(lang_notify, False, False, 0)
             row.pack_start(separator(), False, False, 4)
         else:
             self.bell_overlay = None
 
         self.clock_button = button(variant="ghost", tooltip="Calendar & notifications")
         clock_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
-        self.clock_time = label("", "fos-small", "fos-strong", xalign=1.0)
-        self.clock_date = label("", "fos-small", "fos-muted", xalign=1.0)
+        self.clock_time = label("", "fos-clock-time", "fos-strong", xalign=1.0)
+        self.clock_date = label("", "fos-clock-date", "fos-muted", xalign=1.0)
         clock_box.pack_start(self.clock_time, False, False, 0)
         clock_box.pack_start(self.clock_date, False, False, 0)
         clock_box.set_valign(Gtk.Align.CENTER)
@@ -466,7 +574,17 @@ class Panel(Gtk.Window):
         """Apply taskbar visibility prefs from Settings."""
         from .settings_pages import load_kv, truthy
 
-        prefs = load_kv("taskbar", {"task_view": "1", "clock_date": "1", "bell": "1"})
+        prefs = load_kv(
+            "taskbar",
+            {
+                "task_view": "1",
+                "clock_date": "1",
+                "bell": "1",
+                "search": "1",
+                "align": "left",
+                "auto_hide": "0",
+            },
+        )
         if truthy(prefs.get("task_view"), True):
             # no_show_all makes show_all() a no-op on this widget, so the
             # panel's later show_all() never reveals it. Clear the flag, show
@@ -477,6 +595,12 @@ class Panel(Gtk.Window):
             self.task_view_button.set_no_show_all(True)
         else:
             self.task_view_button.hide()
+        if truthy(prefs.get("search"), True):
+            self.search_button.set_no_show_all(False)
+            self.search_button.show_all()
+            self.search_button.set_no_show_all(True)
+        else:
+            self.search_button.hide()
         if truthy(prefs.get("clock_date"), True):
             self.clock_date.show()
         else:
@@ -486,6 +610,98 @@ class Panel(Gtk.Window):
                 self.bell_overlay.show()
             else:
                 self.bell_overlay.hide()
+
+        center = (prefs.get("align") or "left").strip().lower() == "center"
+        if center:
+            self._left_spacer.set_no_show_all(False)
+            self._left_spacer.set_hexpand(True)
+            self._left_spacer.show()
+        else:
+            self._left_spacer.hide()
+            self._left_spacer.set_hexpand(False)
+
+        want_auto = truthy(prefs.get("auto_hide"), False)
+        if want_auto and not self._auto_hide:
+            self._enable_auto_hide()
+        elif not want_auto and self._auto_hide:
+            self._disable_auto_hide()
+
+    def _enable_auto_hide(self) -> None:
+        self._auto_hide = True
+        self._panel_revealed = True
+        if not self._auto_hide_source:
+            self._auto_hide_source = GLib.timeout_add(200, self._auto_hide_tick)
+
+    def _disable_auto_hide(self) -> None:
+        self._auto_hide = False
+        if self._auto_hide_source:
+            GLib.source_remove(self._auto_hide_source)
+            self._auto_hide_source = 0
+        if self._auto_hide_hide_id:
+            GLib.source_remove(self._auto_hide_hide_id)
+            self._auto_hide_hide_id = 0
+        self._reveal_panel(force=True)
+
+    def _pointer_over_edge(self) -> bool:
+        display = Gdk.Display.get_default()
+        seat = display.get_default_seat()
+        if seat is None:
+            return False
+        _screen, x, y = seat.get_pointer().get_position()
+        area = self.area()
+        if not (area.x <= x < area.x + area.width):
+            return False
+        bottom = area.y + area.height
+        threshold = HEIGHT + 8 if self._panel_revealed else 6
+        return y >= bottom - threshold
+
+    def _auto_hide_tick(self) -> bool:
+        if not self._auto_hide:
+            self._auto_hide_source = 0
+            return False
+        # Keep revealed while a shell popup or Start is open.
+        busy = False
+        for popup in getattr(self.shell, "popups", {}).values():
+            if popup.get_visible():
+                busy = True
+                break
+        if not busy and getattr(self.shell, "task_peek", None) is not None:
+            busy = self.shell.task_peek.get_visible()
+        if busy or self._pointer_over_edge():
+            if self._auto_hide_hide_id:
+                GLib.source_remove(self._auto_hide_hide_id)
+                self._auto_hide_hide_id = 0
+            self._reveal_panel()
+        elif self._panel_revealed and not self._auto_hide_hide_id:
+
+            def hide() -> bool:
+                self._auto_hide_hide_id = 0
+                if self._auto_hide and not self._pointer_over_edge():
+                    self._conceal_panel()
+                return False
+
+            self._auto_hide_hide_id = GLib.timeout_add(600, hide)
+        return True
+
+    def _reveal_panel(self, force: bool = False) -> None:
+        if self._panel_revealed and not force:
+            return
+        self._panel_revealed = True
+        self.place()
+        self.show()
+
+    def _conceal_panel(self) -> None:
+        if not self._panel_revealed:
+            return
+        self._panel_revealed = False
+        area = self.area()
+        # Park just below the monitor so the edge still reveals via pointer poll.
+        self.set_size_request(area.width, HEIGHT)
+        self.resize(area.width, HEIGHT)
+        self.move(area.x, area.y + area.height)
+        window = self.get_window()
+        if window is not None:
+            set_struts(window, area, 0)
 
     def rebuild_tray(self) -> None:
         """Refresh Status Notifier icons on the primary panel."""
@@ -514,6 +730,9 @@ class Panel(Gtk.Window):
 
     def place(self) -> None:
         area = self.area()
+        if self._auto_hide and not self._panel_revealed:
+            self._conceal_panel()
+            return
         self.set_size_request(area.width, HEIGHT)
         self.resize(area.width, HEIGHT)
         self.move(area.x, area.y + area.height - HEIGHT)
@@ -749,9 +968,9 @@ class Panel(Gtk.Window):
         self.clock_date.set_text(format_date_short())
         return True
 
-    def set_start_open(self, is_open: bool) -> None:
-        set_class(self.start_button, "default", is_open)
-        set_class(self.start_button, "ghost", not is_open)
+    def set_start_open(self, _is_open: bool) -> None:
+        # Keep Start button look unchanged while the menu is open (no primary fill).
+        return
 
     def set_unread(self, unread: bool) -> None:
         if self.unread_dot is not None:
