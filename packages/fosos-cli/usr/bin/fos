@@ -7,7 +7,7 @@ usage() {
 Usage: fos <command> [package...]
 
   update          Refresh package lists
-  upgrade         Install available upgrades
+  upgrade         Install available upgrades (full-upgrade: may install new Depends)
   install PKG...  Install one or more packages
   remove PKG...   Remove packages and keep their configuration
   repair          Finish or undo a broken package install
@@ -54,7 +54,8 @@ update)
 	;;
 upgrade)
 	[ "$#" -eq 0 ] || { usage >&2; exit 2; }
-	exec apt-get upgrade
+	# full-upgrade installs new Depends (e.g. locales) that plain upgrade keeps back.
+	exec apt-get full-upgrade
 	;;
 install)
 	require_names "$@"

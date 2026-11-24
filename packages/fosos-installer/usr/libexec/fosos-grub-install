@@ -1,14 +1,34 @@
 #!/bin/sh
 # grub-install wrapper used by Calamares (bootloader.conf: grubInstall).
-# Try the normal install, which also registers a UEFI NVRAM boot entry. If
-# the firmware variables cannot be written (common in VMs and some firmware),
-# install again with --no-nvram. Calamares' installEFIFallback then provides
-# EFI/BOOT/BOOTX64.EFI, which UEFI firmware boots without an NVRAM entry.
+# Prefer Debian-signed shim/GRUB when present so the installed system boots
+# with UEFI Secure Boot enabled. Fall back to a normal install, then to
+# --no-nvram when firmware variables cannot be written (common in VMs).
+# Calamares' installEFIFallback still provides EFI/BOOT/BOOTX64.EFI.
 set -u
+
+sb_args=
+if [ -e /usr/lib/shim/shimx64.efi.signed ] \
+	|| [ -e /usr/lib/shim/shimx64.efi ]; then
+	if [ -e /usr/lib/grub/x86_64-efi-signed/grubx64.efi.signed ]; then
+		sb_args=--uefi-secure-boot
+	fi
+fi
+
+if [ -n "$sb_args" ]; then
+	if grub-install $sb_args "$@"; then
+		exit 0
+	fi
+	echo "fosos-grub-install: Secure Boot install failed; retrying unsigned path" >&2
+fi
 
 if grub-install "$@"; then
 	exit 0
 fi
 
 echo "fosos-grub-install: NVRAM install failed; retrying with --no-nvram" >&2
+if [ -n "$sb_args" ]; then
+	if grub-install $sb_args --no-nvram "$@"; then
+		exit 0
+	fi
+fi
 exec grub-install --no-nvram "$@"

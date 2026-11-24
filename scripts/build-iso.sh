@@ -88,6 +88,7 @@ fosos_lb_config() {
     --apt-recommends false \
     --binary-images iso-hybrid \
     --bootloaders "grub-pc grub-efi" \
+    --uefi-secure-boot enable \
     --bootappend-live "boot=live components hostname=fosos nottyautologin splash" \
     --debian-installer none \
     --distribution "$suite" \

@@ -22,7 +22,9 @@ ISOs (`--binary-images iso-hybrid --bootloaders "grub-pc grub-efi"`): the same
 file boots in a VM and can be written with Balena Etcher or `dd` to USB.
 `grub-pc` is included so the ISO carries an MBR/partition table Etcher
 expects; supported hardware remains UEFI-only (legacy BIOS is not a test
-target). After a build, `file output/FosOS-trixie-amd64.iso` should mention
+target). `--uefi-secure-boot enable` installs Microsoft-trusted `shim` and
+Debian-signed GRUB on the EFI path (Dawn Aperture theme remains menu data).
+After a build, `file output/FosOS-trixie-amd64.iso` should mention
 `DOS/MBR boot sector`. If Etcher says “Missing partition table”, the image
 is not hybrid — rebuild; do not Continue past that warning for laptop USB.
 

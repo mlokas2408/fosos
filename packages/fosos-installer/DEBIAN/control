@@ -1,9 +1,9 @@
 Package: fosos-installer
-Version: 1.0.3
+Version: 1.0.4
 Section: admin
 Priority: optional
 Architecture: all
-Depends: calamares, squashfs-tools, rsync, grub-efi-amd64-bin, grub2-common, grub-common, efibootmgr, cryptsetup, cryptsetup-initramfs, dosfstools, os-prober, pkexec, sudo, qt6-qpa-plugins, qt6-gtk-platformtheme, qt6-svg-plugins, x11-xserver-utils
+Depends: calamares, squashfs-tools, rsync, grub-efi-amd64, grub-efi-amd64-bin, grub-efi-amd64-signed, shim-signed, mokutil, grub2-common, grub-common, efibootmgr, cryptsetup, cryptsetup-initramfs, dosfstools, os-prober, pkexec, sudo, qt6-qpa-plugins, qt6-gtk-platformtheme, qt6-svg-plugins, x11-xserver-utils
 Maintainer: FosOS <dev@fosos.local>
 Description: FosOS graphical installer
  Calamares configuration and branding for installing FosOS.
@@ -11,3 +11,4 @@ Description: FosOS graphical installer
  keyboard, and the account that will own the installed system.
  Ensures the live squashfs is visible at the path Calamares expects
  (/run/live/medium) even when live-boot mounted the USB elsewhere.
+ Installs Debian-signed shim/GRUB so the target can boot with Secure Boot.

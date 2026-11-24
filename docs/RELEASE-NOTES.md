@@ -1,5 +1,15 @@
 # FosOS release notes
 
+## FosOS installer 1.0.4 / CLI 0.2.6 — UEFI Secure Boot
+
+- Live image: `--uefi-secure-boot enable`; ship `shim-signed`,
+  `grub-efi-amd64-signed`, `grub-efi-amd64`, `mokutil` (APT recommends off)
+- Installer Depends match; `fosos-grub-install` prefers `--uefi-secure-boot`
+  when Debian-signed binaries are present; prepare-target marks them manual
+- Hyper-V scripts enable Secure Boot with
+  `MicrosoftUEFICertificateAuthority`; TESTING adds soak **J06**
+- `fos upgrade` uses `apt-get full-upgrade` so new Depends are not kept back
+
 ## FosOS 1.13.20 — Baremetal soak fixes (icons + locales)
 
 - Prune retired **Home** desktop-icon positions and ignore orphan ids so

@@ -48,7 +48,8 @@ soak; it catches shell crashers and layout regressions early.
 
 1. Generation 2 VM, ~4 GB RAM, 2 vCPUs. Attach a ≥16 GB VHD when testing install.
 2. Attach `output/FosOS-trixie-amd64.iso` as DVD; boot DVD first.
-3. **Secure Boot off** until roadmap Secure Boot work lands (Gen2 defaults on).
+3. **Secure Boot on** with template **MicrosoftUEFICertificateAuthority**
+   (required for Debian `shim-signed`). `scripts/hyperv-smoke.ps1` sets this.
 4. Prefer `hyperv_drm` (image blacklists `hyperv_fb`). If the desktop paints
    but mouse/keyboard are dead, check TTY / rebuild with the DRM hook; see
    [RECOVERY.md](RECOVERY.md).
@@ -176,6 +177,7 @@ the soak log.
 | J03 | Release ISO built on dedicated Debian 13 VM (not WSL-only) and re-soaked in Hyper-V |
 | J04 | USB UEFI smoke: network, display, keyboard/touchpad, audio, suspend, boot/reboot on disposable media only |
 | J05 | Laptop Wi-Fi: `wlan*` present (`ip link`); scan shows SSIDs; join WPA2 via tray/QS or Settings; reconnect after suspend if practical |
+| J06 | Secure Boot on: live ISO boots; after Calamares install, reboot with Secure Boot still on (Hyper-V Gen2 + selected bare metal) |
 
 ## Release gate
 

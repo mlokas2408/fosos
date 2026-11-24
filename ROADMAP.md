@@ -19,7 +19,7 @@ from Debian or upstream as needed.
 | Area | Choice |
 | --- | --- |
 | Base | Debian Stable |
-| Arch / boot | x86_64/amd64, UEFI only (Secure Boot not yet) |
+| Arch / boot | x86_64/amd64, UEFI only; Secure Boot via `shim-signed` (verify on new ISO) |
 | Desktop | FosOS Desktop (`fosos-desktop`) on Openbox; no XFCE session |
 | Fallback | FosOS Recovery (Openbox + terminal) and text consoles |
 | Browser | Firefox only (no Chrome by default) |
@@ -61,12 +61,12 @@ See [DESKTOP.md](docs/DESKTOP.md) and [ISO-SIZE.md](docs/ISO-SIZE.md).
 Prioritized. Prefer Windows *behavior* over Windows *pixels*; keep square
 FosOS cards, Dawn Aperture, Inter. Prefer baremetal soak over Hyper-V.
 
-### 0 — Baremetal release hardening — in progress (1.13.20)
+### 0 — Baremetal release hardening — partial (1.13.20)
 
-Soak fails from the ThinkPad T14 pass: prune overlapping/retired desktop
-icon positions (Home); ship and generate `locales` / `en_US.UTF-8`. Still
+ThinkPad T14 retest: **F04** / **G04** cleared (no open `fail` rows). Still
 open on hardware: greeter sign-out round-trip, suspend/resume, Network
-flyout join, Files trash/clipboard — then clear the soak log `fail` rows.
+flyout join, Files trash/clipboard. `fos upgrade` now uses `full-upgrade`
+(fosos-cli 0.2.6).
 
 ### 1 — Start menu and search polish — done (1.7.0)
 
@@ -98,23 +98,18 @@ Complete a Hyper-V soak log ([TESTING.md](docs/TESTING.md) /
 [SOAK-LOG.md](docs/SOAK-LOG.md), and USB where needed) with no open `fail`
 rows before tagging a release ISO. Promote APT packages only after VM testing.
 
-### 6 — UEFI Secure Boot
+### 6 — UEFI Secure Boot — implemented (pending ISO verify)
 
-**Goal:** boot the live and installed system with Secure Boot enabled
-(Hyper-V Gen2 default and typical hardware), without asking users to turn
-it off.
+Live-build uses `--uefi-secure-boot enable`; the squashfs ships
+`shim-signed`, `grub-efi-amd64-signed`, and `grub-efi-amd64`. Calamares
+install prefers `grub-install --uefi-secure-boot`. Hyper-V scripts enable
+Secure Boot with template `MicrosoftUEFICertificateAuthority`. FosOS GRUB
+splash/theme stay unsigned data; EFI binaries remain Debian-signed.
 
-Today the image is UEFI-only but not Secure Boot–ready: no Microsoft-trusted
-`shim`, no signed GRUB/kernel path for the FosOS live bootloader. Testing
-docs and Hyper-V scripts disable Secure Boot for that reason.
-
-Candidates: Debian `shim-signed` + signed GRUB EFI packages in the live
-image; keep FosOS GRUB branding where signing allows; verify live ISO and
-Calamares-installed system under Secure Boot on Hyper-V and USB hardware;
-update [TESTING.md](docs/TESTING.md) / Hyper-V scripts when green.
-
-**Exit:** Gen2 Hyper-V and selected hardware boot FosOS with Secure Boot
-on; docs no longer require turning it off.
+**Still needed:** rebuild ISO, pass soak **J06** (live + installed) on Gen2
+Hyper-V and selected bare metal. Existing installs without shim need a
+reinstall from the new ISO (or a manual shim/grub-signed install +
+`grub-install`).
 
 ## Working rules
 

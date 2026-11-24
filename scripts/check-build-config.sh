@@ -296,6 +296,37 @@ if ! grep -qE -- '--bootloaders "grub-pc grub-efi"' "$repo_root/scripts/build-is
   echo 'build-iso.sh must use --bootloaders "grub-pc grub-efi" for hybrid USB (Etcher).' >&2
   exit 1
 fi
+
+if ! grep -qE -- '--uefi-secure-boot enable' "$repo_root/scripts/build-iso.sh"; then
+  echo 'build-iso.sh must use --uefi-secure-boot enable (Microsoft-trusted shim + signed GRUB).' >&2
+  exit 1
+fi
+
+for pkg in shim-signed grub-efi-amd64-signed grub-efi-amd64 mokutil efibootmgr; do
+  if ! grep -qx "$pkg" "$repo_root/build/live-build/config/package-lists/fosos-base.list.chroot"; then
+    echo "fosos-base.list.chroot must list $pkg (UEFI Secure Boot)." >&2
+    exit 1
+  fi
+done
+
+if grep -qx 'grub-pc' "$repo_root/build/live-build/config/package-lists/fosos-base.list.chroot"; then
+  echo "fosos-base.list.chroot must not list grub-pc (Conflicts with grub-efi-amd64)." >&2
+  exit 1
+fi
+
+installer_ctrl="$repo_root/packages/fosos-installer/DEBIAN/control"
+for pkg in shim-signed grub-efi-amd64-signed grub-efi-amd64 mokutil; do
+  if ! grep -q "$pkg" "$installer_ctrl"; then
+    echo "fosos-installer must Depend on $pkg for Secure Boot installs." >&2
+    exit 1
+  fi
+done
+
+if ! grep -q -- '--uefi-secure-boot' "$repo_root/packages/fosos-installer/usr/libexec/fosos-grub-install"; then
+  echo "fosos-grub-install must prefer --uefi-secure-boot when signed binaries exist." >&2
+  exit 1
+fi
+
 if ! grep -qE -- '--binary-images iso-hybrid' "$repo_root/scripts/build-iso.sh"; then
   echo "build-iso.sh must use --binary-images iso-hybrid." >&2
   exit 1

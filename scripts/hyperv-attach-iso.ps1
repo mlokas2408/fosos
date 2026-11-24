@@ -29,7 +29,7 @@ if ($dvd) {
   $dvd = Get-VMDvdDrive -VMName $VmName | Select-Object -First 1
 }
 
-Set-VMFirmware -VMName $VmName -EnableSecureBoot Off
+Set-VMFirmware -VMName $VmName -EnableSecureBoot On -SecureBootTemplate MicrosoftUEFICertificateAuthority
 $hdd = Get-VMHardDiskDrive -VMName $VmName | Select-Object -First 1
 $boot = @()
 if ($dvd) { $boot += $dvd }
@@ -41,4 +41,4 @@ if ($boot.Count -gt 0) {
 Start-VM -Name $VmName
 Start-Process vmconnect.exe -ArgumentList @("localhost", $VmName)
 Get-VM -Name $VmName | Format-List Name, State, Status, @{N='MemoryMB';E={$_.MemoryAssigned/1MB}}
-Write-Host "Secure Boot off; DVD first. Connect window should open."
+Write-Host "Secure Boot on (MicrosoftUEFICertificateAuthority); DVD first. Connect window should open."

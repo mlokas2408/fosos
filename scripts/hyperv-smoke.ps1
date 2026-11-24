@@ -46,7 +46,8 @@ $vhdx = Join-Path $VmPath "$VmName.vhdx"
 Write-Host "Creating Generation 2 VM '$VmName'..."
 New-VM -Name $VmName -Generation 2 -MemoryStartupBytes $MemoryBytes -Path $VmPath -NoVHD | Out-Null
 Set-VMProcessor -VMName $VmName -Count $ProcessorCount
-Set-VMFirmware -VMName $VmName -EnableSecureBoot Off
+# MicrosoftUEFICertificateAuthority trusts Debian shim-signed (not the Windows template).
+Set-VMFirmware -VMName $VmName -EnableSecureBoot On -SecureBootTemplate MicrosoftUEFICertificateAuthority
 Set-VMMemory -VMName $VmName -DynamicMemoryEnabled $false
 
 if ($InstallDisk) {
@@ -74,11 +75,12 @@ $hdd = Get-VMHardDiskDrive -VMName $VmName | Select-Object -First 1
 $bootOrder = @()
 if ($dvd) { $bootOrder += $dvd }
 if ($hdd) { $bootOrder += $hdd }
-Set-VMFirmware -VMName $VmName -BootOrder $bootOrder -EnableSecureBoot Off
+Set-VMFirmware -VMName $VmName -BootOrder $bootOrder `
+  -EnableSecureBoot On -SecureBootTemplate MicrosoftUEFICertificateAuthority
 
 Write-Host "Starting VM..."
 Start-VM -Name $VmName
 Start-Process vmconnect.exe -ArgumentList @("localhost", $VmName)
 
 Get-VM -Name $VmName | Format-List Name, State, Generation, @{N='MemoryMB';E={$_.MemoryStartup/1MB}}, ProcessorCount, Status
-Write-Host "Done. Secure Boot is off; DVD is first in boot order."
+Write-Host "Done. Secure Boot is on (MicrosoftUEFICertificateAuthority); DVD is first in boot order."

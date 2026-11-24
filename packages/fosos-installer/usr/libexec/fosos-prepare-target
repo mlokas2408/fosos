@@ -16,9 +16,13 @@ fi
 apt-mark manual \
 	cryptsetup \
 	cryptsetup-initramfs \
+	grub-efi-amd64 \
 	grub-efi-amd64-bin \
+	grub-efi-amd64-signed \
 	grub2-common \
 	grub-common \
+	shim-signed \
+	mokutil \
 	efibootmgr \
 	os-prober
 

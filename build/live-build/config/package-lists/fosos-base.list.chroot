@@ -66,6 +66,14 @@ firmware-misc-nonfree
 wireless-regdb
 # Calamares formats the UEFI system partition with mkfs.fat (dosfstools).
 dosfstools
+# UEFI Secure Boot: Microsoft-trusted shim + Debian-signed GRUB. Kept in the
+# squashfs so Calamares installs boot with Secure Boot on. Do not add grub-pc
+# here (Conflicts with grub-efi-amd64); hybrid ISO BIOS bits are binary-stage.
+shim-signed
+grub-efi-amd64-signed
+grub-efi-amd64
+mokutil
+efibootmgr
 # Applies /etc/default/keyboard to the text consoles. Without it, a layout
 # chosen in the installer (for example Croatian) never reaches Ctrl+Alt+F2.
 console-setup
