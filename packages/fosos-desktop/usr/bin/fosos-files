@@ -6,7 +6,12 @@ import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.realpath(__file__)), "..", "lib", "fosos-desktop"))
 
-from fosdesk.files import main  # noqa: E402
-
 if __name__ == "__main__":
+    # Browsers activate this name instead of opening a file:// page.
+    if "--file-manager-service" in sys.argv:
+        from fosdesk.filemanager import serve  # noqa: E402
+
+        sys.exit(serve())
+    from fosdesk.files import main  # noqa: E402
+
     sys.exit(main())

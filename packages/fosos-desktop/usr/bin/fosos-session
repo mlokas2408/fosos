@@ -7,6 +7,8 @@ export XDG_SESSION_DESKTOP=fosos-desktop
 export DESKTOP_SESSION=fosos-desktop
 export GTK_THEME=FosOS
 export GTK_ICON_THEME_NAME=FosOS
+# Browser Save As / Open uses the FosOS file chooser instead of the stock GTK dialog.
+export GTK_USE_PORTAL=1
 
 # Session-only MIME and helper defaults (Files / Terminal).
 if [ -z "${XDG_CONFIG_DIRS}" ]; then
@@ -47,7 +49,7 @@ if [ -f "$config/xsettingsd.conf" ]; then
 	xsettings_conf="$config/xsettingsd.conf"
 fi
 
-activation_env="DISPLAY XAUTHORITY XDG_CURRENT_DESKTOP XDG_SESSION_DESKTOP DESKTOP_SESSION GTK_THEME GTK_ICON_THEME_NAME"
+activation_env="DISPLAY XAUTHORITY XDG_CURRENT_DESKTOP XDG_SESSION_DESKTOP DESKTOP_SESSION GTK_THEME GTK_ICON_THEME_NAME GTK_USE_PORTAL"
 if command -v dbus-update-activation-environment >/dev/null 2>&1; then
 	# shellcheck disable=SC2086
 	dbus-update-activation-environment --systemd $activation_env >/dev/null 2>&1 || true
@@ -121,6 +123,11 @@ if command -v xss-lock >/dev/null 2>&1 && command -v fosos-lock >/dev/null 2>&1;
 	xss-lock -l --transfer-sleep-lock -- fosos-lock >/dev/null 2>&1 &
 fi
 
+# Browser Save As. D-Bus also starts it if a download begins first.
+if [ -x /usr/bin/fosos-file-chooser ]; then
+	/usr/bin/fosos-file-chooser >/dev/null 2>&1 &
+fi
+
 # XDG autostart (Task Manager → Startup apps): nm-applet, blueman, Welcome, …
 # Skips session plumbing already started above. Enable/disable is per-user under
 # ~/.config/autostart.
@@ -186,6 +193,7 @@ pkill -u "$(id -u)" -x xcape 2>/dev/null || true
 pkill -u "$(id -u)" -x blueman-applet 2>/dev/null || true
 pkill -u "$(id -u)" -x blueman-tray 2>/dev/null || true
 pkill -u "$(id -u)" -x nm-applet 2>/dev/null || true
+pkill -u "$(id -u)" -f '/usr/bin/fosos-file-chooser' 2>/dev/null || true
 if command -v systemctl >/dev/null 2>&1; then
 	systemctl --user unset-environment XDG_CURRENT_DESKTOP XDG_SESSION_DESKTOP DESKTOP_SESSION GTK_THEME GTK_ICON_THEME_NAME \
 		>/dev/null 2>&1 || true

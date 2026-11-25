@@ -422,5 +422,12 @@
       <decor>no</decor>
       <position force="yes"><x>center</x><y>center</y></position>
     </application>
+    <application class="Fosos-taskmgr">
+      <decor>no</decor>
+      <position force="yes"><x>center</x><y>center</y></position>
+    </application>
+    <application class="Fosos-install-package">
+      <position force="yes"><x>center</x><y>center</y></position>
+    </application>
   </applications>
 </openbox_config>

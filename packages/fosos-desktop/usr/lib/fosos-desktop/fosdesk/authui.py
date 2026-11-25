@@ -9,7 +9,8 @@ import gi
 
 gi.require_version("Gdk", "3.0")
 gi.require_version("Gtk", "3.0")
-from gi.repository import Gdk, GLib, Gtk
+gi.require_version("Pango", "1.0")
+from gi.repository import Gdk, GLib, Gtk, Pango
 
 from .ui import BRAND, add_classes, brand_title, button, icon, label, mark
 from .wallpaper import draw_wallpaper
@@ -57,7 +58,7 @@ class AuthWidgets:
 
 
 def _field(name: str, entry: Gtk.Widget) -> Gtk.Box:
-    box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
+    box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
     box.pack_start(label(name, "fos-label"), False, False, 0)
     box.pack_start(entry, False, False, 0)
     return box
@@ -163,15 +164,15 @@ def build_auth_ui(
     form.set_valign(Gtk.Align.CENTER)
     form.set_vexpand(True)
     form.set_halign(Gtk.Align.CENTER)
-    form.set_margin_start(48)
-    form.set_margin_end(48)
-    form.set_margin_top(48)
-    form.set_margin_bottom(48)
+    form.set_margin_start(28)
+    form.set_margin_end(28)
+    form.set_margin_top(28)
+    form.set_margin_bottom(28)
     form.set_size_request(320, -1)
     add_classes(form, "fos-login-panel")
 
     mobile_brand = Gtk.Box(spacing=12)
-    mobile_brand.set_margin_bottom(32)
+    mobile_brand.set_margin_bottom(20)
     add_classes(mobile_brand, "fos-login-mobile-brand")
     mobile_brand.pack_start(mark("md"), False, False, 0)
     mobile_copy = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
@@ -187,17 +188,19 @@ def build_auth_ui(
         "fos-text",
         "fos-muted",
     )
-    sub.set_margin_top(8)
-    sub.set_margin_bottom(28)
+    sub.set_margin_top(6)
+    sub.set_margin_bottom(16)
     form.pack_start(sub, False, False, 0)
 
     username_entry: Gtk.Entry | None = None
     if show_username:
-        username_entry = add_classes(Gtk.Entry(), "fos-input")
+        username_entry = add_classes(Gtk.Entry(), "fos-input", "fos-login-username")
         username_entry.set_text(username)
         username_entry.set_placeholder_text("Username")
         username_entry.set_editable(username_editable)
         username_entry.set_sensitive(username_editable)
+        # Slightly larger than the default entry font; keep the 36px box.
+        username_entry.override_font(Pango.FontDescription("Inter 12.5"))
         if not username_editable:
             username_entry.set_can_focus(False)
         form.pack_start(_field("Username", username_entry), False, False, 0)
@@ -210,7 +213,7 @@ def build_auth_ui(
         password.set_placeholder_text("live")
     else:
         password.set_placeholder_text("Password")
-    password.set_margin_top(16 if show_username else 0)
+    password.set_margin_top(12 if show_username else 0)
     form.pack_start(_field("Password", password), False, False, 0)
 
     session_combo: Gtk.ComboBoxText | None = None
@@ -223,19 +226,24 @@ def build_auth_ui(
             if default_session and key == default_session:
                 active = index
         session_combo.set_active(active)
-        session_combo.set_margin_top(16)
+        session_combo.set_margin_top(12)
         form.pack_start(_field("Session", session_combo), False, False, 0)
 
     submit_label = "Sign in" if mode == "login" else "Unlock"
     submit = button(submit_label, variant="default", size="lg")
     submit.set_hexpand(True)
     submit.set_halign(Gtk.Align.FILL)
-    submit.set_margin_top(24)
+    submit.set_margin_top(18)
     add_classes(submit, "fos-login-submit")
+    submit_font = Pango.FontDescription("Inter 12.5")
+    submit.override_font(submit_font)
+    child = submit.get_child()
+    if child is not None:
+        child.override_font(submit_font)
     form.pack_start(submit, False, False, 0)
 
     message = label("", "fos-small", "fos-muted")
-    message.set_margin_top(12)
+    message.set_margin_top(10)
     message.set_line_wrap(True)
     form.pack_start(message, False, False, 0)
 
@@ -244,7 +252,7 @@ def build_auth_ui(
     else:
         foot = BRAND["motto"]
     footer = label(foot, "fos-small", "fos-muted")
-    footer.set_margin_top(32)
+    footer.set_margin_top(20)
     footer.set_line_wrap(True)
     form.pack_start(footer, False, False, 0)
 

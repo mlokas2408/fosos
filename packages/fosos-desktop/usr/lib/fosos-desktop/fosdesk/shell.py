@@ -245,7 +245,14 @@ class Shell(Gtk.Application):
         for panel in self.panels:
             panel.place()
 
-    def _on_windows_changed(self, *_args) -> None:
+    def _on_windows_changed(self, screen, window=None) -> None:
+        if window is not None:
+            try:
+                closed = window.get_xid()
+            except Exception:  # noqa: BLE001 - window may already be gone
+                closed = None
+            if closed is not None and all(w.get_xid() != closed for w in screen.get_windows()):
+                self._watched_windows.discard(closed)
         for window in self.screen.get_windows():
             key = window.get_xid()
             if key in self._watched_windows:
@@ -266,12 +273,13 @@ class Shell(Gtk.Application):
             screen = Wnck.Screen.get_default()
             screen.force_update()
             target = next((w for w in screen.get_windows() if w.get_xid() == xid), None)
-            if target is None:
-                return False
-            repair_startup_geometry(target)
-            # Second pass catches apps that resize themselves after the first map.
-            if pass_no == 0:
-                GLib.timeout_add(350, lambda: attempt(1))
+            if target is not None:
+                repair_startup_geometry(target)
+            # Later passes catch apps that resize themselves after the first map
+            # and put the window back in the corner.
+            if pass_no < 2:
+                delay = 350 if pass_no == 0 else 700
+                GLib.timeout_add(delay, lambda n=pass_no + 1: attempt(n))
             return False
 
         GLib.timeout_add(120, lambda: attempt(0))

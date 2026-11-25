@@ -77,6 +77,11 @@ required_files=(
   "$repo_root/packages/fosos-desktop/usr/share/polkit-1/actions/org.fosos.remote-host.policy"
   "$repo_root/scripts/_gen_xrdp_logo.py"
   "$repo_root/packages/fosos-desktop/usr/bin/fosos-files"
+  "$repo_root/packages/fosos-desktop/usr/bin/fosos-file-chooser"
+  "$repo_root/packages/fosos-desktop/usr/lib/fosos-desktop/fosdesk/filechooser.py"
+  "$repo_root/packages/fosos-desktop/usr/lib/fosos-desktop/fosdesk/fileportal.py"
+  "$repo_root/packages/fosos-desktop/usr/share/dbus-1/services/org.freedesktop.portal.Desktop.service"
+  "$repo_root/packages/fosos-desktop/etc/firefox-esr/fosos.js"
   "$repo_root/packages/fosos-desktop/usr/bin/fosos-terminal"
   "$repo_root/packages/fosos-desktop/usr/bin/fosos-notepad"
   "$repo_root/packages/fosos-desktop/usr/bin/fosos-taskmgr"
@@ -87,6 +92,8 @@ required_files=(
   "$repo_root/packages/fosos-desktop/usr/share/applications/fosos-taskmgr.desktop"
   "$repo_root/packages/fosos-desktop/usr/lib/fosos-desktop/fosdesk/taskmgr.py"
   "$repo_root/packages/fosos-desktop/usr/lib/fosos-desktop/fosdesk/files.py"
+  "$repo_root/packages/fosos-desktop/usr/lib/fosos-desktop/fosdesk/filemanager.py"
+  "$repo_root/packages/fosos-desktop/usr/share/dbus-1/services/org.freedesktop.FileManager1.service"
   "$repo_root/packages/fosos-desktop/usr/lib/fosos-desktop/fosdesk/terminal.py"
   "$repo_root/packages/fosos-desktop/usr/lib/fosos-desktop/fosdesk/windowchrome.py"
   "$repo_root/packages/fosos-desktop/usr/lib/fosos-desktop/fosdesk/wallpaper.py"
@@ -517,6 +524,14 @@ if ! grep -q 'gnome-keyring-daemon --start' "$repo_root/packages/fosos-desktop/u
 fi
 if ! grep -qE 'gnome-keyring|libpam-gnome-keyring' "$repo_root/packages/fosos-desktop/DEBIAN/control"; then
   echo "fosos-desktop must Depend on gnome-keyring and libpam-gnome-keyring." >&2
+  exit 1
+fi
+if ! grep -q 'GTK_USE_PORTAL=1' "$repo_root/packages/fosos-desktop/usr/bin/fosos-session"; then
+  echo "fosos-session must export GTK_USE_PORTAL so Save As uses the FosOS file chooser." >&2
+  exit 1
+fi
+if ! grep -q '/usr/bin/fosos-file-chooser' "$repo_root/packages/fosos-desktop/usr/bin/fosos-session"; then
+  echo "fosos-session must start fosos-file-chooser for browser Save As." >&2
   exit 1
 fi
 if ! grep -q 'blueman-applet' "$repo_root/packages/fosos-desktop/usr/bin/fosos-session"; then

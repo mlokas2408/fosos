@@ -317,6 +317,16 @@ button.fos-btn.row {
 .fos-lock entry.fos-input,
 .fos-login entry.fos-input {
   min-height: 36px;
+  padding-top: 0;
+  padding-bottom: 0;
+}
+
+/* Username reads a touch larger; box height stays 36px with the rule above. */
+.fos-login entry.fos-input.fos-login-username {
+  font-size: 13px;
+  font-weight: 500;
+  padding-left: 8px;
+  padding-right: 8px;
 }
 
 /* Two-column greeter / lock (matches mockup login) */
@@ -357,6 +367,12 @@ button.fos-btn.size-lg,
 button.fos-btn.fos-login-submit {
   min-height: 38px;
   padding: 0 14px;
+}
+
+button.fos-btn.fos-login-submit,
+button.fos-btn.fos-login-submit label {
+  font-size: 13px;
+  font-weight: 500;
 }
 
 .fos-login-session {
@@ -1370,4 +1386,98 @@ button.fos-btn.fos-files-tile {
   border-top: 1px solid @fos_border;
   padding: 2px 10px;
   min-height: 26px;
+}
+
+.fos-chooser .fos-chooser-header {
+  background-color: @fos_titlebar;
+  border-bottom: 1px solid @fos_frame_inactive;
+  min-height: 30px;
+}
+
+.fos-chooser .fos-chooser-header .fos-app-header-inner {
+  padding: 0 2px 0 12px;
+  min-height: 30px;
+}
+
+.fos-chooser .fos-chooser-header button.fos-btn.size-icon-xs {
+  min-width: 30px;
+  min-height: 30px;
+  padding: 0;
+}
+
+.fos-chooser .fos-chooser-body {
+  padding: 0;
+}
+
+.fos-chooser .fos-chooser-places-shell {
+  background-color: alpha(@fos_muted, 0.35);
+  border-right: 1px solid @fos_border;
+}
+
+.fos-chooser .fos-chooser-places {
+  padding: 6px 2px;
+}
+
+.fos-chooser .fos-chooser-places button.fos-btn.fos-chooser-place,
+.fos-chooser .fos-chooser-places button.fos-btn.fos-chooser-place.ghost,
+.fos-chooser .fos-chooser-places button.fos-btn.fos-chooser-place.secondary {
+  border-radius: 0;
+  border: none;
+  box-shadow: none;
+  padding: 2px 6px;
+  min-height: 26px;
+  background-image: none;
+}
+
+.fos-chooser .fos-chooser-places button.fos-btn.fos-chooser-place:hover {
+  background-color: alpha(@fos_fg, 0.06);
+}
+
+.fos-chooser .fos-chooser-places button.fos-btn.fos-chooser-place.secondary {
+  background-color: alpha(@fos_fg, 0.12);
+}
+
+.fos-chooser .fos-chooser-main {
+  padding: 0;
+  min-width: 0;
+}
+
+.fos-chooser .fos-chooser-nav {
+  padding: 6px 8px;
+  border-bottom: 1px solid @fos_border;
+}
+
+.fos-chooser .fos-chooser-scroll {
+  border: none;
+  border-bottom: 1px solid @fos_border;
+  background-color: @fos_background;
+  min-width: 0;
+}
+
+.fos-chooser .fos-chooser-name {
+  padding: 6px 8px;
+}
+
+.fos-chooser .fos-chooser-footer {
+  border-top: none;
+  padding: 6px 8px;
+}
+
+.fos-chooser-list {
+  background-color: transparent;
+  min-width: 0;
+}
+
+.fos-chooser-list row {
+  border-bottom: 1px solid transparent;
+  min-height: 28px;
+  padding: 0;
+}
+
+.fos-chooser-list row:hover {
+  background-color: alpha(@fos_fg, 0.06);
+}
+
+.fos-chooser-list row:selected {
+  background-color: alpha(@fos_fg, 0.12);
 }

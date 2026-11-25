@@ -76,13 +76,25 @@ LAYOUTS: tuple[Layout, ...] = (
 )
 
 
+def _gdk_rect(x: int, y: int, width: int, height: int) -> Gdk.Rectangle:
+    # Gdk.Rectangle(x, y, w, h) ignores its arguments (PyGObject boxed init).
+    rect = Gdk.Rectangle()
+    rect.x = int(x)
+    rect.y = int(y)
+    rect.width = max(1, int(width))
+    rect.height = max(1, int(height))
+    return rect
+
+
 def work_area_for_point(root_x: int, root_y: int) -> Gdk.Rectangle:
     display = Gdk.Display.get_default()
     monitor = display.get_monitor_at_point(root_x, root_y)
     if monitor is None:
         monitor = display.get_primary_monitor() or display.get_monitor(0)
+    if monitor is None:
+        return _gdk_rect(0, 0, 1, 1)
     area = monitor.get_geometry()
-    return Gdk.Rectangle(area.x, area.y, area.width, max(1, area.height - HEIGHT))
+    return _gdk_rect(area.x, area.y, area.width, max(1, area.height - HEIGHT))
 
 
 def work_area_for_window(window: Wnck.Window) -> Gdk.Rectangle:
@@ -113,6 +125,10 @@ def repair_startup_geometry(window: Wnck.Window) -> bool:
     except Exception:  # noqa: BLE001 - window may vanish before we run
         return False
     area = work_area_for_window(window)
+    # A 0×0 work area used to be sent to the window manager, which collapsed
+    # the new window into a stub and left it in the top-left corner.
+    if area.width < 64 or area.height < 64:
+        return False
     if is_snapped(window, area):
         return False
     at_origin = abs(x - area.x) <= _ORIGIN_TOLERANCE and abs(y - area.y) <= _ORIGIN_TOLERANCE
@@ -124,6 +140,8 @@ def repair_startup_geometry(window: Wnck.Window) -> bool:
         new_h = min(area.height, max(420, int(area.height * 0.55)))
     else:
         new_w, new_h = min(w, area.width), min(h, area.height)
+    if new_w < 64 or new_h < 64:
+        return False
     new_x = area.x + max(0, (area.width - new_w) // 2)
     new_y = area.y + max(0, (area.height - new_h) // 2)
     if (new_x, new_y, new_w, new_h) == (x, y, w, h):

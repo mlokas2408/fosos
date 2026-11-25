@@ -650,6 +650,7 @@ class FilesWindow(CardWindow):
         right.pack_start(main, True, True, 0)
 
         scroller = Gtk.ScrolledWindow()
+        self.list_scroll = scroller
         scroller.set_policy(Gtk.PolicyType.AUTOMATIC, Gtk.PolicyType.AUTOMATIC)
         scroller.set_hexpand(True)
         scroller.set_vexpand(True)
@@ -807,6 +808,57 @@ class FilesWindow(CardWindow):
 
     def navigate(self, path: Path, push: bool = False) -> None:
         self.navigate_location(Location(PAGE_FOLDER, path), push=push)
+
+    def select_items(self, paths: list[Path]) -> None:
+        """Highlight files in the current folder (browser “show in folder”)."""
+        tab = self.tab()
+        if tab is None or not paths:
+            return
+        if tab.search_text:
+            tab.search_text = ""
+            self.search.set_text("")
+            self.refresh()
+            tab = self.tab()
+            if tab is None:
+                return
+        wanted: set[Path] = set()
+        for path in paths:
+            try:
+                wanted.add(path.resolve())
+            except OSError:
+                wanted.add(path)
+        matched: list[Path] = []
+        for entry in tab._entries_cache:
+            try:
+                key = entry.resolve()
+            except OSError:
+                key = entry
+            if key in wanted:
+                matched.append(entry)
+        if not matched:
+            return
+        tab.selected = set(matched)
+        tab._anchor = matched[0]
+        self._apply_selection_ui()
+        GLib.idle_add(self._scroll_to_path, matched[0])
+
+    def _scroll_to_path(self, path: Path, tries: int = 0) -> bool:
+        widget = self._item_widgets.get(path)
+        scroller = getattr(self, "list_scroll", None)
+        if widget is None or scroller is None:
+            return False
+        if widget.get_allocation().height <= 1 and tries < 6:
+            GLib.timeout_add(50, self._scroll_to_path, path, tries + 1)
+            return False
+        origin = widget.translate_coordinates(self.list_hit, 0, 0)
+        if origin is None:
+            return False
+        adj = scroller.get_vadjustment()
+        y = origin[1]
+        page = adj.get_page_size()
+        if y < adj.get_value() or y + widget.get_allocation().height > adj.get_value() + page:
+            adj.set_value(max(0, min(max(0, adj.get_upper() - page), y - 48)))
+        return False
 
     def go_back(self) -> None:
         tab = self.tab()
@@ -2595,24 +2647,69 @@ class FilesApp(Gtk.Application):
         self.window.present()
 
     def do_open(self, files, _n_files, _hint) -> None:
-        path = None
-        if files:
-            path = Path(files[0].get_path() or "")
-            if path.is_file():
-                path = path.parent
-        self._ensure_window(path if path and path.exists() else None)
-        self.window.present()
+        paths: list[Path] = []
+        for gfile in files or []:
+            local = gfile.get_path()
+            if local:
+                paths.append(Path(local))
+        self._present_paths(paths)
 
     def do_command_line(self, command_line):
         argv = command_line.get_arguments()[1:]
-        path = None
-        if argv:
-            candidate = Path(argv[0]).expanduser()
-            if candidate.exists():
-                path = candidate if candidate.is_dir() else candidate.parent
-        self._ensure_window(path)
-        self.window.present()
+        properties = "--properties" in argv
+        cwd = command_line.get_cwd()
+        paths: list[Path] = []
+        for arg in argv:
+            if not arg or arg.startswith("-"):
+                continue
+            path = self._coerce_path(arg, cwd)
+            if path is not None:
+                paths.append(path)
+        self._present_paths(paths, properties=properties)
         return 0
+
+    def _coerce_path(self, arg: str, cwd: str | None) -> Path | None:
+        text = arg.strip()
+        if "://" in text:
+            local = Gio.File.new_for_uri(text).get_path()
+            if not local:
+                return None
+            path = Path(local)
+        else:
+            path = Path(text).expanduser()
+            if not path.is_absolute() and cwd:
+                path = Path(cwd) / path
+        if path.exists() or path.parent.exists():
+            return path
+        return None
+
+    def _present_paths(self, paths: list[Path], *, properties: bool = False) -> None:
+        """Open a folder, and select a file when the browser asked to reveal one."""
+        usable = [path for path in paths if path.exists() or path.parent.exists()]
+        if not usable:
+            self._ensure_window(None)
+            if self.window is not None:
+                self.window.present()
+            return
+        files = [path for path in usable if path.is_file() or (not path.exists() and path.parent.exists())]
+        folders = [path for path in usable if path.is_dir()]
+        if files:
+            parent = files[0].parent
+            self._ensure_window(parent if parent.exists() else None)
+            selectable = [path for path in files if path.exists()]
+            if selectable and self.window is not None:
+                self.window.select_items(selectable)
+        else:
+            self._ensure_window(folders[0])
+            for extra in folders[1:]:
+                if self.window is not None:
+                    self.window.new_tab(Location(PAGE_FOLDER, extra))
+        if self.window is None:
+            return
+        self.window.present()
+        if properties:
+            target = usable[0]
+            GLib.idle_add(lambda p=target: (self.window._properties(p) if self.window else None) or False)
 
     def _ensure_window(self, path: Path | None, force_new: bool = False) -> None:
         if self.window is None or force_new:

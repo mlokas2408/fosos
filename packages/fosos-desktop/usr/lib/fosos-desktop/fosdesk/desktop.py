@@ -471,9 +471,15 @@ class Desktop(Gtk.Window):
         menu = self._build_context_menu()
         menu.show_all()
         try:
+            # Gdk.Rectangle(x, y, w, h) ignores its arguments.
+            anchor = Gdk.Rectangle()
+            anchor.x = int(x)
+            anchor.y = int(y)
+            anchor.width = 1
+            anchor.height = 1
             menu.popup_at_rect(
                 self.get_window(),
-                Gdk.Rectangle(x, y, 1, 1),
+                anchor,
                 Gdk.Gravity.NORTH_WEST,
                 Gdk.Gravity.NORTH_WEST,
                 None,
