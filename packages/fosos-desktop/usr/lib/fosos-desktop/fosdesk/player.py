@@ -231,6 +231,40 @@ class VideosWindow(CardWindow):
         if filename:
             self.open_path(Path(filename))
 
+    def _make_video_sink(self) -> tuple[Gst.Element | None, Gtk.Widget | None]:
+        """playbin sink that always paints opaque frames.
+
+        gtksink maps BGRA to a cairo surface with alpha. On this uncomposited
+        X11 session those frames do not replace the window pixels, so the
+        player ghosts into Files and names look double-drawn (bold).
+        """
+        sink = Gst.ElementFactory.make("gtksink", "gtksink")
+        convert = Gst.ElementFactory.make("videoconvert", "vconv")
+        capsfilter = Gst.ElementFactory.make("capsfilter", "vcaps")
+        if sink is None or convert is None or capsfilter is None:
+            return None, None
+        try:
+            sink.set_property("force-aspect-ratio", True)
+            sink.set_property("ignore-alpha", True)
+        except Exception:
+            pass
+        capsfilter.set_property("caps", Gst.Caps.from_string("video/x-raw,format=BGRx"))
+        bin_ = Gst.Bin.new("videosink")
+        if bin_ is None:
+            return None, None
+        for element in (convert, capsfilter, sink):
+            bin_.add(element)
+        if not convert.link(capsfilter) or not capsfilter.link(sink):
+            return None, None
+        sinkpad = convert.get_static_pad("sink")
+        ghost = Gst.GhostPad.new("sink", sinkpad) if sinkpad is not None else None
+        if ghost is None or not bin_.add_pad(ghost):
+            return None, None
+        widget = sink.get_property("widget")
+        if widget is None:
+            return None, None
+        return bin_, widget
+
     def open_path(self, path: Path) -> bool:
         path = path.expanduser()
         try:
@@ -253,27 +287,16 @@ class VideosWindow(CardWindow):
             self.preview.remove(child)
 
         playbin = Gst.ElementFactory.make("playbin", "playbin")
-        sink = Gst.ElementFactory.make("gtksink", "gtksink")
-        if playbin is None or sink is None:
+        sink, widget = self._make_video_sink()
+        if playbin is None or sink is None or widget is None:
             self._show_placeholder("GStreamer playbin/gtksink unavailable.")
             self.status.set_text("GStreamer video elements missing.")
             return False
-
-        try:
-            sink.set_property("force-aspect-ratio", True)
-        except Exception:
-            pass
 
         uri = Gio.File.new_for_path(str(path)).get_uri()
         playbin.set_property("uri", uri)
         playbin.set_property("video-sink", sink)
         playbin.set_property("volume", 0.0 if self._muted else self._volume)
-
-        widget = sink.get_property("widget")
-        if widget is None:
-            self._show_placeholder("gtksink did not provide a widget.")
-            self.status.set_text("Video sink failed.")
-            return False
         widget.set_hexpand(True)
         widget.set_vexpand(True)
         self.preview.pack_start(widget, True, True, 0)

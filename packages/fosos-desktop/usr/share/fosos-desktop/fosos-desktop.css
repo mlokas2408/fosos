@@ -1122,7 +1122,9 @@ tooltip label {
 
 /* Custom Files / Terminal card apps — Windows-like frame clarity */
 .fos-card-window {
-  background-color: transparent;
+  /* Opaque. A transparent toplevel on uncomposited X11 keeps stale pixels
+     from whatever window was underneath (video ghosted into Files). */
+  background-color: @fos_card;
 }
 
 .fos-app-frame {
@@ -1302,8 +1304,10 @@ button.fos-btn.outline.active {
   border: 1px solid @fos_border;
 }
 
+.fos-files-scroll,
+.fos-files-scroll viewport,
 .fos-files-hit {
-  background-color: transparent;
+  background-color: @fos_card;
 }
 
 .fos-files-paned > separator {

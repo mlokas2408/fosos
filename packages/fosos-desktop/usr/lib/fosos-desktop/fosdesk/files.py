@@ -681,9 +681,16 @@ class FilesWindow(CardWindow):
         scroller.set_policy(Gtk.PolicyType.AUTOMATIC, Gtk.PolicyType.AUTOMATIC)
         scroller.set_hexpand(True)
         scroller.set_vexpand(True)
+        add_classes(scroller, "fos-files-scroll")
+        # No GdkWindow of our own. A transparent native child window is a hole
+        # in the file window: after a video window covers it, the next expose
+        # redraws names on top of the leftover pixels (bold text, video showing
+        # through). Events still arrive; the opaque CSS fill covers the viewport.
         self.list_hit = Gtk.EventBox()
-        self.list_hit.set_visible_window(True)
+        self.list_hit.set_visible_window(False)
         self.list_hit.set_can_focus(True)
+        self.list_hit.set_hexpand(True)
+        self.list_hit.set_vexpand(True)
         add_classes(self.list_hit, "fos-files-hit")
         self.list_hit.add_events(Gdk.EventMask.BUTTON_PRESS_MASK)
         self.list_hit.connect("button-press-event", self._on_list_bg_press)
@@ -2106,7 +2113,7 @@ class FilesWindow(CardWindow):
                 tab._cursor = None
                 self._apply_selection_ui()
             self.list_hit.grab_focus()
-            return False
+            return True
         if event.button == 3:
             if tab.selected:
                 tab.selected = set()
