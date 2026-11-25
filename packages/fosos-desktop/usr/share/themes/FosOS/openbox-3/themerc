@@ -3,7 +3,10 @@
 # Borders use palette greys with enough contrast that stacked windows
 # stay readable (Windows-like frame clarity without leaving Dawn colours).
 
-border.width: 1
+# Visible frame and the mouse-resize grab. Openbox has no separate hit
+# target, so 1px cannot be pulled. The titlebar's top grip is separate
+# (padding.height + 1).
+border.width: 5
 padding.width: 8
 # Vertical padding around title text — total chrome ~30px like Cursor.
 # height ≈ 2*padding.height + button (16) → ~30 with padding.height 7.

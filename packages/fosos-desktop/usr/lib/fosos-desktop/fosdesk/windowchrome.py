@@ -10,7 +10,7 @@ import gi
 gi.require_version("Gdk", "3.0")
 gi.require_version("GdkPixbuf", "2.0")
 gi.require_version("Gtk", "3.0")
-from gi.repository import Gdk, GdkPixbuf, Gtk
+from gi.repository import Gdk, GdkPixbuf, GLib, Gtk
 
 from .ui import add_classes, badge, button, icon, label
 
@@ -106,6 +106,25 @@ def _caption_button(kind: str, tooltip: str) -> Gtk.Button:
     return widget
 
 
+# Outer pixels that start a resize. Undecorated windows have no Openbox frame,
+# and there is no compositor, so these are client-side input-only windows
+# (the same trick GTK uses for CSD borders). 6px stays above the centered
+# caption glyphs. Corners are shown after edges so they win the overlap.
+_EDGE_PX = 6
+_CORNER_PX = 14
+
+_RESIZE_EDGES: tuple[tuple[Gdk.WindowEdge, str], ...] = (
+    (Gdk.WindowEdge.NORTH, "n-resize"),
+    (Gdk.WindowEdge.SOUTH, "s-resize"),
+    (Gdk.WindowEdge.WEST, "w-resize"),
+    (Gdk.WindowEdge.EAST, "e-resize"),
+    (Gdk.WindowEdge.NORTH_WEST, "nw-resize"),
+    (Gdk.WindowEdge.NORTH_EAST, "ne-resize"),
+    (Gdk.WindowEdge.SOUTH_WEST, "sw-resize"),
+    (Gdk.WindowEdge.SOUTH_EAST, "se-resize"),
+)
+
+
 class CardWindow(Gtk.ApplicationWindow):
     """A borderless window with a mockup-style title bar."""
 
@@ -125,6 +144,13 @@ class CardWindow(Gtk.ApplicationWindow):
         add_classes(self, "fos-root", "fos-window", "fos-card-window")
 
         self._maximized = False
+        self._fullscreen = False
+        self._resize_windows: list[tuple[Gdk.WindowEdge, Gdk.Window]] = []
+        self._resize_by_xid: dict[int, Gdk.WindowEdge] = {}
+        self._resize_show_queued = False
+        self._resize_press: tuple[Gdk.WindowEdge, int, int, int, int] | None = None
+        self._resize_grabbed = False
+        self._close_queued = False
 
         self.frame = add_classes(Gtk.Box(orientation=Gtk.Orientation.VERTICAL), "fos-card", "fos-app-frame")
         self.add(self.frame)
@@ -169,7 +195,7 @@ class CardWindow(Gtk.ApplicationWindow):
         self.min_btn.connect("clicked", lambda _b: self.iconify())
         self.max_btn.connect("clicked", lambda _b: self.toggle_maximize())
         self.max_btn.connect("button-press-event", self._on_max_press)
-        self.close_btn.connect("clicked", lambda _b: self.close())
+        self.close_btn.connect("clicked", self._queue_close)
         captions = add_classes(Gtk.Box(spacing=0), "fos-caption-buttons")
         for btn in (self.min_btn, self.max_btn, self.close_btn):
             captions.pack_start(btn, False, False, 0)
@@ -188,6 +214,14 @@ class CardWindow(Gtk.ApplicationWindow):
         self.body.set_vexpand(True)
         self.frame.pack_start(self.body, True, True, 0)
 
+        self.add_events(Gdk.EventMask.BUTTON_PRESS_MASK)
+        self.connect("realize", self._create_resize_windows)
+        self.connect("unrealize", self._destroy_resize_windows)
+        self.connect("size-allocate", self._layout_resize_windows)
+        self.connect("map", self._queue_show_resize_windows)
+        self.connect("button-press-event", self._on_resize_press)
+        self.connect("motion-notify-event", self._on_resize_motion)
+        self.connect("button-release-event", self._on_resize_release)
         self.connect("window-state-event", self._on_window_state)
 
     def set_badge(self, text: str | None) -> None:
@@ -242,7 +276,7 @@ class CardWindow(Gtk.ApplicationWindow):
         menu.append(snap)
         menu.append(Gtk.SeparatorMenuItem())
         close = Gtk.MenuItem(label="Close")
-        close.connect("activate", lambda _i: self.close())
+        close.connect("activate", self._queue_close)
         menu.append(close)
         menu.show_all()
         menu.popup_at_pointer(event)
@@ -253,8 +287,209 @@ class CardWindow(Gtk.ApplicationWindow):
             return True
         return False
 
+    def _resize_allowed(self) -> bool:
+        return self.get_resizable() and not self._maximized and not self._fullscreen
+
+    def _create_resize_windows(self, *_args) -> None:
+        parent = self.get_window()
+        if parent is None or self._resize_windows:
+            return
+        display = self.get_display()
+        for edge, cursor_name in _RESIZE_EDGES:
+            cursor = Gdk.Cursor.new_from_name(display, cursor_name)
+            if cursor is None:
+                cursor = Gdk.Cursor.new_for_display(display, Gdk.CursorType.FLEUR)
+            attr = Gdk.WindowAttr()
+            attr.x = 0
+            attr.y = 0
+            attr.width = 1
+            attr.height = 1
+            attr.window_type = Gdk.WindowType.CHILD
+            attr.wclass = Gdk.WindowWindowClass.INPUT_ONLY
+            attr.event_mask = (
+                Gdk.EventMask.BUTTON_PRESS_MASK
+                | Gdk.EventMask.BUTTON_RELEASE_MASK
+                | Gdk.EventMask.POINTER_MOTION_MASK
+                | Gdk.EventMask.ENTER_NOTIFY_MASK
+            )
+            attr.cursor = cursor
+            gdk_window = Gdk.Window.new(parent, attr, Gdk.WindowAttributesType.CURSOR)
+            self.register_window(gdk_window)
+            self._resize_windows.append((edge, gdk_window))
+            self._resize_by_xid[gdk_window.get_xid()] = edge
+        self._layout_resize_windows()
+
+    def _destroy_resize_windows(self, *_args) -> None:
+        self._cancel_resize_press()
+        for _edge, gdk_window in self._resize_windows:
+            self.unregister_window(gdk_window)
+            gdk_window.destroy()
+        self._resize_windows = []
+        self._resize_by_xid = {}
+
+    def _layout_resize_windows(self, *_args) -> None:
+        if not self._resize_windows:
+            return
+        width = self.get_allocated_width()
+        height = self.get_allocated_height()
+        if width < 2 or height < 2:
+            return
+        edge_px = min(_EDGE_PX, width // 4, height // 4)
+        corner = min(_CORNER_PX, width // 3, height // 3)
+        corner = max(corner, edge_px)
+        rects = {
+            Gdk.WindowEdge.NORTH: (corner, 0, max(1, width - 2 * corner), edge_px),
+            Gdk.WindowEdge.SOUTH: (corner, height - edge_px, max(1, width - 2 * corner), edge_px),
+            Gdk.WindowEdge.WEST: (0, corner, edge_px, max(1, height - 2 * corner)),
+            Gdk.WindowEdge.EAST: (width - edge_px, corner, edge_px, max(1, height - 2 * corner)),
+            Gdk.WindowEdge.NORTH_WEST: (0, 0, corner, corner),
+            Gdk.WindowEdge.NORTH_EAST: (width - corner, 0, corner, corner),
+            Gdk.WindowEdge.SOUTH_WEST: (0, height - corner, corner, corner),
+            Gdk.WindowEdge.SOUTH_EAST: (width - corner, height - corner, corner, corner),
+        }
+        allowed = self._resize_allowed()
+        for edge, gdk_window in self._resize_windows:
+            x, y, rect_w, rect_h = rects[edge]
+            gdk_window.move_resize(int(x), int(y), int(rect_w), int(rect_h))
+            if not allowed:
+                gdk_window.hide()
+            elif not gdk_window.is_visible():
+                gdk_window.show()
+            else:
+                # show() would raise and can disturb an in-progress resize.
+                gdk_window.show_unraised()
+
+    def _queue_show_resize_windows(self, *_args) -> None:
+        # Content windows map after us and land above the grips. Show again
+        # once this flush finishes so a press on the outer pixels hits them.
+        if self._resize_show_queued:
+            return
+        self._resize_show_queued = True
+        GLib.idle_add(self._show_resize_windows_idle)
+
+    def _show_resize_windows_idle(self) -> bool:
+        self._resize_show_queued = False
+        self._layout_resize_windows()
+        if self._resize_allowed():
+            # Corners are last, so this raise leaves them above the edges.
+            for _edge, gdk_window in self._resize_windows:
+                gdk_window.show()
+        return False
+
+    def _edge_at_event(self, event: Gdk.EventButton) -> Gdk.WindowEdge | None:
+        window = event.window
+        if window is None:
+            return None
+        return self._resize_by_xid.get(window.get_xid())
+
+    def _queue_close(self, *_args) -> None:
+        # Destroying inside the click handler replays the click onto the
+        # window underneath, which then resizes if the pointer is on its edge.
+        if self._close_queued:
+            return
+        self._close_queued = True
+        GLib.idle_add(self._close_after_click)
+
+    def _close_after_click(self) -> bool:
+        self._close_queued = False
+        if self.get_realized():
+            self._cancel_resize_press()
+            self.close()
+        return False
+
+    def _cancel_resize_press(self) -> None:
+        grabbed = self._resize_grabbed
+        self._resize_press = None
+        self._resize_grabbed = False
+        if not grabbed:
+            return
+        display = self.get_display()
+        if display is not None:
+            display.get_default_seat().ungrab()
+
+    def _on_resize_press(self, _widget, event: Gdk.EventButton) -> bool:
+        if event.button != 1 or event.type != Gdk.EventType.BUTTON_PRESS:
+            return False
+        edge = self._edge_at_event(event)
+        if edge is None or not self._resize_allowed():
+            return False
+        strip = event.window
+        if strip is None:
+            return False
+        self._resize_press = (
+            edge,
+            int(event.x_root),
+            int(event.y_root),
+            int(event.button),
+            int(event.time),
+        )
+        # A click that closes the window above can be replayed here. Hold it
+        # until the pointer actually moves, so a plain click does not resize.
+        seat = self.get_display().get_default_seat()
+        status = seat.grab(
+            strip,
+            Gdk.SeatCapabilities.ALL_POINTING,
+            False,
+            strip.get_cursor(),
+            event,
+            None,
+        )
+        self._resize_grabbed = status == Gdk.GrabStatus.SUCCESS
+        GLib.timeout_add(200, self._drop_resize_if_released)
+        return True
+
+    def _drop_resize_if_released(self) -> bool:
+        if self._resize_press is None:
+            return False
+        gdk_window = self.get_window()
+        display = self.get_display()
+        if gdk_window is None or display is None:
+            self._cancel_resize_press()
+            return False
+        device = display.get_default_seat().get_pointer()
+        _under, _x, _y, mask = gdk_window.get_device_position(device)
+        if not (mask & Gdk.ModifierType.BUTTON1_MASK):
+            self._cancel_resize_press()
+        return False
+
+    def _on_resize_motion(self, _widget, event: Gdk.EventMotion) -> bool:
+        pending = self._resize_press
+        if pending is None:
+            return False
+        _edge, x_root, y_root, _button, _time = pending
+        if abs(event.x_root - x_root) < 5 and abs(event.y_root - y_root) < 5:
+            return True
+        self._begin_pending_resize()
+        return True
+
+    def _on_resize_release(self, _widget, event: Gdk.EventButton) -> bool:
+        if self._resize_press is None or event.button != 1:
+            return False
+        self._cancel_resize_press()
+        return True
+
+    def _begin_pending_resize(self) -> None:
+        pending = self._resize_press
+        grabbed = self._resize_grabbed
+        self._resize_press = None
+        self._resize_grabbed = False
+        if pending is None:
+            return
+        if grabbed:
+            display = self.get_display()
+            if display is not None:
+                display.get_default_seat().ungrab()
+        edge, x_root, y_root, button, time = pending
+        gdk_window = self.get_window()
+        if gdk_window is None or not self._resize_allowed():
+            return
+        gdk_window.begin_resize_drag(edge, button, x_root, y_root, time)
+
     def _on_window_state(self, _window, event: Gdk.EventWindowState) -> bool:
-        self._maximized = bool(event.new_window_state & Gdk.WindowState.MAXIMIZED)
+        state = event.new_window_state
+        self._maximized = bool(state & Gdk.WindowState.MAXIMIZED)
+        self._fullscreen = bool(state & Gdk.WindowState.FULLSCREEN)
+        self._layout_resize_windows()
         style = self.get_style_context()
         if self._maximized:
             style.add_class("maximized")

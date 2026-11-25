@@ -72,6 +72,7 @@ class EdgeSnap:
 
     def __init__(self) -> None:
         self._was_pressed = False
+        self._press_geom: tuple[int, tuple[int, int, int, int]] | None = None
         self._disp = None
         self._root = None
         self._overlay = SnapZoneOverlay()
@@ -96,17 +97,64 @@ class EdgeSnap:
             return True
         pressed = bool(pointer.mask & self._X.Button1Mask)
         root_x, root_y = pointer.root_x, pointer.root_y
+        if pressed and not self._was_pressed:
+            self._remember_press()
+        # Selecting text (or anything else inside the window) also holds
+        # button 1. Snap only after the window itself has been dragged.
+        kind = self._drag_kind()
         if pressed:
-            self._update_preview(root_x, root_y)
+            if kind == "move":
+                self._update_preview(root_x, root_y)
+            else:
+                self._overlay.hide_zone()
+                self._zone_key = None
         elif self._was_pressed:
             self._overlay.hide_zone()
             self._zone_key = None
-            self._maybe_snap(root_x, root_y)
+            if kind == "move":
+                self._maybe_snap(root_x, root_y)
+            self._press_geom = None
         else:
             self._overlay.hide_zone()
             self._zone_key = None
         self._was_pressed = pressed
         return True
+
+    def _remember_press(self) -> None:
+        window = self._drag_window_ok()
+        if window is None:
+            self._press_geom = None
+            return
+        self._press_geom = (window.get_xid(), window.get_geometry())
+
+    def _drag_kind(self) -> str:
+        """How this button-1 hold changed the active window: move, resize, or none.
+
+        A text selection holds the button and can reach the screen edge without
+        moving the window. Edge snap runs only for a real title-bar drag.
+        """
+        if self._press_geom is None:
+            return "none"
+        xid, (x, y, width, height) = self._press_geom
+        window = self._drag_window_ok()
+        if window is None or window.get_xid() != xid:
+            return "none"
+        new_x, new_y, new_width, new_height = window.get_geometry()
+        dx = abs(new_x - x)
+        dy = abs(new_y - y)
+        dw = abs(new_width - width)
+        dh = abs(new_height - height)
+        # Pulling the left or top edge keeps the opposite edge put.
+        right_fixed = dw >= 8 and abs((new_x + new_width) - (x + width)) <= 8
+        bottom_fixed = dh >= 8 and abs((new_y + new_height) - (y + height)) <= 8
+        if right_fixed or bottom_fixed:
+            return "resize"
+        # Right/bottom edge: origin stays, size changes.
+        if (dw >= 8 or dh >= 8) and dx < 8 and dy < 8:
+            return "resize"
+        if dx >= 8 or dy >= 8:
+            return "move"
+        return "none"
 
     def _target_at(
         self, root_x: int, root_y: int
@@ -197,7 +245,9 @@ class EdgeSnap:
             return
         _key, slot, maximize, work = target
         window = self._drag_window_ok()
-        if window is None:
+        # The window under the pointer can change when the front one closes
+        # mid-click. Never snap that newly focused window.
+        if window is None or self._press_geom is None or window.get_xid() != self._press_geom[0]:
             return
 
         stamp = int(GLib.get_monotonic_time() / 1000)
