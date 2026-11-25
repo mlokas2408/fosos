@@ -1,21 +1,71 @@
 #!/usr/bin/env python3
-"""Generate monochrome outline icons for the FosOS Desktop session."""
+"""Generate sharp filled icons for FosOS files and folders.
+
+Drawn on a 16×16 grid so list rows (16px) and icon view (32/48/96) land on
+whole pixels. Corners are square, matching the desktop. Bodies are two-tone
+paper and shade; color is only used where a file type is identified by it.
+"""
 
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 BASE = ROOT / "packages/fosos-desktop/usr/share/icons/FosOS"
-STROKE = "#fafafa"
+
+PAPER = "#fafafa"
+SHADE = "#a1a1aa"
+INK = "#171717"
+RED = "#e11d48"
+GREEN = "#15803d"
+AMBER = "#d97706"
+TERM = "#4ade80"
+BLUE = "#2563eb"
 
 
-def svg(body: str, size: int = 24, vb: int = 24) -> str:
+def svg(*parts: str) -> str:
+    body = "\n".join(parts)
     return (
         '<?xml version="1.0" encoding="UTF-8"?>\n'
-        f'<svg xmlns="http://www.w3.org/2000/svg" width="{size}" height="{size}" '
-        f'viewBox="0 0 {vb} {vb}" fill="none" stroke="{STROKE}" stroke-width="1.75" '
-        'stroke-linecap="round" stroke-linejoin="round">\n'
+        '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" '
+        'viewBox="0 0 16 16">\n'
         f"{body}\n"
         "</svg>\n"
+    )
+
+
+def fill(d: str, color: str) -> str:
+    return f'  <path fill="{color}" d="{d}"/>'
+
+
+def page(*marks: str) -> str:
+    """Document with a sharp folded corner."""
+    return svg(
+        fill("M3 1h7l4 4v10H3z", PAPER),
+        fill("M10 1v4h4z", SHADE),
+        *marks,
+    )
+
+
+def hollow_page() -> str:
+    return svg(
+        fill("M3 1h7l4 4v10H3V1zm1 1h5v3h3v8H4V2z", PAPER),
+    )
+
+
+def folder(*marks: str, tab: str = SHADE) -> str:
+    """Inset face so the shade reads as an edge, not a flat slab."""
+    return svg(
+        fill("M1 5h14v10H1z", SHADE),
+        fill("M1 2h6l2 3H1z", tab),
+        fill("M2 7h12v7H2z", PAPER),
+        *marks,
+    )
+
+
+def open_folder() -> str:
+    return svg(
+        fill("M2 2h5l2 2h4v3H2z", SHADE),
+        fill("M1 6h14v8H1z", SHADE),
+        fill("M2 8h12v5H2z", PAPER),
     )
 
 
@@ -25,96 +75,175 @@ def main() -> None:
 
     icons: dict[tuple[str, str], str] = {}
 
-    folder = svg(
-        '  <path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7z"/>'
+    plain = folder()
+    icons[("places", "folder")] = plain
+    icons[("places", "inode-directory")] = plain
+    icons[("mimetypes", "inode-directory")] = plain
+    icons[("places", "folder-open")] = open_folder()
+    icons[("places", "folder-documents")] = folder(
+        fill("M5 8h4l2 2v4H5z", INK),
+        fill("M9 8v2h2z", PAPER),
     )
-    icons[("places", "folder")] = folder
-    icons[("places", "inode-directory")] = folder
-    icons[("mimetypes", "inode-directory")] = folder
-    for name in (
-        "folder-documents",
-        "folder-download",
-        "folder-pictures",
-        "folder-music",
-        "folder-videos",
-        "folder-publicshare",
-        "folder-remote",
-        "folder-saved-search",
-        "folder-open",
-    ):
-        icons[("places", name)] = folder
+    icons[("places", "folder-download")] = folder(
+        fill("M7 8h2v2H7z", INK),
+        fill("M5 10h6l-3 3z", INK),
+        tab=GREEN,
+    )
+    icons[("places", "folder-pictures")] = folder(
+        fill("M5 8h6v6H5z", INK),
+        fill("M6 9h4v4H6z", PAPER),
+        fill("M6 9h2v2H6z", AMBER),
+        tab=BLUE,
+    )
+    icons[("places", "folder-music")] = folder(
+        fill("M5 11h2V8h5v2H9v3H5z", INK),
+        tab=AMBER,
+    )
+    icons[("places", "folder-videos")] = folder(
+        fill("M5 8l5 3-5 3z", INK),
+        tab=RED,
+    )
+    icons[("places", "folder-publicshare")] = folder(
+        fill("M6 8h4v2H6z", INK),
+        fill("M4 11h3v2H4z", INK),
+        fill("M9 11h3v2H9z", INK),
+    )
+    icons[("places", "folder-remote")] = folder(
+        fill("M5 9h3v2H5z", INK),
+        fill("M7 8l4 3-4 2z", INK),
+    )
+    icons[("places", "folder-saved-search")] = folder(
+        fill("M4 8h5v5H4z", INK),
+        fill("M5 9h3v3H5z", PAPER),
+        fill("M9 11h3v2H9z", INK),
+    )
 
     icons[("places", "user-home")] = svg(
-        "  <path d=\"M3 11.5 12 4l9 7.5\"/>\n"
-        "  <path d=\"M5 10.5V20h14v-9.5\"/>\n"
-        "  <path d=\"M10 20v-6h4v6\"/>"
+        fill("M1 8 8 2l7 6v1H1z", SHADE),
+        fill("M3 9h10v6H3z", PAPER),
+        fill("M7 11h2v4H7z", INK),
     )
     desktop = svg(
-        "  <rect x=\"3\" y=\"4\" width=\"18\" height=\"12\" rx=\"1\"/>\n"
-        "  <path d=\"M8 20h8\"/>\n"
-        "  <path d=\"M12 16v4\"/>"
+        fill("M1 2h14v9H1z", PAPER),
+        fill("M2 3h12v7H2z", INK),
+        fill("M7 11h2v1H7z", PAPER),
+        fill("M4 12h8v2H4z", PAPER),
     )
     icons[("places", "user-desktop")] = desktop
     icons[("devices", "computer")] = desktop
     icons[("devices", "video-display")] = desktop
 
-    trash = svg(
-        "  <path d=\"M3 6h18\"/>\n"
-        "  <path d=\"M8 6V4h8v2\"/>\n"
-        "  <path d=\"M6 6l1 14h10l1-14\"/>\n"
-        "  <path d=\"M10 10v6\"/>\n"
-        "  <path d=\"M14 10v6\"/>"
+    icons[("places", "user-trash")] = svg(
+        fill("M4 5h8l-1 9H5z", SHADE),
+        fill("M6 2h4v2H6z", PAPER),
+        fill("M2 4h12v2H2z", PAPER),
+        fill("M6 8h1v4H6z", INK),
+        fill("M9 8h1v4H9z", INK),
     )
-    icons[("places", "user-trash")] = trash
-    icons[("places", "user-trash-full")] = trash
-
-    network = svg(
-        "  <circle cx=\"12\" cy=\"12\" r=\"3\"/>\n"
-        "  <path d=\"M12 2v3\"/>\n"
-        "  <path d=\"M12 19v3\"/>\n"
-        "  <path d=\"M2 12h3\"/>\n"
-        "  <path d=\"M19 12h3\"/>\n"
-        "  <path d=\"M4.9 4.9l2.1 2.1\"/>\n"
-        "  <path d=\"M17 17l2.1 2.1\"/>\n"
-        "  <path d=\"M4.9 19.1 7 17\"/>\n"
-        "  <path d=\"M17 7l2.1-2.1\"/>"
+    icons[("places", "user-trash-full")] = svg(
+        fill("M4 6h8l-1 8H5z", SHADE),
+        fill("M4 1h3v5H4z", PAPER),
+        fill("M8 2h4v4H8z", SHADE),
+        fill("M2 5h12v2H2z", PAPER),
+        fill("M6 9h1v3H6z", INK),
+        fill("M9 9h1v3H9z", INK),
     )
-    icons[("places", "network-workgroup")] = network
-    icons[("places", "network-server")] = network
-    icons[("places", "user-bookmarks")] = svg('  <path d="M7 3h10v18l-5-3-5 3V3z"/>')
+    icons[("places", "user-bookmarks")] = svg(
+        fill("M4 1h8v13l-4-3-4 3z", PAPER),
+        fill("M6 4h4v1H6z", INK),
+    )
+    icons[("places", "network-workgroup")] = svg(
+        fill("M5 3h6v2H5z", SHADE),
+        fill("M7 5h2v5H7z", SHADE),
+        fill("M1 2h4v4H1z", PAPER),
+        fill("M11 2h4v4h-4z", PAPER),
+        fill("M6 10h4v4H6z", PAPER),
+    )
+    icons[("places", "network-server")] = svg(
+        fill("M2 1h12v3H2z", PAPER),
+        fill("M2 6h12v3H2z", PAPER),
+        fill("M2 11h12v3H2z", PAPER),
+        fill("M4 2h2v1H4z", GREEN),
+        fill("M4 7h2v1H4z", GREEN),
+        fill("M4 12h2v1H4z", GREEN),
+    )
 
-    doc = svg(
-        "  <path d=\"M7 3h7l5 5v13a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z\"/>\n"
-        "  <path d=\"M14 3v5h5\"/>\n"
-        "  <path d=\"M9 13h6\"/>\n"
-        "  <path d=\"M9 17h6\"/>"
+    text = page(
+        fill("M5 8h7v1H5z", INK),
+        fill("M5 10h7v1H5z", INK),
+        fill("M5 12h5v1H5z", INK),
     )
     for name in (
         "text-x-generic",
         "text-x-generic-template",
         "text-plain",
-        "text-markdown",
-        "text-x-script",
-        "text-html",
+        "text-x-todo-txt",
+        "text-x-patch",
+        "text-x-diff",
         "application-rtf",
         "application-msword",
         "application-vnd.oasis.opendocument.text",
         "x-office-document",
-        "application-x-zerosize",
-        "application-pdf",
-        "application-x-pdf",
-        "application-x-generic",
-        "unknown",
     ):
-        icons[("mimetypes", name)] = doc
+        icons[("mimetypes", name)] = text
 
-    sheet = svg(
-        "  <path d=\"M7 3h7l5 5v13a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z\"/>\n"
-        "  <path d=\"M14 3v5h5\"/>\n"
-        "  <path d=\"M9 12h6\"/>\n"
-        "  <path d=\"M9 15h6\"/>\n"
-        "  <path d=\"M9 18h6\"/>\n"
-        "  <path d=\"M12 12v6\"/>"
+    icons[("mimetypes", "text-markdown")] = page(
+        fill("M5 7h7v2H5z", INK),
+        fill("M5 10h7v1H5z", INK),
+        fill("M5 12h5v1H5z", INK),
+    )
+
+    code = page(
+        fill("M5 7h2v1H5z", INK),
+        fill("M5 7h1v6H5z", INK),
+        fill("M5 12h2v1H5z", INK),
+        fill("M9 7h2v1H9z", INK),
+        fill("M10 7h1v6H10z", INK),
+        fill("M9 12h2v1H9z", INK),
+    )
+    for name in (
+        "text-html",
+        "text-css",
+        "application-xml",
+        "text-xml",
+        "application-json",
+        "application-javascript",
+        "text-javascript",
+        "text-x-python",
+        "text-x-java",
+        "text-x-csrc",
+        "text-x-chdr",
+        "text-x-c++src",
+        "application-x-php",
+    ):
+        icons[("mimetypes", name)] = code
+
+    script = page(
+        fill("M5 8h2v1H5z", INK),
+        fill("M6 9h2v1H6z", INK),
+        fill("M7 10h2v1H7z", INK),
+        fill("M6 11h2v1H6z", INK),
+        fill("M5 12h2v1H5z", INK),
+        fill("M10 12h3v1H10z", INK),
+    )
+    for name in ("text-x-script", "application-x-shellscript"):
+        icons[("mimetypes", name)] = script
+
+    pdf = page(fill("M3 11h11v4H3z", RED))
+    for name in ("application-pdf", "application-x-pdf"):
+        icons[("mimetypes", name)] = pdf
+
+    blank = page()
+    for name in ("application-x-generic", "unknown"):
+        icons[("mimetypes", name)] = blank
+    icons[("mimetypes", "application-x-zerosize")] = hollow_page()
+
+    sheet = page(
+        fill("M5 7h7v1H5z", GREEN),
+        fill("M5 9h7v1H5z", GREEN),
+        fill("M5 11h7v1H5z", GREEN),
+        fill("M5 13h7v1H5z", GREEN),
+        fill("M8 7h1v7H8z", GREEN),
     )
     for name in (
         "application-vnd.ms-excel",
@@ -125,10 +254,9 @@ def main() -> None:
     ):
         icons[("mimetypes", name)] = sheet
 
-    pres = svg(
-        "  <path d=\"M7 3h7l5 5v13a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z\"/>\n"
-        "  <path d=\"M14 3v5h5\"/>\n"
-        "  <rect x=\"8\" y=\"12\" width=\"8\" height=\"5\"/>"
+    pres = page(
+        fill("M5 7h7v5H5z", AMBER),
+        fill("M6 13h5v1H6z", INK),
     )
     for name in (
         "application-vnd.ms-powerpoint",
@@ -139,9 +267,10 @@ def main() -> None:
         icons[("mimetypes", name)] = pres
 
     img = svg(
-        "  <rect x=\"3\" y=\"5\" width=\"18\" height=\"14\" rx=\"1\"/>\n"
-        "  <circle cx=\"9\" cy=\"10\" r=\"1.5\"/>\n"
-        "  <path d=\"M3 16l5-4 4 3 3-2 6 4\"/>"
+        fill("M1 3h14v10H1z", PAPER),
+        fill("M2 4h12v8H2z", INK),
+        fill("M3 5h2v2H3z", AMBER),
+        fill("M2 10l3-2 2 1 3-2 2 2v3H2z", PAPER),
     )
     for name in (
         "image-x-generic",
@@ -151,29 +280,51 @@ def main() -> None:
         "image-gif",
         "image-bmp",
         "image-tiff",
+        "image-webp",
+        "image-x-icon",
     ):
         icons[("mimetypes", name)] = img
 
     aud = svg(
-        "  <path d=\"M9 18V6l10-2v12\"/>\n"
-        "  <circle cx=\"7\" cy=\"18\" r=\"2.5\"/>\n"
-        "  <circle cx=\"17\" cy=\"16\" r=\"2.5\"/>"
+        fill("M1 6h2v4H1z", PAPER),
+        fill("M4 3h2v10H4z", PAPER),
+        fill("M7 5h2v6H7z", PAPER),
+        fill("M10 2h2v12h-2z", PAPER),
+        fill("M13 4h2v8h-2z", PAPER),
     )
-    for name in ("audio-x-generic", "audio-mpeg", "audio-flac", "audio-x-wav", "audio-ogg"):
+    for name in (
+        "audio-x-generic",
+        "audio-mpeg",
+        "audio-flac",
+        "audio-x-wav",
+        "audio-ogg",
+        "audio-x-m4a",
+        "audio-aac",
+        "audio-mp4",
+    ):
         icons[("mimetypes", name)] = aud
 
     vid = svg(
-        "  <rect x=\"3\" y=\"6\" width=\"14\" height=\"12\" rx=\"1\"/>\n"
-        "  <path d=\"M17 10l4-2v8l-4-2z\"/>"
+        fill("M1 4h10v8H1z", PAPER),
+        fill("M2 5h8v6H2z", INK),
+        fill("M4 6l4 2-4 2z", PAPER),
+        fill("M12 6l3-1v6l-3-1z", PAPER),
     )
-    for name in ("video-x-generic", "video-mp4", "video-x-matroska", "video-ogg"):
+    for name in (
+        "video-x-generic",
+        "video-mp4",
+        "video-x-matroska",
+        "video-ogg",
+        "video-webm",
+        "video-quicktime",
+        "video-x-msvideo",
+    ):
         icons[("mimetypes", name)] = vid
 
     pkg = svg(
-        "  <path d=\"M12 3 20 7.5v9L12 21 4 16.5v-9L12 3z\"/>\n"
-        "  <path d=\"M12 12 20 7.5\"/>\n"
-        "  <path d=\"M12 12v9\"/>\n"
-        "  <path d=\"M12 12 4 7.5\"/>"
+        fill("M2 3h12v3H2z", PAPER),
+        fill("M3 6h10v8H3z", SHADE),
+        fill("M7 4h2v1H7z", INK),
     )
     for name in (
         "package-x-generic",
@@ -182,35 +333,59 @@ def main() -> None:
         "application-gzip",
         "application-x-tar",
         "application-x-compressed-tar",
+        "application-x-bzip",
+        "application-x-xz",
+        "application-x-7z-compressed",
+        "application-x-rar",
+        "application-vnd.rar",
+        "application-vnd.debian.binary-package",
+        "application-x-deb",
     ):
         icons[("mimetypes", name)] = pkg
 
     exe = svg(
-        "  <rect x=\"4\" y=\"4\" width=\"16\" height=\"16\" rx=\"1\"/>\n"
-        "  <path d=\"M8 12h8\"/>\n"
-        "  <path d=\"M12 8v8\"/>"
+        fill("M2 2h12v12H2z", PAPER),
+        fill("M4 4h8v8H4z", INK),
+        fill("M6 6h4v4H6z", PAPER),
     )
-    for name in ("application-x-executable", "application-x-shellscript", "application-octet-stream"):
+    for name in ("application-x-executable", "application-x-desktop"):
         icons[("mimetypes", name)] = exe
-
-    icons[("apps", "system-file-manager")] = folder
-    terminal = svg(
-        "  <rect x=\"3\" y=\"5\" width=\"18\" height=\"14\" rx=\"1\"/>\n"
-        "  <path d=\"M7 10l3 2-3 2\"/>\n"
-        "  <path d=\"M12 14h5\"/>"
+    icons[("mimetypes", "application-octet-stream")] = page(
+        fill("M6 8h4v5H6z", INK),
     )
-    icons[("apps", "utilities-terminal")] = terminal
+
+    icons[("apps", "system-file-manager")] = plain
+    icons[("apps", "utilities-terminal")] = svg(
+        fill("M1 3h14v10H1z", PAPER),
+        fill("M2 4h12v8H2z", INK),
+        fill("M4 6h2v1H4z", TERM),
+        fill("M5 7h2v1H5z", TERM),
+        fill("M6 8h2v1H6z", TERM),
+        fill("M5 9h2v1H5z", TERM),
+        fill("M4 10h2v1H4z", TERM),
+        fill("M9 10h4v1H9z", TERM),
+    )
     browser = svg(
-        "  <circle cx=\"12\" cy=\"12\" r=\"9\"/>\n"
-        "  <path d=\"M3 12h18\"/>\n"
-        "  <path d=\"M12 3a14 14 0 0 1 0 18\"/>\n"
-        "  <path d=\"M12 3a14 14 0 0 0 0 18\"/>"
+        fill("M1 2h14v12H1z", PAPER),
+        fill("M1 2h14v3H1z", INK),
+        fill("M3 3h1v1H3z", PAPER),
+        fill("M5 3h1v1H5z", PAPER),
+        fill("M7 3h1v1H7z", PAPER),
+        fill("M5 7h6v5H5z", BLUE),
+        fill("M6 8h4v3H6z", PAPER),
     )
     icons[("apps", "web-browser")] = browser
     icons[("apps", "firefox")] = browser
     icons[("apps", "firefox-esr")] = browser
-    icons[("apps", "preferences-system")] = network
-    icons[("apps", "accessories-text-editor")] = doc
+    icons[("apps", "preferences-system")] = svg(
+        fill("M1 4h14v1H1z", SHADE),
+        fill("M1 8h14v1H1z", SHADE),
+        fill("M1 12h14v1H1z", SHADE),
+        fill("M3 2h3v5H3z", PAPER),
+        fill("M9 6h3v5H9z", PAPER),
+        fill("M5 10h3v4H5z", PAPER),
+    )
+    icons[("apps", "accessories-text-editor")] = text
 
     for (ctx, name), content in icons.items():
         path = BASE / "scalable" / ctx / f"{name}.svg"

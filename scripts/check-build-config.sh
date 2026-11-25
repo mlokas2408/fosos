@@ -8,6 +8,8 @@ required_files=(
   "$repo_root/build/live-build/config/includes.chroot/etc/fosos-release"
   "$repo_root/build/live-build/config/includes.chroot/etc/lightdm/lightdm.conf.d/90-fosos-live.conf"
   "$repo_root/build/live-build/config/hooks/normal/0100-graphical-session.hook.chroot"
+  "$repo_root/build/live-build/config/hooks/normal/0180-powershell.hook.chroot"
+  "$repo_root/build/live-build/config/includes.chroot/usr/share/keyrings/microsoft-powershell.asc"
   "$repo_root/build/live-build/config/hooks/live/0100-enable-hook-runner.hook.chroot"
   "$repo_root/build/live-build/config/includes.chroot/etc/default/keyboard"
   "$repo_root/packages/fosos-theme/DEBIAN/control"
@@ -477,6 +479,94 @@ for pkg in \
   fi
 done
 
+pwsh_hook="$repo_root/build/live-build/config/hooks/normal/0180-powershell.hook.chroot"
+pwsh_key="$repo_root/build/live-build/config/includes.chroot/usr/share/keyrings/microsoft-powershell.asc"
+if [[ ! -x "$pwsh_hook" ]]; then
+  echo "0180-powershell.hook.chroot must be executable." >&2
+  exit 1
+fi
+if grep -q 'apt-key' "$pwsh_hook"; then
+  echo "PowerShell hook must not use apt-key." >&2
+  exit 1
+fi
+if ! grep -q 'AA86F75E427A19DD33346403EE4D7792F748182B' "$pwsh_hook"; then
+  echo "PowerShell hook must pin the Microsoft 2025 key fingerprint." >&2
+  exit 1
+fi
+if ! grep -q 'apt-get install -y --no-install-recommends powershell' "$pwsh_hook"; then
+  echo "PowerShell hook must install the powershell package." >&2
+  exit 1
+fi
+if ! grep -q 'Pin-Priority: -1' "$pwsh_hook"; then
+  echo "PowerShell hook must block non-PowerShell packages from packages.microsoft.com." >&2
+  exit 1
+fi
+if ! command -v python3 >/dev/null 2>&1; then
+  echo "python3 is required to verify the Microsoft PowerShell signing key." >&2
+  exit 1
+fi
+pwsh_fp="$(python3 - "$pwsh_key" <<'PY'
+import base64, hashlib, re, sys
+text = open(sys.argv[1], encoding="ascii").read()
+match = re.search(
+    r"-----BEGIN PGP PUBLIC KEY BLOCK-----\r?\n(?:[^\n]*\n)*?\r?\n(.+?)\r?\n=[A-Za-z0-9+/]{4}\r?\n-----END PGP PUBLIC KEY BLOCK-----",
+    text,
+    re.S,
+)
+if not match:
+    raise SystemExit("Microsoft signing key is not an armored public key")
+raw = base64.b64decode(re.sub(r"\s+", "", match.group(1)))
+
+def packets(data):
+    i = 0
+    n = len(data)
+    while i < n:
+        header = data[i]
+        i += 1
+        if header & 0x40:
+            tag = header & 0x3F
+            first = data[i]
+            i += 1
+            if first < 192:
+                length = first
+            elif first < 224:
+                length = ((first - 192) << 8) + data[i] + 192
+                i += 1
+            elif first == 255:
+                length = int.from_bytes(data[i:i + 4], "big")
+                i += 4
+            else:
+                raise SystemExit("partial OpenPGP length")
+        else:
+            tag = (header & 0x3C) >> 2
+            kind = header & 0x03
+            if kind == 0:
+                length = data[i]
+                i += 1
+            elif kind == 1:
+                length = int.from_bytes(data[i:i + 2], "big")
+                i += 2
+            elif kind == 2:
+                length = int.from_bytes(data[i:i + 4], "big")
+                i += 4
+            else:
+                length = n - i
+        yield tag, data[i:i + length]
+        i += length
+
+for tag, body in packets(raw):
+    if tag == 6 and body[:1] == b"\x04":
+        sys.stdout.write(hashlib.sha1(b"\x99" + len(body).to_bytes(2, "big") + body).hexdigest().upper())
+        raise SystemExit(0)
+raise SystemExit("Microsoft signing key has no v4 primary key")
+PY
+)"
+if [[ "$pwsh_fp" != "AA86F75E427A19DD33346403EE4D7792F748182B" ]]; then
+  echo "Microsoft PowerShell key fingerprint mismatch: $pwsh_fp" >&2
+  exit 1
+fi
+
+sh -n "$repo_root/build/live-build/config/hooks/normal/0180-powershell.hook.chroot"
 bash -n "$repo_root/scripts/build-iso.sh"
 bash -n "$repo_root/scripts/check-build-config.sh"
 bash -n "$repo_root/scripts/stage-deb.sh"

@@ -102,59 +102,16 @@ def work_area_for_window(window: Wnck.Window) -> Gdk.Rectangle:
     return work_area_for_point(x + w // 2, y + h // 2)
 
 
-# GTK/Electron often map with program-specified location 0,0 and a stub size.
-_ORIGIN_TOLERANCE = 8
-_TINY_WIDTH = 160
-_TINY_HEIGHT = 120
+def normal_geometry(xid: int) -> tuple[int, int, int, int] | None:
+    """Floating size remembered before snap/maximize, if any."""
+    return _NORMAL_GEOM.get(xid)
 
 
 def repair_startup_geometry(window: Wnck.Window) -> bool:
-    """Center/grow windows that mapped as a stub in the top-left corner.
+    """Delegate to Win11-like open placement (restore / cascade)."""
+    from .windowplace import place_startup_window
 
-    Skips docks, dialogs, maximized/fullscreen windows, and edge-snapped
-    layouts so restored or tiled geometry is left alone.
-    """
-    if window.get_window_type() != Wnck.WindowType.NORMAL:
-        return False
-    if window.is_skip_tasklist() or window.get_window_type() in SKIP_TYPES:
-        return False
-    if window.is_maximized() or window.is_fullscreen() or window.is_minimized():
-        return False
-    try:
-        x, y, w, h = window.get_geometry()
-    except Exception:  # noqa: BLE001 - window may vanish before we run
-        return False
-    area = work_area_for_window(window)
-    # A 0×0 work area used to be sent to the window manager, which collapsed
-    # the new window into a stub and left it in the top-left corner.
-    if area.width < 64 or area.height < 64:
-        return False
-    if is_snapped(window, area):
-        return False
-    at_origin = abs(x - area.x) <= _ORIGIN_TOLERANCE and abs(y - area.y) <= _ORIGIN_TOLERANCE
-    too_small = (w < _TINY_WIDTH and h < _TINY_HEIGHT) or min(w, h) < 64
-    if not at_origin and not too_small:
-        return False
-    if too_small:
-        new_w = min(area.width, max(640, int(area.width * 0.55)))
-        new_h = min(area.height, max(420, int(area.height * 0.55)))
-    else:
-        new_w, new_h = min(w, area.width), min(h, area.height)
-    if new_w < 64 or new_h < 64:
-        return False
-    new_x = area.x + max(0, (area.width - new_w) // 2)
-    new_y = area.y + max(0, (area.height - new_h) // 2)
-    if (new_x, new_y, new_w, new_h) == (x, y, w, h):
-        return False
-    gravity = Wnck.WindowGravity.STATIC
-    mask = (
-        Wnck.WindowMoveResizeMask.X
-        | Wnck.WindowMoveResizeMask.Y
-        | Wnck.WindowMoveResizeMask.WIDTH
-        | Wnck.WindowMoveResizeMask.HEIGHT
-    )
-    window.set_geometry(gravity, mask, new_x, new_y, new_w, new_h)
-    return True
+    return place_startup_window(window)
 
 
 def slot_rect(area: Gdk.Rectangle, slot: Slot) -> tuple[int, int, int, int]:
@@ -169,12 +126,21 @@ def slot_rect(area: Gdk.Rectangle, slot: Slot) -> tuple[int, int, int, int]:
 def target_window(screen: Wnck.Screen | None = None) -> Wnck.Window | None:
     screen = screen or Wnck.Screen.get_default()
     screen.force_update()
+
+    def _ok(candidate: Wnck.Window) -> bool:
+        if candidate.is_skip_tasklist() or candidate.get_window_type() in SKIP_TYPES:
+            return False
+        # Dialogs / tooltips tile poorly; only normal app windows.
+        if candidate.get_window_type() != Wnck.WindowType.NORMAL:
+            return False
+        return True
+
     window = screen.get_active_window()
-    if window is not None and not window.is_skip_tasklist() and window.get_window_type() not in SKIP_TYPES:
+    if window is not None and _ok(window):
         return window
     # When the shell popup steals focus, use the previously active client.
     for candidate in reversed(screen.get_windows_stacked()):
-        if candidate.is_skip_tasklist() or candidate.get_window_type() in SKIP_TYPES:
+        if not _ok(candidate):
             continue
         if candidate.is_minimized():
             continue
@@ -184,7 +150,10 @@ def target_window(screen: Wnck.Screen | None = None) -> Wnck.Window | None:
 
 # Last floating geometry before a snap/maximize, keyed by XID.
 _NORMAL_GEOM: dict[int, tuple[int, int, int, int]] = {}
-_SNAP_TOLERANCE = 24
+# Tight match so freely resized windows are not treated as tiled.
+_SNAP_TOLERANCE = 12
+_ASSIST_GRACE_MS = 450
+_ASSIST_TIMEOUT_MS = 10000
 
 # Edge/corner slots shared with EdgeSnap and keyboard tiling.
 LEFT = Slot(0, 0, 0.5, 1, "Left")
@@ -216,34 +185,69 @@ def _prune_geometry_cache() -> None:
             del _NORMAL_GEOM[xid]
 
 
-def is_snapped(window: Wnck.Window, area: Gdk.Rectangle | None = None) -> bool:
-    """True when geometry matches an edge or Win+Z layout slot."""
+def _slot_key(slot: Slot) -> tuple[float, float, float, float]:
+    return (slot.x, slot.y, slot.w, slot.h)
+
+
+def _geometry_matches_slot(
+    x: int, y: int, w: int, h: int, area: Gdk.Rectangle, slot: Slot
+) -> bool:
+    sx, sy, sw, sh = slot_rect(area, slot)
+    # Allow a little slack for frame borders; require near-slot size so a
+    # casually resized window is not treated as tiled.
+    tol = max(_SNAP_TOLERANCE, min(sw, sh) // 40)
+    return (
+        abs(x - sx) <= tol
+        and abs(y - sy) <= tol
+        and abs(w - sw) <= tol
+        and abs(h - sh) <= tol
+    )
+
+
+def matched_edge_slot(window: Wnck.Window, area: Gdk.Rectangle | None = None) -> Slot | None:
+    """Match only left/right/corner tiles used by Win+arrow chords."""
     if window.is_maximized():
-        return False
+        return None
     area = area or work_area_for_window(window)
     x, y, w, h = window.get_geometry()
-    slots: list[Slot] = list(EDGE_SLOTS)
+    for slot in EDGE_SLOTS:
+        if _geometry_matches_slot(x, y, w, h, area, slot):
+            return slot
+    return None
+
+
+def matched_slot(window: Wnck.Window, area: Gdk.Rectangle | None = None) -> Slot | None:
+    """Return the edge/layout slot whose geometry matches the window, if any."""
+    edge = matched_edge_slot(window, area)
+    if edge is not None:
+        return edge
+    if window.is_maximized():
+        return None
+    area = area or work_area_for_window(window)
+    x, y, w, h = window.get_geometry()
+    seen: set[tuple[float, float, float, float]] = {_slot_key(s) for s in EDGE_SLOTS}
     for layout in LAYOUTS:
-        slots.extend(layout.slots)
-    seen: set[tuple[float, float, float, float]] = set()
-    for slot in slots:
-        key = (slot.x, slot.y, slot.w, slot.h)
-        if key in seen:
-            continue
-        seen.add(key)
-        sx, sy, sw, sh = slot_rect(area, slot)
-        if (
-            abs(x - sx) <= _SNAP_TOLERANCE
-            and abs(y - sy) <= _SNAP_TOLERANCE
-            and abs(w - sw) <= _SNAP_TOLERANCE
-            and abs(h - sh) <= _SNAP_TOLERANCE
-        ):
-            return True
-    return False
+        for slot in layout.slots:
+            key = _slot_key(slot)
+            if key in seen:
+                continue
+            seen.add(key)
+            if _geometry_matches_slot(x, y, w, h, area, slot):
+                return slot
+    return None
+
+
+def is_snapped(window: Wnck.Window, area: Gdk.Rectangle | None = None) -> bool:
+    """True when geometry matches an edge or Win+Z layout slot."""
+    return matched_slot(window, area) is not None
 
 
 def apply_slot(window: Wnck.Window, slot: Slot, area: Gdk.Rectangle | None = None) -> None:
     area = area or work_area_for_window(window)
+    # Already in this slot — avoid a redundant set_geometry flicker.
+    x0, y0, w0, h0 = window.get_geometry()
+    if _geometry_matches_slot(x0, y0, w0, h0, area, slot) and not window.is_maximized():
+        return
     remember_normal_geometry(window)
     x, y, w, h = slot_rect(area, slot)
     if window.is_maximized():
@@ -291,51 +295,178 @@ def restore_normal_geometry(window: Wnck.Window) -> bool:
     return True
 
 
-def snap_left(window: Wnck.Window | None = None) -> None:
+def remaining_slots_for(placed: Slot) -> list[Slot]:
+    """Slots to fill after placing one region (half → opposite; corner → other three)."""
+    key = _slot_key(placed)
+    if key == _slot_key(LEFT):
+        return [RIGHT]
+    if key == _slot_key(RIGHT):
+        return [LEFT]
+    if key == _slot_key(TOP_LEFT):
+        return [TOP_RIGHT, BOTTOM_LEFT, BOTTOM_RIGHT]
+    if key == _slot_key(TOP_RIGHT):
+        return [TOP_LEFT, BOTTOM_RIGHT, BOTTOM_LEFT]
+    if key == _slot_key(BOTTOM_LEFT):
+        return [BOTTOM_RIGHT, TOP_LEFT, TOP_RIGHT]
+    if key == _slot_key(BOTTOM_RIGHT):
+        return [BOTTOM_LEFT, TOP_RIGHT, TOP_LEFT]
+    return []
+
+
+def _activate(window: Wnck.Window) -> None:
+    stamp = int(GLib.get_monotonic_time() / 1000)
+    window.activate(stamp)
+
+
+def snap_left(window: Wnck.Window | None = None) -> Slot | None:
+    """Win+Left: left half, or refine right-side quarters toward the left."""
     window = window or target_window()
     if window is None:
-        return
+        return None
+    current = matched_edge_slot(window)
+    if current is not None:
+        key = _slot_key(current)
+        if key == _slot_key(LEFT):
+            _activate(window)
+            return LEFT
+        if key == _slot_key(TOP_LEFT):
+            # Already on the left edge — keep the quarter (no flicker).
+            _activate(window)
+            return TOP_LEFT
+        if key == _slot_key(BOTTOM_LEFT):
+            _activate(window)
+            return BOTTOM_LEFT
+        if key == _slot_key(TOP_RIGHT):
+            apply_slot(window, TOP_LEFT)
+            _activate(window)
+            return TOP_LEFT
+        if key == _slot_key(BOTTOM_RIGHT):
+            apply_slot(window, BOTTOM_LEFT)
+            _activate(window)
+            return BOTTOM_LEFT
+        if key == _slot_key(RIGHT):
+            apply_slot(window, LEFT)
+            _activate(window)
+            return LEFT
     apply_slot(window, LEFT)
-    stamp = int(GLib.get_monotonic_time() / 1000)
-    window.activate(stamp)
+    _activate(window)
+    return LEFT
 
 
-def snap_right(window: Wnck.Window | None = None) -> None:
+def snap_right(window: Wnck.Window | None = None) -> Slot | None:
+    """Win+Right: right half, or refine left-side quarters toward the right."""
     window = window or target_window()
     if window is None:
-        return
+        return None
+    current = matched_edge_slot(window)
+    if current is not None:
+        key = _slot_key(current)
+        if key == _slot_key(RIGHT):
+            _activate(window)
+            return RIGHT
+        if key == _slot_key(TOP_RIGHT):
+            _activate(window)
+            return TOP_RIGHT
+        if key == _slot_key(BOTTOM_RIGHT):
+            _activate(window)
+            return BOTTOM_RIGHT
+        if key == _slot_key(TOP_LEFT):
+            apply_slot(window, TOP_RIGHT)
+            _activate(window)
+            return TOP_RIGHT
+        if key == _slot_key(BOTTOM_LEFT):
+            apply_slot(window, BOTTOM_RIGHT)
+            _activate(window)
+            return BOTTOM_RIGHT
+        if key == _slot_key(LEFT):
+            apply_slot(window, RIGHT)
+            _activate(window)
+            return RIGHT
     apply_slot(window, RIGHT)
-    stamp = int(GLib.get_monotonic_time() / 1000)
-    window.activate(stamp)
+    _activate(window)
+    return RIGHT
 
 
-def snap_down(window: Wnck.Window | None = None) -> None:
-    """Win+Down: unmaximize / unsnap, else minimize."""
+def snap_down(window: Wnck.Window | None = None) -> Slot | None:
+    """Win+Down: maximize→restore, half→bottom quarter, quarter→half/float, else minimize."""
     window = window or target_window()
     if window is None:
-        return
+        return None
     stamp = int(GLib.get_monotonic_time() / 1000)
     if window.is_maximized():
         remember_normal_geometry(window)  # no-op when maximized; Openbox keeps size
         window.unmaximize()
         window.activate(stamp)
-        return
+        return None
+    current = matched_edge_slot(window)
+    if current is not None:
+        key = _slot_key(current)
+        if key == _slot_key(LEFT):
+            apply_slot(window, BOTTOM_LEFT)
+            window.activate(stamp)
+            return BOTTOM_LEFT
+        if key == _slot_key(RIGHT):
+            apply_slot(window, BOTTOM_RIGHT)
+            window.activate(stamp)
+            return BOTTOM_RIGHT
+        if key == _slot_key(TOP_LEFT):
+            apply_slot(window, LEFT)
+            window.activate(stamp)
+            return LEFT
+        if key == _slot_key(TOP_RIGHT):
+            apply_slot(window, RIGHT)
+            window.activate(stamp)
+            return RIGHT
+        if key in (_slot_key(BOTTOM_LEFT), _slot_key(BOTTOM_RIGHT)):
+            restore_normal_geometry(window)
+            window.activate(stamp)
+            return None
+    # Non-edge Win+Z tiles: restore floating instead of minimizing.
     if is_snapped(window):
         restore_normal_geometry(window)
         window.activate(stamp)
-        return
+        return None
     window.minimize()
+    return None
 
 
-def snap_maximize(window: Wnck.Window | None = None) -> None:
+def snap_maximize(window: Wnck.Window | None = None) -> Slot | None:
+    """Win+Up: floating→maximize; half→top quarter; bottom quarter→half; top quarter→maximize."""
     window = window or target_window()
     if window is None:
-        return
-    remember_normal_geometry(window)
+        return None
     stamp = int(GLib.get_monotonic_time() / 1000)
+    if window.is_maximized():
+        window.activate(stamp)
+        return None
+    current = matched_edge_slot(window)
+    if current is not None:
+        key = _slot_key(current)
+        if key == _slot_key(LEFT):
+            apply_slot(window, TOP_LEFT)
+            window.activate(stamp)
+            return TOP_LEFT
+        if key == _slot_key(RIGHT):
+            apply_slot(window, TOP_RIGHT)
+            window.activate(stamp)
+            return TOP_RIGHT
+        if key == _slot_key(BOTTOM_LEFT):
+            apply_slot(window, LEFT)
+            window.activate(stamp)
+            return LEFT
+        if key == _slot_key(BOTTOM_RIGHT):
+            apply_slot(window, RIGHT)
+            window.activate(stamp)
+            return RIGHT
+        if key in (_slot_key(TOP_LEFT), _slot_key(TOP_RIGHT)):
+            remember_normal_geometry(window)
+            window.maximize()
+            window.activate(stamp)
+            return None
+    remember_normal_geometry(window)
     window.maximize()
     window.activate(stamp)
-
+    return None
 
 def move_window_to_workspace(window: Wnck.Window, index: int) -> None:
     screen = Wnck.Screen.get_default()
@@ -349,7 +480,11 @@ def move_window_to_workspace(window: Wnck.Window, index: int) -> None:
 
 
 class SnapAssist:
-    """After placing one slot, offer remaining slots to the next focused window."""
+    """After a Win+Z pick, fill remaining regions when the user focuses other windows.
+
+    Not used for plain edge / Win+arrow snaps — those were yanking unrelated
+    windows into tiles whenever focus changed.
+    """
 
     def __init__(self, shell) -> None:
         self.shell = shell
@@ -357,6 +492,8 @@ class SnapAssist:
         self.area: Gdk.Rectangle | None = None
         self._exclude_xid: int | None = None
         self._handler_id = 0
+        self._armed_at_ms = 0
+        self._timeout_id = 0
 
     def arm(self, remaining: list[Slot], area: Gdk.Rectangle, placed: Wnck.Window) -> None:
         self.clear()
@@ -365,8 +502,10 @@ class SnapAssist:
         self.pending = list(remaining)
         self.area = area
         self._exclude_xid = placed.get_xid()
+        self._armed_at_ms = int(GLib.get_monotonic_time() / 1000)
         screen = Wnck.Screen.get_default()
         self._handler_id = screen.connect("active-window-changed", self._on_active)
+        self._timeout_id = GLib.timeout_add(_ASSIST_TIMEOUT_MS, self._on_timeout)
 
     def clear(self) -> None:
         if self._handler_id:
@@ -375,13 +514,29 @@ class SnapAssist:
             except Exception:
                 pass
             self._handler_id = 0
+        if self._timeout_id:
+            try:
+                GLib.source_remove(self._timeout_id)
+            except Exception:
+                pass
+            self._timeout_id = 0
         self.pending = []
         self.area = None
         self._exclude_xid = None
+        self._armed_at_ms = 0
+
+    def _on_timeout(self) -> bool:
+        self._timeout_id = 0
+        if self.pending:
+            self.clear()
+        return False
 
     def _on_active(self, screen: Wnck.Screen, _previous=None) -> None:
         if not self.pending or self.area is None:
             self.clear()
+            return
+        now = int(GLib.get_monotonic_time() / 1000)
+        if now - self._armed_at_ms < _ASSIST_GRACE_MS:
             return
         window = screen.get_active_window()
         if window is None:
@@ -390,9 +545,14 @@ class SnapAssist:
             return
         if window.is_skip_tasklist() or window.get_window_type() in SKIP_TYPES:
             return
+        if window.get_window_type() != Wnck.WindowType.NORMAL:
+            return
+        if window.is_minimized():
+            return
         slot = self.pending.pop(0)
         apply_slot(window, slot, self.area)
         self._exclude_xid = window.get_xid()
+        self._armed_at_ms = now  # grace before the next fill
         if not self.pending:
             self.clear()
             self.shell.notify_self("Snap layouts", "Layout filled.")

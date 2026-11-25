@@ -14,8 +14,11 @@ import gi
 gi.require_version("Gdk", "3.0")
 gi.require_version("Gtk", "3.0")
 gi.require_version("Pango", "1.0")
-from gi.repository import Gdk, Gio, GLib, Gtk, Pango
+gi.require_version("PangoCairo", "1.0")
+from gi.repository import Gdk, Gio, GLib, Gtk, Pango, PangoCairo
 
+from .apps import user_dir
+from .filechooser import ChooserFilter
 from .settings_pages import load_kv, save_kv, truthy
 from .ui import (
     add_classes,
@@ -37,12 +40,14 @@ SESSION_FILE = SESSION_DIR / "session.json"
 DRAFTS_DIR = SESSION_DIR / "drafts"
 
 MARKDOWN_EXTS = {".md", ".markdown"}
-PLAIN_EXTS = {".txt", ".log", ".csv", ".json", ".xml", ".yml", ".yaml", ".ini", ".cfg", ".conf"}
+LOG_EXTS = {".log"}
+PLAIN_EXTS = {".txt", ".csv", ".json", ".xml", ".yml", ".yaml", ".ini", ".cfg", ".conf"}
 
 BASE_FONT_PT = 11
 DEFAULT_PREFS = {
     "word_wrap": "1",
     "status_bar": "1",
+    "line_numbers": "0",
     "font_family": "Liberation Mono",
     "font_size": "11",
     "default_zoom": "0",
@@ -55,13 +60,88 @@ _LINK_RE = re.compile(r"\[([^\]]+)\]\(([^)]+)\)")
 _UL_RE = re.compile(r"^(\s*)([-*+])\s+", re.MULTILINE)
 _OL_RE = re.compile(r"^(\s*)(\d+)\.\s+", re.MULTILINE)
 
+# ANSI SGR + common log enrichments (levels, timestamps, FosOS session markers).
+_ANSI_CSI_RE = re.compile(r"\x1b\[[0-9;]*m")
+_LOG_TS_RE = re.compile(
+    r"\b\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:?\d{2})?\b"
+    r"|\b\d{2}:\d{2}:\d{2}(?:\.\d{3,9})?\b"
+)
+_LOG_LEVEL_RE = re.compile(
+    r"\b(CRITICAL|FATAL|ERROR|ERR|WARN(?:ING)?|INFO|NOTICE|DEBUG|TRACE)\b"
+    r"|\b(dbind-WARNING|CRITICAL\s*\*\*|WARNING\s*\*\*|ERROR\s*\*\*)",
+    re.IGNORECASE,
+)
+_LOG_MARKER_RE = re.compile(r"^--- .+ ---$", re.MULTILINE)
+_LOG_KEY_RE = re.compile(r"\b([A-Za-z_][\w.-]{1,40})=([^\s\"]+|\"[^\"]*\")")
+
+_LOG_ANSI_FG = {
+    30: "#555555",
+    31: "#ff6466",
+    32: "#4ade80",
+    33: "#f5c542",
+    34: "#8cb4ff",
+    35: "#d98cff",
+    36: "#66e6e6",
+    37: "#fafafa",
+    90: "#888888",
+    91: "#ff8082",
+    92: "#66f29a",
+    93: "#ffd966",
+    94: "#a6c8ff",
+    95: "#eba6ff",
+    96: "#80f2f2",
+    97: "#ffffff",
+}
+
+_MD_TAG_NAMES = (
+    "md-marker",
+    "md-h1",
+    "md-h2",
+    "md-h3",
+    "md-h4",
+    "md-bold",
+    "md-italic",
+    "md-link",
+    "md-list",
+)
+
+_LOG_TAG_NAMES = (
+    "log-esc",
+    "log-bold",
+    "log-level-error",
+    "log-level-warn",
+    "log-level-info",
+    "log-level-debug",
+    "log-ts",
+    "log-marker",
+    "log-key",
+) + tuple(f"log-fg-{code}" for code in _LOG_ANSI_FG)
+
 
 def mode_for_path(path: Path | None, *, force_markdown: bool = False) -> str:
     if force_markdown:
         return "markdown"
     if path is None:
         return "plain"
-    return "markdown" if path.suffix.lower() in MARKDOWN_EXTS else "plain"
+    suffix = path.suffix.lower()
+    if suffix in MARKDOWN_EXTS:
+        return "markdown"
+    if suffix in LOG_EXTS:
+        return "log"
+    return "plain"
+
+
+def _log_level_tag(token: str) -> str:
+    key = token.upper().replace(" ", "").replace("*", "")
+    if key.startswith("DBIND-WARNING"):
+        return "log-level-warn"
+    if key.startswith(("CRITICAL", "FATAL", "ERROR", "ERR")):
+        return "log-level-error"
+    if key.startswith("WARN"):
+        return "log-level-warn"
+    if key.startswith(("INFO", "NOTICE")):
+        return "log-level-info"
+    return "log-level-debug"
 
 
 def load_prefs() -> dict[str, str]:
@@ -225,6 +305,11 @@ class EditorTab:
         self._undo_lock = False
 
         self.page = add_classes(Gtk.Box(orientation=Gtk.Orientation.VERTICAL), "fos-editor-page")
+        row = add_classes(Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL), "fos-editor-row")
+        self.gutter = add_classes(Gtk.DrawingArea(), "fos-editor-gutter")
+        self.gutter.set_valign(Gtk.Align.FILL)
+        self.gutter.set_size_request(0, -1)
+        self.gutter.connect("draw", self._on_gutter_draw)
         scroller = Gtk.ScrolledWindow()
         scroller.set_policy(Gtk.PolicyType.AUTOMATIC, Gtk.PolicyType.AUTOMATIC)
         scroller.set_hexpand(True)
@@ -241,7 +326,14 @@ class EditorTab:
         self.buffer.connect("changed", self._on_changed)
         self.buffer.connect("mark-set", self._on_mark_set)
         scroller.add(self.view)
-        self.page.pack_start(scroller, True, True, 0)
+        self.scroller = scroller
+        vadj = scroller.get_vadjustment()
+        vadj.connect("value-changed", lambda *_a: self.gutter.queue_draw())
+        vadj.connect("changed", lambda *_a: self._refresh_gutter())
+        self.view.connect("size-allocate", lambda *_a: self.gutter.queue_draw())
+        row.pack_start(self.gutter, False, False, 0)
+        row.pack_start(scroller, True, True, 0)
+        self.page.pack_start(row, True, True, 0)
 
         title = path.name if path is not None else "Untitled"
         self.tab_chip, self.tab_button, self.tab_label = _build_tab_chip(
@@ -256,13 +348,17 @@ class EditorTab:
         self._undo = [text]
         self.apply_wrap(window.word_wrap)
         self.apply_zoom(window.zoom)
+        self.apply_line_numbers(window.show_line_numbers)
+        if self.mode == "markdown" and self.md_view == "formatted":
+            self.view.set_editable(False)
+            self.view.set_cursor_visible(False)
         self.refresh_title()
-        self.refresh_markdown_style()
+        self.refresh_style()
 
     def _ensure_tags(self) -> None:
         table = self.buffer.get_tag_table()
-        specs = {
-            "md-marker": {"foreground": "#888888", "scale": 0.85},
+        specs: dict[str, dict] = {
+            "md-marker": {"invisible": True, "foreground": "#888888", "scale": 0.85},
             "md-h1": {"weight": Pango.Weight.BOLD, "scale": 1.55},
             "md-h2": {"weight": Pango.Weight.BOLD, "scale": 1.35},
             "md-h3": {"weight": Pango.Weight.BOLD, "scale": 1.2},
@@ -271,7 +367,18 @@ class EditorTab:
             "md-italic": {"style": Pango.Style.ITALIC},
             "md-link": {"foreground": "#6cb6ff", "underline": Pango.Underline.SINGLE},
             "md-list": {"left_margin": 18},
+            "log-esc": {"invisible": True},
+            "log-bold": {"weight": Pango.Weight.BOLD},
+            "log-level-error": {"foreground": "#ff6466", "weight": Pango.Weight.BOLD},
+            "log-level-warn": {"foreground": "#f5c542", "weight": Pango.Weight.BOLD},
+            "log-level-info": {"foreground": "#8cb4ff"},
+            "log-level-debug": {"foreground": "#888888"},
+            "log-ts": {"foreground": "#66e6e6"},
+            "log-marker": {"foreground": "#d98cff", "weight": Pango.Weight.BOLD},
+            "log-key": {"foreground": "#4ade80"},
         }
+        for code, color in _LOG_ANSI_FG.items():
+            specs[f"log-fg-{code}"] = {"foreground": color}
         for name, props in specs.items():
             if table.lookup(name) is None:
                 self.buffer.create_tag(name, **props)
@@ -287,7 +394,7 @@ class EditorTab:
         if dirty is not None:
             self.dirty = dirty
         self.refresh_title()
-        self.refresh_markdown_style()
+        self.refresh_style()
 
     def refresh_title(self) -> None:
         name = self.path.name if self.path is not None else "Untitled"
@@ -296,6 +403,7 @@ class EditorTab:
 
     def apply_wrap(self, enabled: bool) -> None:
         self.view.set_wrap_mode(Gtk.WrapMode.WORD_CHAR if enabled else Gtk.WrapMode.NONE)
+        self._refresh_gutter()
 
     def apply_zoom(self, zoom: int) -> None:
         prefs = self.window.prefs
@@ -305,12 +413,79 @@ class EditorTab:
         except ValueError:
             base = BASE_FONT_PT
         size = max(6, base + zoom)
-        # Markdown formatted uses a proportional face; plain/syntax stay mono.
+        # Markdown formatted uses a proportional face; plain/log/syntax stay mono.
         if self.mode == "markdown" and self.md_view == "formatted":
             desc = Pango.FontDescription.from_string(f"Sans {size}")
         else:
             desc = Pango.FontDescription.from_string(f"{family} {size}")
         self.view.override_font(desc)
+        self._refresh_gutter()
+
+    def apply_line_numbers(self, enabled: bool) -> None:
+        self._refresh_gutter()
+
+    def _gutter_width(self) -> int:
+        lines = max(1, self.buffer.get_line_count())
+        digits = len(str(lines))
+        layout = self.gutter.create_pango_layout("0" * digits)
+        font = self.view.get_style_context().get_property("font", Gtk.StateFlags.NORMAL)
+        if isinstance(font, Pango.FontDescription):
+            layout.set_font_description(font)
+        tw, _th = layout.get_pixel_size()
+        return max(28, tw + 16)
+
+    def _refresh_gutter(self) -> None:
+        if not self.window.show_line_numbers:
+            self.gutter.set_size_request(0, -1)
+            self.gutter.hide()
+            self.gutter.queue_draw()
+            return
+        self.gutter.show()
+        self.gutter.set_size_request(self._gutter_width(), -1)
+        self.gutter.queue_draw()
+
+    def _on_gutter_draw(self, _widget, cr) -> bool:
+        if not self.window.show_line_numbers:
+            return False
+        width = self.gutter.get_allocated_width()
+        height = self.gutter.get_allocated_height()
+        if width <= 0 or height <= 0:
+            return False
+
+        style = self.gutter.get_style_context()
+        Gtk.render_background(style, cr, 0, 0, width, height)
+
+        visible = self.view.get_visible_rect()
+        try:
+            it, _top = self.view.get_line_at_y(visible.y)
+        except (TypeError, ValueError):
+            it = self.buffer.get_iter_at_line(0)
+
+        font = self.view.get_style_context().get_property("font", Gtk.StateFlags.NORMAL)
+        layout = self.gutter.create_pango_layout("1")
+        if isinstance(font, Pango.FontDescription):
+            layout.set_font_description(font)
+        cr.set_source_rgba(0.62, 0.62, 0.62, 1.0)
+
+        end_y = visible.y + visible.height
+        guard = 0
+        while guard < 5000:
+            guard += 1
+            line_no = it.get_line() + 1
+            y_buf, _line_h = self.view.get_line_yrange(it)
+            _wx, wy = self.view.buffer_to_window_coords(Gtk.TextWindowType.TEXT, 0, y_buf)
+            if wy > height + 2:
+                break
+            if wy + 2 >= 0:
+                layout.set_text(str(line_no), -1)
+                tw, _th = layout.get_pixel_size()
+                cr.move_to(max(4, width - tw - 8), max(0, wy) + 2)
+                PangoCairo.show_layout(cr, layout)
+            if y_buf >= end_y and wy > 0:
+                break
+            if not it.forward_line():
+                break
+        return False
 
     def cursor_line_col(self) -> tuple[int, int]:
         mark = self.buffer.get_insert()
@@ -333,6 +508,7 @@ class EditorTab:
                 self.window._update_chrome()
         self._schedule_style()
         self._schedule_draft()
+        self._refresh_gutter()
         if self.window.active is self:
             self.window._update_status()
 
@@ -348,7 +524,7 @@ class EditorTab:
         self._undo_lock = False
         self.dirty = True
         self.refresh_title()
-        self.refresh_markdown_style()
+        self.refresh_style()
 
     def redo(self) -> None:
         if not self._redo:
@@ -362,7 +538,7 @@ class EditorTab:
         self._undo_lock = False
         self.dirty = True
         self.refresh_title()
-        self.refresh_markdown_style()
+        self.refresh_style()
 
     def _on_mark_set(self, _buffer, _iter, _mark) -> None:
         if self.window.active is self:
@@ -375,7 +551,7 @@ class EditorTab:
 
     def _run_style(self) -> bool:
         self._style_id = None
-        self.refresh_markdown_style()
+        self.refresh_style()
         return False
 
     def _schedule_draft(self) -> None:
@@ -395,32 +571,31 @@ class EditorTab:
             self._draft_id = None
         write_draft(self.tab_id, self.get_text())
 
-    def refresh_markdown_style(self) -> None:
+    def _clear_style_tags(self, *names: str) -> None:
         start, end = self.buffer.get_bounds()
-        for name in (
-            "md-marker",
-            "md-h1",
-            "md-h2",
-            "md-h3",
-            "md-h4",
-            "md-bold",
-            "md-italic",
-            "md-link",
-            "md-list",
-        ):
-            tag = self.buffer.get_tag_table().lookup(name)
+        table = self.buffer.get_tag_table()
+        for name in names:
+            tag = table.lookup(name)
             if tag is not None:
                 self.buffer.remove_tag(tag, start, end)
-        if self.mode != "markdown" or self.md_view != "formatted":
-            return
-        text = self.get_text()
 
-        def apply_span(tag_name: str, a: int, b: int) -> None:
-            if a >= b:
-                return
-            s = self.buffer.get_iter_at_offset(a)
-            e = self.buffer.get_iter_at_offset(b)
-            self.buffer.apply_tag_by_name(tag_name, s, e)
+    def _apply_span(self, tag_name: str, a: int, b: int) -> None:
+        if a >= b:
+            return
+        s = self.buffer.get_iter_at_offset(a)
+        e = self.buffer.get_iter_at_offset(b)
+        self.buffer.apply_tag_by_name(tag_name, s, e)
+
+    def refresh_style(self) -> None:
+        self._clear_style_tags(*_MD_TAG_NAMES, *_LOG_TAG_NAMES)
+        if self.mode == "markdown" and self.md_view == "formatted":
+            self.refresh_markdown_style()
+        elif self.mode == "log" and self.md_view == "formatted":
+            self.refresh_log_style()
+
+    def refresh_markdown_style(self) -> None:
+        text = self.get_text()
+        apply_span = self._apply_span
 
         for match in _HEADING_RE.finditer(text):
             hashes, _rest = match.group(1), match.group(2)
@@ -450,6 +625,71 @@ class EditorTab:
         for match in _OL_RE.finditer(text):
             apply_span("md-marker", match.start(2), match.end())
             apply_span("md-list", match.start(), match.end())
+
+    def refresh_log_style(self) -> None:
+        text = self.get_text()
+        apply_span = self._apply_span
+        ansi_spans: list[tuple[int, int]] = []
+
+        # Hide CSI SGR sequences and color the following plain text.
+        fg_code: int | None = None
+        bold = False
+        pos = 0
+        for match in _ANSI_CSI_RE.finditer(text):
+            if match.start() > pos:
+                if fg_code is not None and fg_code in _LOG_ANSI_FG:
+                    apply_span(f"log-fg-{fg_code}", pos, match.start())
+                if bold:
+                    apply_span("log-bold", pos, match.start())
+            apply_span("log-esc", match.start(), match.end())
+            ansi_spans.append((match.start(), match.end()))
+            codes = [c for c in match.group(0)[2:-1].split(";") if c != ""]
+            if not codes:
+                codes = ["0"]
+            for raw in codes:
+                try:
+                    code = int(raw)
+                except ValueError:
+                    continue
+                if code == 0:
+                    fg_code = None
+                    bold = False
+                elif code == 1:
+                    bold = True
+                elif code == 22:
+                    bold = False
+                elif code == 39:
+                    fg_code = None
+                elif code in _LOG_ANSI_FG:
+                    fg_code = code
+            pos = match.end()
+        if pos < len(text):
+            if fg_code is not None and fg_code in _LOG_ANSI_FG:
+                apply_span(f"log-fg-{fg_code}", pos, len(text))
+            if bold:
+                apply_span("log-bold", pos, len(text))
+
+        def overlaps_ansi(a: int, b: int) -> bool:
+            for start, end in ansi_spans:
+                if a < end and b > start:
+                    return True
+            return False
+
+        for match in _LOG_MARKER_RE.finditer(text):
+            if not overlaps_ansi(match.start(), match.end()):
+                apply_span("log-marker", match.start(), match.end())
+        for match in _LOG_TS_RE.finditer(text):
+            if not overlaps_ansi(match.start(), match.end()):
+                apply_span("log-ts", match.start(), match.end())
+        for match in _LOG_LEVEL_RE.finditer(text):
+            token = match.group(1) or match.group(2) or match.group(0)
+            if overlaps_ansi(match.start(), match.end()):
+                continue
+            apply_span(_log_level_tag(token), match.start(), match.end())
+        for match in _LOG_KEY_RE.finditer(text):
+            if overlaps_ansi(match.start(1), match.end(1)):
+                continue
+            apply_span("log-key", match.start(1), match.end(1))
 
     def session_entry(self) -> dict:
         return {
@@ -492,6 +732,7 @@ class EditorWindow(CardWindow):
         self.active: EditorTab | None = None
         self.word_wrap = truthy(self.prefs.get("word_wrap"), True)
         self.show_status = truthy(self.prefs.get("status_bar"), True)
+        self.show_line_numbers = truthy(self.prefs.get("line_numbers"), False)
         try:
             self.zoom = int(self.prefs.get("default_zoom", "0"))
         except ValueError:
@@ -500,8 +741,10 @@ class EditorWindow(CardWindow):
         self._replace_text = ""
         self._persist_id: int | None = None
         self._md_menu_items: list[Gtk.MenuItem] = []
+        self._log_menu_items: list[Gtk.MenuItem] = []
         self._wrap_item: Gtk.CheckMenuItem | None = None
         self._status_item: Gtk.CheckMenuItem | None = None
+        self._line_numbers_item: Gtk.CheckMenuItem | None = None
 
         # Titlebar tabs
         self.tab_strip = add_classes(Gtk.Box(spacing=2), "fos-editor-tabs")
@@ -521,8 +764,10 @@ class EditorWindow(CardWindow):
         add_classes(self.menubar, "fos-editor-menubar")
         self.body.pack_start(self.menubar, False, False, 0)
 
-        # Formatting toolbar (Markdown only)
+        # Formatting toolbar (Markdown only) + Markdown/Preview switch
         self.fmt_bar = add_classes(Gtk.Box(spacing=4), "fos-app-toolbar", "fos-editor-fmtbar")
+        self._md_fmt_widgets: list[Gtk.Widget] = []
+        self._md_switch_lock = False
         self._style_combo = Gtk.ComboBoxText()
         for key, title in (("text", "Text"), ("h1", "Heading 1"), ("h2", "Heading 2"), ("h3", "Heading 3")):
             self._style_combo.append(key, title)
@@ -530,6 +775,7 @@ class EditorWindow(CardWindow):
         self._style_combo.connect("changed", self._on_style_changed)
         add_classes(self._style_combo, "fos-editor-style")
         self.fmt_bar.pack_start(self._style_combo, False, False, 0)
+        self._md_fmt_widgets.append(self._style_combo)
         for text, handler, tip in (
             ("B", lambda: self.md_wrap("**"), "Bold (Ctrl+B)"),
             ("I", lambda: self.md_wrap("*"), "Italic (Ctrl+I)"),
@@ -541,6 +787,15 @@ class EditorWindow(CardWindow):
             btn = button(text, variant="ghost", size="sm", tooltip=tip)
             btn.connect("clicked", lambda _b, h=handler: h())
             self.fmt_bar.pack_start(btn, False, False, 0)
+            self._md_fmt_widgets.append(btn)
+        switch = add_classes(Gtk.Box(spacing=0), "fos-editor-md-switch", "linked")
+        self._md_markdown_btn = button("Markdown", variant="ghost", size="sm", tooltip="Edit Markdown source")
+        self._md_preview_btn = button("Preview", variant="ghost", size="sm", tooltip="Preview rendered Markdown")
+        self._md_markdown_btn.connect("clicked", lambda _b: self.set_md_view("syntax"))
+        self._md_preview_btn.connect("clicked", lambda _b: self.set_md_view("formatted"))
+        switch.pack_start(self._md_markdown_btn, False, False, 0)
+        switch.pack_start(self._md_preview_btn, False, False, 0)
+        self.fmt_bar.pack_end(switch, False, False, 0)
         self.body.pack_start(self.fmt_bar, False, False, 0)
 
         self.stack = Gtk.Stack()
@@ -555,8 +810,8 @@ class EditorWindow(CardWindow):
         self.status_zoom = label("100%", "fos-small", "fos-muted")
         self.status_eol = label("Unix (LF)", "fos-small", "fos-muted")
         self.status_enc = label("UTF-8", "fos-small", "fos-muted")
-        self.status_mode = button("Plain", variant="ghost", size="sm", tooltip="Toggle Markdown view")
-        self.status_mode.connect("clicked", lambda _b: self.toggle_md_view())
+        self.status_mode = button("Plain", variant="ghost", size="sm", tooltip="Toggle view mode")
+        self.status_mode.connect("clicked", lambda _b: self.toggle_style_view())
         self.footer.pack_start(self.status_pos, False, False, 0)
         self.footer.pack_end(self.status_mode, False, False, 0)
         self.footer.pack_end(self.status_enc, False, False, 0)
@@ -635,6 +890,10 @@ class EditorWindow(CardWindow):
         view_menu.append(Gtk.SeparatorMenuItem())
         self._wrap_item = _check_item("Word wrap", self.word_wrap, self.set_word_wrap)
         view_menu.append(self._wrap_item)
+        self._line_numbers_item = _check_item(
+            "Line numbers", self.show_line_numbers, self.set_line_numbers
+        )
+        view_menu.append(self._line_numbers_item)
         self._status_item = _check_item("Status bar", self.show_status, self.set_status_visible)
         view_menu.append(self._status_item)
         view_menu.append(Gtk.SeparatorMenuItem())
@@ -643,12 +902,21 @@ class EditorWindow(CardWindow):
         md_root = Gtk.MenuItem(label="Markdown")
         md_sub = Gtk.Menu()
         md_root.set_submenu(md_sub)
-        for text, view in (("Formatted", "formatted"), ("Syntax", "syntax")):
+        for text, view in (("Markdown", "syntax"), ("Preview", "formatted")):
             item = _menu_item(text, lambda v=view: self.set_md_view(v))
             self._md_menu_items.append(item)
             md_sub.append(item)
         self._md_menu_items.append(md_root)
         view_menu.append(md_root)
+        log_root = Gtk.MenuItem(label="Log")
+        log_sub = Gtk.Menu()
+        log_root.set_submenu(log_sub)
+        for text, view in (("Enriched", "formatted"), ("Raw", "syntax")):
+            item = _menu_item(text, lambda v=view: self.set_log_view(v))
+            self._log_menu_items.append(item)
+            log_sub.append(item)
+        self._log_menu_items.append(log_root)
+        view_menu.append(log_root)
         bar.append(view_root)
         return bar
 
@@ -665,7 +933,7 @@ class EditorWindow(CardWindow):
         return tab
 
     def new_markdown_tab(self) -> EditorTab:
-        return self.new_tab(mode="markdown", md_view="formatted")
+        return self.new_tab(mode="markdown", md_view="syntax")
 
     def new_window(self) -> None:
         self.app.open_new_window(restore=False)
@@ -745,23 +1013,27 @@ class EditorWindow(CardWindow):
     # --- open / save -----------------------------------------------------------
 
     def open_file(self) -> None:
-        filt = Gtk.FileFilter()
-        filt.set_name("Text files")
-        filt.add_mime_type("text/plain")
-        filt.add_pattern("*.txt")
-        filt.add_pattern("*.md")
-        filt.add_pattern("*.markdown")
-        filt.add_pattern("*.log")
-        filt.add_pattern("*.csv")
-        all_filt = Gtk.FileFilter()
-        all_filt.set_name("All files")
-        all_filt.add_pattern("*")
+        documents = user_dir(GLib.UserDirectory.DIRECTORY_DOCUMENTS, "Documents")
         filename = fos_file_chooser(
             self,
             title="Open",
             action=Gtk.FileChooserAction.OPEN,
             ok_label="Open",
-            filters=[filt, all_filt],
+            folder=documents,
+            filters=[
+                ChooserFilter(
+                    "Text files",
+                    [
+                        (0, "*.txt"),
+                        (0, "*.md"),
+                        (0, "*.markdown"),
+                        (0, "*.log"),
+                        (0, "*.csv"),
+                        (1, "text/plain"),
+                    ],
+                ),
+                ChooserFilter("All files", [(0, "*")]),
+            ],
         )
         if filename:
             self.open_path(Path(filename), focus=True)
@@ -787,15 +1059,26 @@ class EditorWindow(CardWindow):
             text = raw.decode("latin-1")
             encoding = "Latin-1"
         text, eol = _normalize_newlines(text)
+        mode = mode_for_path(path)
+        # Markdown opens in Preview; Log opens enriched; plain stays plain.
+        if mode == "markdown":
+            md_view = "formatted"
+        elif mode == "log":
+            md_view = "formatted"
+        else:
+            md_view = "syntax"
         tab = self.new_tab(
             path=path,
-            mode=mode_for_path(path),
+            mode=mode,
             text=text,
             eol=eol,
             encoding=encoding,
             dirty=False,
-            md_view="formatted",
+            md_view=md_view,
         )
+        if mode == "markdown":
+            tab.view.set_editable(False)
+            tab.view.set_cursor_visible(False)
         tab.dirty = False
         tab.refresh_title()
         write_draft(tab.tab_id, text)
@@ -815,7 +1098,13 @@ class EditorWindow(CardWindow):
         tab = tab or self.active
         if tab is None:
             return False
-        default_name = "Untitled.md" if tab.mode == "markdown" else "Untitled.txt"
+        if tab.mode == "markdown":
+            default_name = "Untitled.md"
+        elif tab.mode == "log":
+            default_name = "Untitled.log"
+        else:
+            default_name = "Untitled.txt"
+        documents = user_dir(GLib.UserDirectory.DIRECTORY_DOCUMENTS, "Documents")
         filename = fos_file_chooser(
             self,
             title="Save as",
@@ -823,6 +1112,7 @@ class EditorWindow(CardWindow):
             ok_label="Save",
             filename=str(tab.path) if tab.path is not None else None,
             current_name=default_name if tab.path is None else None,
+            folder=None if tab.path is not None else documents,
             overwrite_confirmation=True,
         )
         if not filename:
@@ -832,7 +1122,7 @@ class EditorWindow(CardWindow):
     def _write_tab(self, tab: EditorTab, path: Path) -> bool:
         text = tab.get_text()
         new_mode = mode_for_path(path)
-        if tab.mode == "markdown" and new_mode == "plain":
+        if tab.mode == "markdown" and new_mode != "markdown":
             response = fos_choice(
                 self,
                 "Save as plain text?",
@@ -845,12 +1135,18 @@ class EditorWindow(CardWindow):
             if response != "plain":
                 return False
             text = strip_markdown(text)
-            tab.mode = "plain"
-            tab.md_view = "syntax"
+            tab.mode = new_mode
+            tab.md_view = "formatted" if new_mode == "log" else "syntax"
         elif new_mode == "markdown":
             tab.mode = "markdown"
             if tab.md_view not in ("formatted", "syntax"):
                 tab.md_view = "formatted"
+        elif new_mode == "log":
+            tab.mode = "log"
+            if tab.md_view not in ("formatted", "syntax"):
+                tab.md_view = "formatted"
+        else:
+            tab.mode = "plain"
         try:
             path.write_bytes(_apply_eol(text, tab.eol).encode("utf-8"))
         except OSError as exc:
@@ -863,7 +1159,7 @@ class EditorWindow(CardWindow):
             tab.set_text(text, dirty=False)
         else:
             tab.refresh_title()
-            tab.refresh_markdown_style()
+            tab.refresh_style()
             tab.apply_zoom(self.zoom)
         write_draft(tab.tab_id, tab.get_text())
         self._update_chrome()
@@ -1013,9 +1309,15 @@ class EditorWindow(CardWindow):
 
     # --- markdown formatting ---------------------------------------------------
 
-    def md_wrap(self, marker: str) -> None:
+    def _md_editing(self) -> EditorTab | None:
         tab = self.active
-        if tab is None or tab.mode != "markdown":
+        if tab is None or tab.mode != "markdown" or tab.md_view != "syntax":
+            return None
+        return tab
+
+    def md_wrap(self, marker: str) -> None:
+        tab = self._md_editing()
+        if tab is None:
             return
         buf = tab.buffer
         bounds = buf.get_selection_bounds()
@@ -1033,8 +1335,8 @@ class EditorWindow(CardWindow):
         tab.view.grab_focus()
 
     def md_link(self) -> None:
-        tab = self.active
-        if tab is None or tab.mode != "markdown":
+        tab = self._md_editing()
+        if tab is None:
             return
         url = fos_prompt(self, "Insert link", "URL", "https://")
         if not url:
@@ -1047,8 +1349,8 @@ class EditorWindow(CardWindow):
         buf.insert_at_cursor(f"[{text}]({url})")
 
     def md_list(self, numbered: bool) -> None:
-        tab = self.active
-        if tab is None or tab.mode != "markdown":
+        tab = self._md_editing()
+        if tab is None:
             return
         buf = tab.buffer
         insert = buf.get_iter_at_mark(buf.get_insert())
@@ -1058,8 +1360,8 @@ class EditorWindow(CardWindow):
         buf.insert(line_start, prefix)
 
     def md_clear_formatting(self) -> None:
-        tab = self.active
-        if tab is None or tab.mode != "markdown":
+        tab = self._md_editing()
+        if tab is None:
             return
         buf = tab.buffer
         bounds = buf.get_selection_bounds()
@@ -1074,8 +1376,8 @@ class EditorWindow(CardWindow):
             tab.refresh_title()
 
     def _on_style_changed(self, combo: Gtk.ComboBoxText) -> None:
-        tab = self.active
-        if tab is None or tab.mode != "markdown":
+        tab = self._md_editing()
+        if tab is None:
             return
         style = combo.get_active_id() or "text"
         buf = tab.buffer
@@ -1103,9 +1405,22 @@ class EditorWindow(CardWindow):
         tab = self.active
         if tab is None or tab.mode != "markdown":
             return
-        tab.md_view = view
+        tab.md_view = view if view in ("formatted", "syntax") else "formatted"
+        # Preview hides markers and is read-only; Markdown is the editable source.
+        tab.view.set_editable(tab.md_view == "syntax")
+        tab.view.set_cursor_visible(tab.md_view == "syntax")
         tab.apply_zoom(self.zoom)
-        tab.refresh_markdown_style()
+        tab.refresh_style()
+        self._update_chrome()
+        self.persist_session(debounce=True)
+
+    def set_log_view(self, view: str) -> None:
+        tab = self.active
+        if tab is None or tab.mode != "log":
+            return
+        tab.md_view = view if view in ("formatted", "syntax") else "formatted"
+        tab.apply_zoom(self.zoom)
+        tab.refresh_style()
         self._update_chrome()
         self.persist_session(debounce=True)
 
@@ -1114,6 +1429,15 @@ class EditorWindow(CardWindow):
         if tab is None or tab.mode != "markdown":
             return
         self.set_md_view("syntax" if tab.md_view == "formatted" else "formatted")
+
+    def toggle_style_view(self) -> None:
+        tab = self.active
+        if tab is None:
+            return
+        if tab.mode == "markdown":
+            self.toggle_md_view()
+        elif tab.mode == "log":
+            self.set_log_view("syntax" if tab.md_view == "formatted" else "formatted")
 
     # --- view / prefs ----------------------------------------------------------
 
@@ -1125,6 +1449,15 @@ class EditorWindow(CardWindow):
             tab.apply_wrap(enabled)
         if self._wrap_item is not None and self._wrap_item.get_active() != enabled:
             self._wrap_item.set_active(enabled)
+
+    def set_line_numbers(self, enabled: bool) -> None:
+        self.show_line_numbers = enabled
+        self.prefs["line_numbers"] = "1" if enabled else "0"
+        save_prefs(self.prefs)
+        for tab in self.tabs:
+            tab.apply_line_numbers(enabled)
+        if self._line_numbers_item is not None and self._line_numbers_item.get_active() != enabled:
+            self._line_numbers_item.set_active(enabled)
 
     def set_status_visible(self, enabled: bool) -> None:
         self.show_status = enabled
@@ -1176,11 +1509,28 @@ class EditorWindow(CardWindow):
         self.set_badge(tab.path.parent.name if tab.path is not None else None)
         tab.refresh_title()
         is_md = tab.mode == "markdown"
+        is_log = tab.mode == "log"
+        preview = is_md and tab.md_view == "formatted"
         self.fmt_bar.set_visible(is_md)
+        for widget in self._md_fmt_widgets:
+            widget.set_sensitive(is_md and not preview)
+        set_class(self._md_markdown_btn, "secondary", is_md and not preview)
+        set_class(self._md_markdown_btn, "ghost", not (is_md and not preview))
+        set_class(self._md_preview_btn, "secondary", preview)
+        set_class(self._md_preview_btn, "ghost", not preview)
         for item in self._md_menu_items:
             item.set_sensitive(is_md)
-        self.status_mode.set_visible(is_md)
+        for item in self._log_menu_items:
+            item.set_sensitive(is_log)
+        self.status_mode.set_visible(is_md or is_log)
         self.footer.set_visible(self.show_status)
+        # Keep editable state in sync when switching tabs.
+        if is_md:
+            tab.view.set_editable(not preview)
+            tab.view.set_cursor_visible(not preview)
+        else:
+            tab.view.set_editable(True)
+            tab.view.set_cursor_visible(True)
         self._update_status()
 
     def _update_status(self) -> None:
@@ -1192,21 +1542,17 @@ class EditorWindow(CardWindow):
         self.status_zoom.set_text(f"{100 + self.zoom * 10}%")
         self.status_eol.set_text("Windows (CRLF)" if tab.eol == "crlf" else "Unix (LF)")
         self.status_enc.set_text(tab.encoding)
+        for child in list(self.status_mode.get_children()):
+            self.status_mode.remove(child)
+            child.destroy()
         if tab.mode == "markdown":
-            # Refresh button label child
-            for child in list(self.status_mode.get_children()):
-                self.status_mode.remove(child)
-                child.destroy()
-            self.status_mode.add(
-                label("Formatted" if tab.md_view == "formatted" else "Syntax", "fos-small")
-            )
-            self.status_mode.show_all()
+            mode_label = "Preview" if tab.md_view == "formatted" else "Markdown"
+        elif tab.mode == "log":
+            mode_label = "Enriched" if tab.md_view == "formatted" else "Raw"
         else:
-            for child in list(self.status_mode.get_children()):
-                self.status_mode.remove(child)
-                child.destroy()
-            self.status_mode.add(label("Plain", "fos-small"))
-            self.status_mode.show_all()
+            mode_label = "Plain"
+        self.status_mode.add(label(mode_label, "fos-small"))
+        self.status_mode.show_all()
 
     # --- session ---------------------------------------------------------------
 

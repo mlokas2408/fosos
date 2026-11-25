@@ -726,6 +726,45 @@ scale.fos-scale slider {
   min-height: 12px;
 }
 
+/* Win-like volume / brightness strip in flyouts and Quick Settings */
+.fos-volume-row {
+  min-height: 36px;
+}
+
+button.fos-btn.fos-volume-mute,
+button.fos-btn.fos-volume-mute.size-icon-sm {
+  min-width: 36px;
+  min-height: 36px;
+  padding: 8px;
+  background-color: alpha(@fos_fg, 0.06);
+  border-color: transparent;
+}
+
+button.fos-btn.fos-volume-mute:hover {
+  background-color: alpha(@fos_fg, 0.12);
+}
+
+scale.fos-scale.fos-volume-scale {
+  padding: 8px 0;
+  min-height: 28px;
+}
+
+scale.fos-scale.fos-volume-scale trough {
+  min-height: 8px;
+  background-color: alpha(@fos_fg, 0.12);
+}
+
+scale.fos-scale.fos-volume-scale highlight {
+  min-height: 8px;
+  background-color: @fos_primary;
+}
+
+scale.fos-scale.fos-volume-scale slider {
+  min-width: 14px;
+  min-height: 14px;
+  margin: -3px 0;
+}
+
 switch.fos-switch {
   background-color: @fos_muted;
   background-image: none;
@@ -1334,6 +1373,17 @@ button.fos-btn.fos-files-tile {
   font-family: "Liberation Mono", "DejaVu Sans Mono", monospace;
 }
 
+.fos-editor-row {
+  background-color: @fos_card;
+}
+
+.fos-editor-gutter {
+  background-color: alpha(@fos_fg, 0.04);
+  border-right: 1px solid @fos_border;
+  color: @fos_muted_fg;
+  min-width: 0;
+}
+
 .fos-editor-tabs {
   background-color: transparent;
   min-height: 28px;
@@ -1376,6 +1426,22 @@ button.fos-btn.fos-files-tile {
 .fos-editor-fmtbar {
   border-bottom: 1px solid @fos_border;
   padding: 4px 8px;
+}
+
+.fos-editor-md-switch {
+  border: 1px solid @fos_border;
+  border-radius: 6px;
+  padding: 1px;
+  background-color: alpha(@fos_fg, 0.04);
+}
+
+.fos-editor-md-switch button.fos-btn {
+  min-width: 78px;
+  border-radius: 5px;
+}
+
+.fos-editor-md-switch button.fos-btn.secondary {
+  background-color: alpha(@fos_fg, 0.12);
 }
 
 .fos-editor-style {

@@ -705,16 +705,28 @@ def build_wallpaper(status_cb) -> Gtk.Box:
     chosen_image = {"path": image_path}
 
     def pick_image(_button=None) -> None:
-        filt = Gtk.FileFilter()
-        filt.set_name("Images")
-        for pattern in ("*.png", "*.jpg", "*.jpeg", "*.webp", "*.bmp"):
-            filt.add_pattern(pattern)
+        from .apps import user_dir
+        from .filechooser import ChooserFilter
+
+        pictures = user_dir(GLib.UserDirectory.DIRECTORY_PICTURES, "Pictures")
         path = fos_file_chooser(
             None,
             title="Choose wallpaper",
             action=Gtk.FileChooserAction.OPEN,
             ok_label="Choose",
-            filters=[filt],
+            folder=pictures,
+            filters=[
+                ChooserFilter(
+                    "Images",
+                    [
+                        (0, "*.png"),
+                        (0, "*.jpg"),
+                        (0, "*.jpeg"),
+                        (0, "*.webp"),
+                        (0, "*.bmp"),
+                    ],
+                ),
+            ],
         )
         if not path:
             return
@@ -1227,11 +1239,16 @@ def build_sound(status_cb) -> Gtk.Box:
         0,
     )
 
-    vol_box = Gtk.Box(spacing=8)
+    vol_box = add_classes(Gtk.Box(spacing=10), "fos-volume-row")
     mute_btn = button(icon_name="audio-volume-high-symbolic", size="icon-sm", tooltip="Mute")
-    vol_scale = add_classes(Gtk.Scale.new_with_range(Gtk.Orientation.HORIZONTAL, 0, 100, 1), "fos-scale")
-    vol_scale.set_draw_value(True)
-    vol_scale.set_size_request(200, -1)
+    add_classes(mute_btn, "fos-volume-mute")
+    vol_scale = add_classes(
+        Gtk.Scale.new_with_range(Gtk.Orientation.HORIZONTAL, 0, 100, 1),
+        "fos-scale",
+        "fos-volume-scale",
+    )
+    vol_scale.set_draw_value(False)
+    vol_scale.set_size_request(220, -1)
     vol_box.pack_start(mute_btn, False, False, 0)
     vol_box.pack_start(vol_scale, True, True, 0)
     updating = {"on": False}

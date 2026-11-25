@@ -123,6 +123,11 @@ output/FosOS-trixie-amd64.iso
 - A FosOS archive key and the `fos` command for update, upgrade, install,
   remove, and repair
 - Firefox ESR as the preinstalled browser
+- PowerShell 7 (`pwsh`) from Microsoft's Debian 13 repository. The apt source
+  stays on the installed system so `fos upgrade` can update the `powershell`
+  package. An apt pin blocks every other package from that repository
+  (dotnet, SQL tools, and the rest). FosOS Terminal lists it when `pwsh` is
+  on `PATH`
 - NetworkManager with Wi-Fi powersave disabled, PipeWire audio, Bluetooth,
   power defaults, archive utility, screenshot tool, and a recovery console
   on Ctrl+Alt+F2

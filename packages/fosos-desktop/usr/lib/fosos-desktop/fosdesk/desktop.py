@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import datetime
 import shutil
 from functools import lru_cache
 from pathlib import Path
@@ -15,8 +16,19 @@ gi.require_version("PangoCairo", "1.0")
 from gi.repository import Gdk, GdkPixbuf, Gio, GLib, Gtk, Pango, PangoCairo
 
 from . import apps as appmod
+from .files import entry_icon, format_size
 from .panel import HEIGHT as PANEL_HEIGHT
-from .ui import BRAND, DATA_DIR, add_classes, full_icon, label, set_class
+from .ui import (
+    BRAND,
+    DATA_DIR,
+    FosDialog,
+    add_classes,
+    fos_alert,
+    fos_prompt,
+    full_icon,
+    label,
+    set_class,
+)
 
 try:
     from .wallpaper import draw_wallpaper
@@ -29,17 +41,32 @@ except ImportError:  # pragma: no cover - packaging fault; keep shell alive
 # Re-export for callers that still import draw_wallpaper from desktop.
 __all__ = ["Desktop", "DesktopIcon", "draw_brand", "draw_wallpaper", "desktop_dir", "load_desktop_prefs", "save_desktop_prefs"]
 
-ICON_W = 96
-ICON_H = 104
+# glyph px, cell width, cell height — Windows View → Large / Medium / Small.
+ICON_SIZES = {
+    "large": (64, 112, 120),
+    "medium": (48, 96, 104),
+    "small": (32, 72, 80),
+}
 ICON_GAP = 8
-ICON_PX = 48
 DEFAULT_MARGIN = 16
 POSITIONS_FILE = "desktop-icons"
 PREFS_FILE = "desktop"
 
+# Module-level clipboard so Paste works across desktop RMB sessions.
+_desk_clipboard: list[Path] = []
+_desk_clipboard_cut = False
+
+
+def icon_metrics() -> tuple[int, int, int]:
+    """Return (glyph_px, icon_w, icon_h) from desktop prefs."""
+    prefs = load_desktop_prefs()
+    size = prefs.get("icon_size", "medium")
+    return ICON_SIZES.get(size, ICON_SIZES["medium"])
+
 
 def cell_metrics() -> tuple[int, int]:
-    return ICON_W + ICON_GAP, ICON_H + ICON_GAP
+    _px, icon_w, icon_h = icon_metrics()
+    return icon_w + ICON_GAP, icon_h + ICON_GAP
 
 
 def grid_bounds(primary: Gdk.Rectangle) -> tuple[int, int, int, int]:
@@ -113,7 +140,14 @@ def config_dir() -> Path:
 
 def load_desktop_prefs() -> dict[str, str]:
     path = config_dir() / PREFS_FILE
-    values: dict[str, str] = {"click": "double", "wallpaper": "dawn"}
+    values: dict[str, str] = {
+        "click": "double",
+        "wallpaper": "dawn",
+        "icon_size": "medium",
+        "show_icons": "1",
+        "auto_arrange": "0",
+        "sort": "name",
+    }
     if not path.is_file():
         return values
     try:
@@ -123,6 +157,10 @@ def load_desktop_prefs() -> dict[str, str]:
                 values[key.strip()] = value.strip()
     except OSError:
         pass
+    if values.get("icon_size") not in ICON_SIZES:
+        values["icon_size"] = "medium"
+    if values.get("sort") not in ("name", "size", "type", "date"):
+        values["sort"] = "name"
     return values
 
 
@@ -191,28 +229,8 @@ def ensure_default_desktop_entries() -> None:
 
 
 def desktop_entry_icon(path: Path) -> str:
-    if path.is_dir():
-        return "folder"
-    if path.suffix.lower() == ".desktop":
-        try:
-            info = Gio.DesktopAppInfo.new_from_filename(str(path))
-        except GLib.Error:
-            info = None
-        if info is not None:
-            gicon = info.get_icon()
-            if isinstance(gicon, Gio.ThemedIcon):
-                names = gicon.get_names()
-                if names:
-                    return names[0]
-        return "application-x-executable"
-    mime, _ = Gio.content_type_guess(str(path), None)
-    if mime:
-        themed = Gio.content_type_get_icon(mime)
-        if isinstance(themed, Gio.ThemedIcon):
-            names = themed.get_names()
-            if names:
-                return names[0]
-    return "text-x-generic"
+    """Same glyph Files uses, skipping MIME names the theme does not ship."""
+    return entry_icon(path, symbolic=False)
 
 
 def desktop_entry_title(path: Path) -> str:
@@ -342,11 +360,12 @@ class DesktopIcon(Gtk.EventBox):
             | Gdk.EventMask.BUTTON1_MOTION_MASK
             | Gdk.EventMask.POINTER_MOTION_MASK
         )
+        glyph_px, icon_w, icon_h = icon_metrics()
         self.box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
-        self.box.set_size_request(ICON_W - 8, -1)
+        self.box.set_size_request(icon_w - 8, -1)
         add_classes(self.box, "fos-desktop-icon")
         # Full-size icon on the wallpaper — no bordered tile (Windows-like).
-        image = full_icon(icon_name, ICON_PX)
+        image = full_icon(icon_name, glyph_px)
         image.set_halign(Gtk.Align.CENTER)
         add_classes(image, "fos-desktop-glyph")
         self.box.pack_start(image, False, False, 0)
@@ -357,7 +376,7 @@ class DesktopIcon(Gtk.EventBox):
         text.set_ellipsize(Pango.EllipsizeMode.END)
         text.set_max_width_chars(12)
         self.box.pack_start(text, False, False, 0)
-        self.set_size_request(ICON_W, ICON_H)
+        self.set_size_request(icon_w, icon_h)
         self.add(self.box)
         self.connect("button-press-event", self._on_press)
         self.connect("button-release-event", self._on_release)
@@ -371,6 +390,11 @@ class DesktopIcon(Gtk.EventBox):
         set_class(self.box, "selected", selected)
 
     def _on_press(self, _widget, event: Gdk.EventButton) -> bool:
+        if event.button == 3:
+            self.desktop.shell.close_popups()
+            self.desktop.select(self)
+            self.desktop._show_icon_menu(self, event)
+            return True
         if event.button != 1:
             return False
         self.desktop.shell.close_popups()
@@ -493,6 +517,40 @@ class Desktop(Gtk.Window):
         self.icon_by_id[icon_id] = item
         self.fixed.put(item, 0, 0)
 
+    def show_icons_enabled(self) -> bool:
+        self._prefs = load_desktop_prefs()
+        return self._prefs.get("show_icons", "1") != "0"
+
+    def _sort_entries(self, entries: list[Path]) -> list[Path]:
+        sort_key = load_desktop_prefs().get("sort", "name")
+
+        def name_key(path: Path) -> tuple:
+            return (not path.is_dir(), path.name.lower())
+
+        def size_key(path: Path) -> tuple:
+            try:
+                size = 0 if path.is_dir() else path.stat().st_size
+            except OSError:
+                size = 0
+            return (not path.is_dir(), size, path.name.lower())
+
+        def type_key(path: Path) -> tuple:
+            if path.is_dir():
+                kind = ""
+            else:
+                kind = path.suffix.lower() or path.name.lower()
+            return (not path.is_dir(), kind, path.name.lower())
+
+        def date_key(path: Path) -> tuple:
+            try:
+                mtime = path.stat().st_mtime
+            except OSError:
+                mtime = 0.0
+            return (not path.is_dir(), -mtime, path.name.lower())
+
+        keys = {"name": name_key, "size": size_key, "type": type_key, "date": date_key}
+        return sorted(entries, key=keys.get(sort_key, name_key))
+
     def reload_icons(self) -> None:
         """Rebuild icons from ~/Desktop so File Explorer and the wallpaper match."""
         selected_id = self.selected.icon_id if self.selected is not None else None
@@ -503,14 +561,17 @@ class Desktop(Gtk.Window):
         self.icon_by_id = {}
         self.selected = None
 
+        if not self.show_icons_enabled():
+            self.place()
+            self.show_all()
+            return
+
         folder = desktop_dir()
         try:
-            entries = sorted(
-                (p for p in folder.iterdir() if not p.name.startswith(".")),
-                key=lambda p: (not p.is_dir(), p.name.lower()),
-            )
+            entries = [p for p in folder.iterdir() if not p.name.startswith(".")]
         except OSError:
             entries = []
+        entries = self._sort_entries(entries)
 
         for path in entries:
             icon_id = path.name
@@ -521,6 +582,9 @@ class Desktop(Gtk.Window):
         if selected_id and selected_id in self.icon_by_id:
             self.select(self.icon_by_id[selected_id])
         self.place()
+        if load_desktop_prefs().get("auto_arrange", "0") == "1":
+            # Pack column-major after grid snap when Auto arrange is on.
+            self.auto_arrange()
         self.show_all()
 
     def _watch_desktop(self) -> None:
@@ -583,8 +647,9 @@ class Desktop(Gtk.Window):
 
     def move_icon(self, item: DesktopIcon, x: int, y: int, persist: bool = True) -> None:
         primary = self._primary()
-        max_x = primary.x + max(0, primary.width - ICON_W)
-        max_y = primary.y + max(0, primary.height - PANEL_HEIGHT - ICON_H)
+        _px, icon_w, icon_h = icon_metrics()
+        max_x = primary.x + max(0, primary.width - icon_w)
+        max_y = primary.y + max(0, primary.height - PANEL_HEIGHT - icon_h)
         x = max(primary.x, min(x, max_x))
         y = max(primary.y, min(y, max_y))
         if persist:
@@ -700,48 +765,267 @@ class Desktop(Gtk.Window):
             return True
         return False
 
+    def _menu_add(self, menu: Gtk.Menu, title: str, callback, *, sensitive: bool = True) -> Gtk.MenuItem:
+        item = Gtk.MenuItem(label=title)
+        item.set_sensitive(sensitive)
+        item.connect("activate", lambda _i: callback())
+        menu.append(item)
+        return item
+
+    def _menu_submenu(self, menu: Gtk.Menu, title: str) -> Gtk.Menu:
+        item = Gtk.MenuItem(label=title)
+        sub = Gtk.Menu()
+        item.set_submenu(sub)
+        menu.append(item)
+        return sub
+
+    def _set_pref(self, key: str, value: str) -> None:
+        values = load_desktop_prefs()
+        values[key] = value
+        save_desktop_prefs(values)
+        self._prefs = values
+
     def _build_context_menu(self) -> Gtk.Menu:
+        """Windows-shaped desktop background menu: View / Sort by / New / …"""
         menu = Gtk.Menu()
+        prefs = load_desktop_prefs()
 
-        refresh = Gtk.MenuItem(label="Refresh")
-        refresh.connect("activate", lambda _i: self.refresh())
-        menu.append(refresh)
+        view = self._menu_submenu(menu, "View")
+        size_group: Gtk.RadioMenuItem | None = None
+        current_size = prefs.get("icon_size", "medium")
+        for size_id, title in (("large", "Large icons"), ("medium", "Medium icons"), ("small", "Small icons")):
+            item = Gtk.RadioMenuItem.new_with_label_from_widget(size_group, title)
+            if size_group is None:
+                size_group = item
+            item.set_active(current_size == size_id)
+            item.connect("activate", lambda _i, s=size_id: self._set_icon_size(s) if _i.get_active() else None)
+            view.append(item)
+        view.append(Gtk.SeparatorMenuItem())
+        auto = Gtk.CheckMenuItem(label="Auto arrange icons")
+        auto.set_active(prefs.get("auto_arrange", "0") == "1")
+        auto.connect("toggled", lambda i: self._set_auto_arrange(i.get_active()))
+        view.append(auto)
+        align = Gtk.MenuItem(label="Align icons to grid")
+        align.connect("activate", lambda _i: self._snap_all_to_grid(persist=True))
+        view.append(align)
+        view.append(Gtk.SeparatorMenuItem())
+        show = Gtk.CheckMenuItem(label="Show desktop icons")
+        show.set_active(prefs.get("show_icons", "1") != "0")
+        show.connect("toggled", lambda i: self._set_show_icons(i.get_active()))
+        view.append(show)
 
-        arrange = Gtk.MenuItem(label="Auto arrange icons")
-        arrange.connect("activate", lambda _i: self.auto_arrange())
-        menu.append(arrange)
+        sort_menu = self._menu_submenu(menu, "Sort by")
+        sort_group: Gtk.RadioMenuItem | None = None
+        current_sort = prefs.get("sort", "name")
+        for key, title in (("name", "Name"), ("size", "Size"), ("type", "Item type"), ("date", "Date modified")):
+            item = Gtk.RadioMenuItem.new_with_label_from_widget(sort_group, title)
+            if sort_group is None:
+                sort_group = item
+            item.set_active(current_sort == key)
+            item.connect("activate", lambda _i, k=key: self._sort_by(k) if _i.get_active() else None)
+            sort_menu.append(item)
 
         menu.append(Gtk.SeparatorMenuItem())
-
-        display = Gtk.MenuItem(label="Display settings")
-        display.connect("activate", lambda _i: appmod.spawn(["arandr"]))
-        menu.append(display)
-
-        personalize = Gtk.MenuItem(label="Personalize")
-        personalize.connect("activate", lambda _i: appmod.spawn(["fosos-settings", "--builtin", "desktop"]))
-        menu.append(personalize)
+        self._menu_add(menu, "Refresh", self.refresh)
 
         menu.append(Gtk.SeparatorMenuItem())
-
-        new_folder = Gtk.MenuItem(label="New folder")
-        new_folder.connect("activate", lambda _i: self._new_folder())
-        menu.append(new_folder)
+        new_menu = self._menu_submenu(menu, "New")
+        self._menu_add(new_menu, "Folder", self._new_folder)
+        self._menu_add(new_menu, "Text Document", self._new_text_document)
 
         menu.append(Gtk.SeparatorMenuItem())
+        self._menu_add(menu, "Paste", self._paste, sensitive=self._can_paste())
 
-        files_here = Gtk.MenuItem(label="Open Files here")
-        files_here.connect("activate", lambda _i: self._open_folder(desktop_dir()))
-        menu.append(files_here)
+        menu.append(Gtk.SeparatorMenuItem())
+        self._menu_add(menu, "Display settings", lambda: appmod.spawn(["arandr"]))
+        self._menu_add(
+            menu,
+            "Personalize",
+            lambda: appmod.spawn(["fosos-settings", "--builtin", "desktop"]),
+        )
 
-        terminal = Gtk.MenuItem(label="Open Terminal here")
-        terminal.connect("activate", lambda _i: appmod.spawn(["fosos-terminal", str(desktop_dir())]))
-        menu.append(terminal)
+        menu.append(Gtk.SeparatorMenuItem())
+        self._menu_add(menu, "Open in Terminal", lambda: appmod.spawn(["fosos-terminal", str(desktop_dir())]))
+        self._menu_add(menu, "Open in Files", lambda: self._open_folder(desktop_dir()))
         return menu
 
     def _show_context_menu(self, event: Gdk.EventButton) -> None:
         menu = self._build_context_menu()
+        menu.attach_to_widget(self, None)
         menu.show_all()
         menu.popup_at_pointer(event)
+
+    def _show_icon_menu(self, item: DesktopIcon, event: Gdk.EventButton) -> None:
+        """Windows-shaped item menu for a desktop icon."""
+        path = desktop_dir() / item.icon_id
+        menu = Gtk.Menu()
+        open_label = "Install" if path.is_file() and path.suffix.lower() == ".deb" else "Open"
+        self._menu_add(menu, open_label, item.activate_cb)
+        menu.append(Gtk.SeparatorMenuItem())
+        self._menu_add(menu, "Cut", lambda: self._clipboard_set([path], cut=True))
+        self._menu_add(menu, "Copy", lambda: self._clipboard_set([path], cut=False))
+        self._menu_add(menu, "Paste", self._paste, sensitive=self._can_paste())
+        menu.append(Gtk.SeparatorMenuItem())
+        self._menu_add(menu, "Delete", lambda: self._trash_paths([path]))
+        self._menu_add(menu, "Rename", lambda: self._rename_path(path))
+        menu.append(Gtk.SeparatorMenuItem())
+        self._menu_add(menu, "Properties", lambda: self._properties(path))
+        menu.attach_to_widget(self, None)
+        menu.show_all()
+        menu.popup_at_pointer(event)
+
+    def _set_icon_size(self, size_id: str) -> None:
+        if size_id not in ICON_SIZES:
+            return
+        self._set_pref("icon_size", size_id)
+        self.reload_icons()
+
+    def _set_auto_arrange(self, enabled: bool) -> None:
+        self._set_pref("auto_arrange", "1" if enabled else "0")
+        if enabled:
+            self.auto_arrange()
+
+    def _set_show_icons(self, show: bool) -> None:
+        self._set_pref("show_icons", "1" if show else "0")
+        self.reload_icons()
+
+    def _sort_by(self, key: str) -> None:
+        self._set_pref("sort", key)
+        self.reload_icons()
+        self.auto_arrange()
+
+    def _can_paste(self) -> bool:
+        global _desk_clipboard
+        if _desk_clipboard:
+            return True
+        return bool(self._clipboard_uris())
+
+    def _clipboard_set(self, paths: list[Path], cut: bool) -> None:
+        global _desk_clipboard, _desk_clipboard_cut
+        _desk_clipboard = [p.resolve() for p in paths]
+        _desk_clipboard_cut = cut
+        clipboard = Gtk.Clipboard.get(Gdk.SELECTION_CLIPBOARD)
+        uris = "\n".join(p.as_uri() for p in _desk_clipboard)
+        clipboard.set_text(uris, -1)
+        clipboard.store()
+
+    def _clipboard_uris(self) -> list[Path]:
+        clipboard = Gtk.Clipboard.get(Gdk.SELECTION_CLIPBOARD)
+        text = clipboard.wait_for_text()
+        if not text:
+            return []
+        paths: list[Path] = []
+        for line in text.splitlines():
+            line = line.strip()
+            if not line:
+                continue
+            if line.startswith("file:"):
+                try:
+                    paths.append(Path(GLib.filename_from_uri(line)[0]))
+                except (TypeError, ValueError, GLib.Error):
+                    continue
+            else:
+                candidate = Path(line)
+                if candidate.exists():
+                    paths.append(candidate)
+        return paths
+
+    def _paste(self) -> None:
+        global _desk_clipboard, _desk_clipboard_cut
+        sources = list(_desk_clipboard) if _desk_clipboard else self._clipboard_uris()
+        if not sources:
+            return
+        cut = _desk_clipboard_cut if _desk_clipboard else False
+        dest_dir = desktop_dir()
+        for src in sources:
+            if not src.exists():
+                continue
+            target = dest_dir / src.name
+            index = 1
+            while target.exists():
+                stem, suffix = src.stem, src.suffix
+                if src.is_dir():
+                    target = dest_dir / f"{src.name} ({index})"
+                else:
+                    target = dest_dir / f"{stem} ({index}){suffix}"
+                index += 1
+            try:
+                if cut:
+                    shutil.move(str(src), str(target))
+                elif src.is_dir():
+                    shutil.copytree(src, target)
+                else:
+                    shutil.copy2(src, target)
+            except OSError:
+                continue
+        if cut and _desk_clipboard:
+            _desk_clipboard = []
+            _desk_clipboard_cut = False
+        self.reload_icons()
+
+    def _trash_paths(self, paths: list[Path]) -> None:
+        for path in paths:
+            try:
+                Gio.File.new_for_path(str(path)).trash(None)
+            except GLib.Error:
+                pass
+        self.select(None)
+        self.reload_icons()
+
+    def _rename_path(self, path: Path) -> None:
+        name = fos_prompt(self, "Rename", "New name", path.name)
+        if not name or name == path.name:
+            return
+        target = path.with_name(name)
+        if target.exists():
+            fos_alert(self, "Could not rename", f"“{name}” already exists.")
+            return
+        try:
+            path.rename(target)
+        except OSError as exc:
+            fos_alert(self, "Could not rename", str(exc))
+            return
+        # Preserve layout cell under the new id when possible.
+        if path.name in self.positions:
+            self.positions[target.name] = self.positions.pop(path.name)
+            save_icon_positions(self.positions)
+        self.reload_icons()
+
+    def _properties(self, path: Path) -> None:
+        try:
+            st = path.stat()
+        except OSError as exc:
+            fos_alert(self, "Properties unavailable", str(exc))
+            return
+        mime, _ = Gio.content_type_guess(str(path), None)
+        if path.is_dir():
+            try:
+                size = f"{sum(1 for _ in path.iterdir())} items"
+            except OSError:
+                size = "Folder"
+            kind = "Folder"
+        else:
+            size = format_size(st.st_size)
+            kind = mime or "File"
+        modified = datetime.datetime.fromtimestamp(st.st_mtime).strftime("%Y-%m-%d %H:%M")
+        rows = [
+            ("Name", path.name),
+            ("Type", kind),
+            ("Size", size),
+            ("Modified", modified),
+            ("Location", str(path.parent)),
+        ]
+        dialog = FosDialog(self, title="Properties", width=480)
+        grid = Gtk.Grid(column_spacing=16, row_spacing=8)
+        for index, (key, value) in enumerate(rows):
+            grid.attach(label(key, "fos-text", "fos-muted"), 0, index, 1, 1)
+            val = label(value, "fos-text")
+            val.set_selectable(True)
+            val.set_max_width_chars(48)
+            grid.attach(val, 1, index, 1, 1)
+        dialog.content.pack_start(grid, False, False, 0)
+        dialog.add_action("Close", True, variant="default", default=True)
+        dialog.run()
 
     def _new_folder(self) -> None:
         folder = desktop_dir()
@@ -757,6 +1041,20 @@ class Desktop(Gtk.Window):
             return
         self.reload_icons()
 
+    def _new_text_document(self) -> None:
+        folder = desktop_dir()
+        base = "New Text Document.txt"
+        target = folder / base
+        index = 1
+        while target.exists():
+            target = folder / f"New Text Document ({index}).txt"
+            index += 1
+        try:
+            target.write_text("", encoding="utf-8")
+        except OSError:
+            return
+        self.reload_icons()
+
     def _on_key(self, _widget, event: Gdk.EventKey) -> bool:
         if event.keyval == Gdk.KEY_Escape:
             self.select(None)
@@ -768,5 +1066,23 @@ class Desktop(Gtk.Window):
             return True
         if event.keyval == Gdk.KEY_F5:
             self.refresh()
+            return True
+        if event.keyval == Gdk.KEY_F2 and self.selected is not None:
+            self._rename_path(desktop_dir() / self.selected.icon_id)
+            return True
+        if event.keyval in (Gdk.KEY_Delete, Gdk.KEY_KP_Delete) and self.selected is not None:
+            path = desktop_dir() / self.selected.icon_id
+            self._trash_paths([path])
+            return True
+        # Ctrl+C / Ctrl+X / Ctrl+V
+        ctrl = bool(event.state & Gdk.ModifierType.CONTROL_MASK)
+        if ctrl and self.selected is not None and event.keyval in (Gdk.KEY_c, Gdk.KEY_C):
+            self._clipboard_set([desktop_dir() / self.selected.icon_id], cut=False)
+            return True
+        if ctrl and self.selected is not None and event.keyval in (Gdk.KEY_x, Gdk.KEY_X):
+            self._clipboard_set([desktop_dir() / self.selected.icon_id], cut=True)
+            return True
+        if ctrl and event.keyval in (Gdk.KEY_v, Gdk.KEY_V):
+            self._paste()
             return True
         return False

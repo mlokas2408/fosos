@@ -91,7 +91,7 @@ def full_icon(name: str, size: int = 48) -> Gtk.Image:
 
     FosOS GTK sets `-gtk-icon-style: symbolic`, so Gtk.Image.new_from_icon_name
     remaps to Adwaita plate-style MIME icons. Loading a pixbuf with FORCE_REGULAR
-    keeps FosOS stroke icons for file listings and desktop cells.
+    keeps FosOS file icons for listings and desktop cells.
     """
     theme = Gtk.IconTheme.get_default()
     base = name[:-9] if name.endswith("-symbolic") else name
@@ -482,58 +482,56 @@ def fos_file_chooser(
     title: str,
     action: Gtk.FileChooserAction,
     ok_label: str = "OK",
-    filters: list[Gtk.FileFilter] | None = None,
+    filters: list[Any] | None = None,
     current_name: str | None = None,
     filename: str | None = None,
+    folder: str | Path | None = None,
     overwrite_confirmation: bool = False,
 ) -> str | None:
-    """Themed file open/save dialog. Returns a filesystem path or None."""
-    dialog = FosDialog(parent, title=title, width=640)
-    dialog.set_resizable(True)
-    dialog.set_default_size(640, 420)
+    """Open/save dialog matching the browser Save As chooser. Returns a path or None."""
+    # Lazy import: filechooser imports widgets from this module.
+    from .filechooser import ChooserFilter, SaveDialog
 
-    chooser = Gtk.FileChooserWidget(action=action)
-    add_classes(chooser, "fos-file-chooser")
-    if filters:
-        for filt in filters:
-            chooser.add_filter(filt)
+    if action == Gtk.FileChooserAction.SAVE:
+        mode = "save"
+    elif action == Gtk.FileChooserAction.SELECT_FOLDER:
+        mode = "directory"
+    else:
+        mode = "open"
+
+    start: Path | None = Path(folder).expanduser() if folder else None
+    name = ""
     if filename:
-        chooser.set_filename(filename)
-    elif current_name and action == Gtk.FileChooserAction.SAVE:
-        chooser.set_current_name(current_name)
-    dialog.content.pack_start(chooser, True, True, 0)
+        path = Path(filename).expanduser()
+        if path.is_dir():
+            start = path
+        else:
+            if start is None and path.parent.is_dir():
+                start = path.parent
+            name = path.name
+    if current_name and not name:
+        name = Path(current_name).name
 
-    chosen: dict[str, str | None] = {"path": None}
+    specs: list[ChooserFilter] = []
+    for item in filters or []:
+        if isinstance(item, ChooserFilter):
+            specs.append(item)
+            continue
+        # Gtk.FileFilter is write-only for patterns; keep its label and accept all.
+        filt_name = item.get_name() if hasattr(item, "get_name") else None
+        specs.append(ChooserFilter(filt_name or "Files", [(0, "*")]))
 
-    def accept(_widget=None) -> None:
-        path = chooser.get_filename()
-        if not path:
-            dialog.respond(None)
-            return
-        if (
-            overwrite_confirmation
-            and action == Gtk.FileChooserAction.SAVE
-            and Path(path).exists()
-            and not fos_confirm(
-                dialog,
-                "Replace file?",
-                f"“{Path(path).name}” already exists. Replace it?",
-                ok="Replace",
-                destructive=True,
-            )
-        ):
-            return
-        chosen["path"] = path
-        dialog.respond(True)
-
-    dialog.add_action("Cancel", None, variant="ghost")
-    ok_btn = button(ok_label, variant="default", size="sm")
-    ok_btn.set_can_focus(True)
-    ok_btn.set_can_default(True)
-    ok_btn.connect("clicked", accept)
-    dialog.footer.pack_start(ok_btn, False, False, 0)
-    chooser.connect("file-activated", accept)
-
-    if dialog.run() is not True:
+    dialog = SaveDialog(
+        title=title,
+        mode=mode,
+        folder=start,
+        name=name,
+        accept_label=ok_label,
+        filters=specs or None,
+        parent=parent,
+        confirm_overwrite=overwrite_confirmation if mode == "save" else False,
+    )
+    paths = dialog.run()
+    if not paths:
         return None
-    return chosen["path"]
+    return str(paths[0])

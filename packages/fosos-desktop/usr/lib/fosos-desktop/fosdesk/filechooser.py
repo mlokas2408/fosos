@@ -112,6 +112,8 @@ class SaveDialog(Gtk.Window):
         accept_label: str,
         filters: list[ChooserFilter] | None = None,
         multiple: bool = False,
+        parent: Gtk.Window | None = None,
+        confirm_overwrite: bool = True,
     ) -> None:
         super().__init__(type=Gtk.WindowType.TOPLEVEL)
         load_css()
@@ -127,6 +129,7 @@ class SaveDialog(Gtk.Window):
         self._suggested = name
         self._user_picked = False
         self._filling = False
+        self._confirm_overwrite = confirm_overwrite
 
         self.set_title(title)
         self.set_type_hint(Gdk.WindowTypeHint.DIALOG)
@@ -136,6 +139,8 @@ class SaveDialog(Gtk.Window):
         self.set_keep_above(True)
         self.set_skip_taskbar_hint(True)
         self.set_skip_pager_hint(True)
+        if parent is not None:
+            self.set_transient_for(parent)
         add_classes(self, "fos-root", "fos-popup", "fos-dialog", "fos-chooser")
         self._placed = False
         self.connect("delete-event", self._on_delete)
@@ -497,12 +502,16 @@ class SaveDialog(Gtk.Window):
                 return
             self.respond(chosen)
             return
-        if path.exists() and not fos_confirm(
-            self,
-            "Replace file?",
-            f"“{path.name}” already exists. Replace it?",
-            ok="Replace",
-            destructive=True,
+        if (
+            path.exists()
+            and self._confirm_overwrite
+            and not fos_confirm(
+                self,
+                "Replace file?",
+                f"“{path.name}” already exists. Replace it?",
+                ok="Replace",
+                destructive=True,
+            )
         ):
             return
         self.respond([path])

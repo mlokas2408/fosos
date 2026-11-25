@@ -140,7 +140,7 @@ def _icon_is_local(theme: Gtk.IconTheme, name: str, size: int = 16) -> bool:
 
 
 def _first_themed_icon(names: list[str], *, symbolic: bool) -> str | None:
-    """Pick an existing icon, preferring FosOS stroke glyphs over Adwaita plates."""
+    """Pick an existing icon, preferring FosOS glyphs over Adwaita plates."""
     theme = Gtk.IconTheme.get_default()
     ordered: list[str] = []
     for name in names:
@@ -184,7 +184,7 @@ def entry_icon(path: Path, *, symbolic: bool = True) -> str:
         )
     mime, _ = Gio.content_type_guess(str(path), None)
     if mime:
-        # Prefer full-color theme icons (FosOS stroke set) so MIME types do not
+        # Prefer FosOS theme icons so MIME types do not
         # fall through to Adwaita "plate" artwork via a missing -symbolic name.
         themed = Gio.content_type_get_icon(mime)
         names: list[str] = []
@@ -1571,7 +1571,7 @@ class FilesWindow(CardWindow):
                 return image
             except GLib.Error:
                 pass
-        # Prefer FosOS stroke icons via pixbuf (bypass theme symbolic remapping).
+        # Prefer FosOS icons via pixbuf (bypass theme symbolic remapping).
         return full_icon(entry_icon(path, symbolic=False), min(max(px, 16), 64))
 
     # --- Virtual pages --------------------------------------------------------

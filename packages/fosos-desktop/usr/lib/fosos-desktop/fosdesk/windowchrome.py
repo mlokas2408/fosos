@@ -503,7 +503,11 @@ class CardWindow(Gtk.ApplicationWindow):
         return False
 
     def begin_titlebar_move(self, event: Gdk.EventButton) -> bool:
-        """Start an interactive window move from a titlebar / drag-area press."""
+        """Start an interactive window move from a titlebar / drag-area press.
+
+        Windows 11: dragging a maximized (or fullscreen) titlebar restores the
+        window to its normal size under the pointer, then moves it.
+        """
         if event.button != 1:
             return False
         if event.type == Gdk.EventType._2BUTTON_PRESS:
@@ -512,6 +516,8 @@ class CardWindow(Gtk.ApplicationWindow):
         window = self.get_window()
         if window is None:
             return False
+        if self._maximized or self._fullscreen:
+            return self._begin_move_from_maximized(event)
         Gdk.Window.begin_move_drag(
             window,
             int(event.button),
@@ -519,6 +525,52 @@ class CardWindow(Gtk.ApplicationWindow):
             int(event.y_root),
             int(event.time),
         )
+        return True
+
+    def _begin_move_from_maximized(self, event: Gdk.EventButton) -> bool:
+        """Unmaximize/unfullscreen, place under the cursor, then start the drag."""
+        px = int(event.x_root)
+        py = int(event.y_root)
+        ox, oy = self.get_position()
+        ow, oh = self.get_size()
+        # Keep the grab point on the same relative spot of the restored titlebar.
+        rel_x = (px - ox) / max(ow, 1)
+        rel_x = max(0.08, min(rel_x, 0.92))
+        title_y = max(8, int(event.y))
+        button = int(event.button)
+        time = int(event.time)
+        want_unmax = self._maximized
+        want_unfs = self._fullscreen
+
+        if want_unfs:
+            self.unfullscreen()
+        if want_unmax:
+            self.unmaximize()
+
+        def start_drag(pass_no: int = 0) -> bool:
+            if (want_unmax and self._maximized) or (want_unfs and self._fullscreen):
+                if pass_no < 12:
+                    GLib.timeout_add(16, lambda n=pass_no + 1: start_drag(n))
+                return False
+            w, h = self.get_size()
+            # If the WM has not restored a floating size yet, shrink to a
+            # Windows-like portion of the work area so the drag is usable.
+            screen = self.get_screen()
+            if screen is not None and (w >= screen.get_width() - 8 or h >= screen.get_height() - 48):
+                mon = screen.get_monitor_geometry(screen.get_monitor_at_point(px, py))
+                w = max(480, min(w, int(mon.width * 0.55)))
+                h = max(320, min(h, int(mon.height * 0.55)))
+                self.resize(w, h)
+                w, h = self.get_size()
+            new_x = int(px - rel_x * w)
+            new_y = int(py - title_y)
+            self.move(new_x, new_y)
+            gdk_window = self.get_window()
+            if gdk_window is not None:
+                Gdk.Window.begin_move_drag(gdk_window, button, px, py, time)
+            return False
+
+        GLib.idle_add(lambda: start_drag(0))
         return True
 
     def _on_header_press(self, _widget, event: Gdk.EventButton) -> bool:

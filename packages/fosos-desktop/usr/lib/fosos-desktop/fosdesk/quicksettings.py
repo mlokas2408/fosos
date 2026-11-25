@@ -10,7 +10,6 @@ import gi
 gi.require_version("Gtk", "3.0")
 from gi.repository import Gtk
 
-from . import apps as appmod
 from .indicators import (
     battery_present,
     battery_state,
@@ -22,8 +21,6 @@ from .indicators import (
     popup_header,
     read_brightness,
     read_volume,
-    run,
-    run_async,
     set_brightness,
     set_volume,
     toggle_mute,
@@ -90,14 +87,19 @@ class QuickSettings(Popup):
         self.mute_tile.connect("clicked", lambda _b: self._toggle_mute())
         self.tiles.attach(self.mute_tile, 1, 1, 1, 1)
 
-        # Volume
+        # Volume — same thick slider language as the taskbar Volume flyout
         vol_block = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
         vol_block.pack_start(label("Volume", "fos-small", "fos-muted"), False, False, 0)
-        vol_row = Gtk.Box(spacing=8)
+        vol_row = add_classes(Gtk.Box(spacing=10), "fos-volume-row")
         self.vol_icon = button(icon_name="audio-volume-high-symbolic", size="icon-sm", tooltip="Mute")
+        add_classes(self.vol_icon, "fos-volume-mute")
         self.vol_icon.connect("clicked", lambda _b: self._toggle_mute())
         vol_row.pack_start(self.vol_icon, False, False, 0)
-        self.vol_scale = add_classes(Gtk.Scale.new_with_range(Gtk.Orientation.HORIZONTAL, 0, 100, 1), "fos-scale")
+        self.vol_scale = add_classes(
+            Gtk.Scale.new_with_range(Gtk.Orientation.HORIZONTAL, 0, 100, 1),
+            "fos-scale",
+            "fos-volume-scale",
+        )
         self.vol_scale.set_draw_value(False)
         self.vol_scale.set_hexpand(True)
         self.vol_scale.connect("value-changed", self._on_volume)
@@ -111,10 +113,15 @@ class QuickSettings(Popup):
         # Brightness
         self.bright_block = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
         self.bright_block.pack_start(label("Brightness", "fos-small", "fos-muted"), False, False, 0)
-        bright_row = Gtk.Box(spacing=8)
+        bright_row = add_classes(Gtk.Box(spacing=10), "fos-volume-row")
         self.bright_icon = button(icon_name="display-brightness-symbolic", size="icon-sm", tooltip="Brightness")
+        add_classes(self.bright_icon, "fos-volume-mute")
         bright_row.pack_start(self.bright_icon, False, False, 0)
-        self.bright_scale = add_classes(Gtk.Scale.new_with_range(Gtk.Orientation.HORIZONTAL, 1, 100, 1), "fos-scale")
+        self.bright_scale = add_classes(
+            Gtk.Scale.new_with_range(Gtk.Orientation.HORIZONTAL, 1, 100, 1),
+            "fos-scale",
+            "fos-volume-scale",
+        )
         self.bright_scale.set_draw_value(False)
         self.bright_scale.set_hexpand(True)
         self.bright_scale.connect("value-changed", self._on_brightness)
@@ -264,13 +271,8 @@ class QuickSettings(Popup):
         self._open_network_popup()
 
     def _toggle_bluetooth(self) -> None:
-        powered = bluetooth_powered()
-        if powered is None:
-            return
-        run_async(
-            ["bluetoothctl", "power", "off" if powered else "on"],
-            lambda _ok, _out: self.refresh(),
-        )
+        # Win-like: open the Network & Bluetooth flyout (devices + power).
+        self._open_network_popup()
 
     def _open_settings(self) -> None:
         self.dismiss()
@@ -281,4 +283,9 @@ class QuickSettings(Popup):
 
     def _open_sound(self) -> None:
         self.dismiss()
-        appmod.spawn(["pavucontrol"])
+        for panel in self.shell.panels:
+            anchor = panel.volume_button or panel.clock_button
+            if anchor is not None:
+                self.shell.toggle_popup("volume", anchor, panel)
+                return
+        self.shell.open_settings("sound")

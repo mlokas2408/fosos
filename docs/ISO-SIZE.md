@@ -76,6 +76,13 @@ Live package list (host off until Settings enables it):
 `freerdp3-shadow-x11` was removed in 1.6.0. Expect modest ISO growth versus
 Phase 7c from xrdp/xorgxrdp; record the next rebuild size in the table above.
 
+## PowerShell
+
+The live image installs Microsoft's `powershell` package (`pwsh`) from
+`packages.microsoft.com` (Debian 13 / trixie). The package file is about
+54 MiB and Installed-Size is about 170 MiB; squashfs will land somewhere
+under that. Record the next rebuild in the table above.
+
 ## Expected direction
 
 The post–Phase 7 ISO should be **clearly smaller** than a Phase 6 image that

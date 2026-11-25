@@ -562,8 +562,8 @@ class SettingsApp(Gtk.Application):
         if self.window is None:
             self.window = SettingsWindow(self)
             self.window.show_all()
+        # Do not force maximize — shell restores last size/position (Win11-like).
         self.window.present()
-        self.window.maximize()
         if self._pending_builtin:
             self.window.show_builtin(self._pending_builtin)
             self._pending_builtin = None

@@ -1029,156 +1029,40 @@ def build_nightlight(status_cb) -> Gtk.Box:
     return root
 
 
-def _bt_powered() -> bool | None:
-    if shutil.which("bluetoothctl") is None:
-        return None
-    output = run(["bluetoothctl", "show"]) or ""
-    for line in output.splitlines():
-        if line.strip().startswith("Powered:"):
-            return line.strip().endswith("yes")
-    return None
-
-
-def _bt_devices() -> list[dict[str, str]]:
-    if shutil.which("bluetoothctl") is None:
-        return []
-    output = run(["bluetoothctl", "devices"], timeout=10) or ""
-    devices: list[dict[str, str]] = []
-    for line in output.splitlines():
-        parts = line.split()
-        if len(parts) < 3 or parts[0] != "Device":
-            continue
-        mac = parts[1]
-        name = " ".join(parts[2:])
-        info_out = run(["bluetoothctl", "info", mac], timeout=8) or ""
-        paired = connected = False
-        for info_line in info_out.splitlines():
-            s = info_line.strip()
-            if s.startswith("Paired:"):
-                paired = s.endswith("yes")
-            if s.startswith("Connected:"):
-                connected = s.endswith("yes")
-        devices.append({"mac": mac, "name": name, "paired": paired, "connected": connected})
-    return devices
-
-
 def build_bluetooth_full(status_cb) -> Gtk.Box:
+    from .indicators import BluetoothPicker, bluetooth_available
+
     root = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=16)
     root.pack_start(pack_header("Bluetooth", "Pair and connect devices."), False, False, 0)
 
-    if shutil.which("bluetoothctl") is None:
-        root.pack_start(label("bluetoothctl is not available on this system.", "fos-text", "fos-muted"), False, False, 0)
-        adv = button("Advanced…", variant="outline", size="sm")
-        def _open_blueman(_b=None) -> None:
-            if appmod.spawn(["blueman-manager"]):
-                status_cb("Opened Blueman.")
-
-        adv.connect("clicked", _open_blueman)
-        root.pack_start(adv, False, False, 0)
+    if not bluetooth_available():
+        root.pack_start(
+            label("bluetoothctl is not available on this system.", "fos-text", "fos-muted"),
+            False,
+            False,
+            0,
+        )
         return root
 
-    power_sw = Gtk.Switch()
-    powered = _bt_powered()
-    if powered is not None:
-        power_sw.set_active(powered)
+    card = add_classes(Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0), "fos-card")
+    body = add_classes(Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0), "fos-card-content")
+    card.pack_start(body, True, True, 0)
 
-    store = Gtk.ListStore(str, str, str, str)
-    tree = Gtk.TreeView(model=store)
-    tree.set_headers_visible(False)
-    name_col = Gtk.TreeViewColumn()
-    name_renderer = Gtk.CellRendererText()
-    name_col.pack_start(name_renderer, True)
-    name_col.add_attribute(name_renderer, "text", 0)
-    name_col.set_expand(True)
-    tree.append_column(name_col)
-    for index, width in ((1, 80), (2, 100)):
-        col = Gtk.TreeViewColumn()
-        renderer = Gtk.CellRendererText(xalign=0.5)
-        col.pack_start(renderer, True)
-        col.add_attribute(renderer, "text", index)
-        col.set_min_width(width)
-        tree.append_column(col)
+    def on_changed() -> None:
+        status_cb("Bluetooth updated.")
 
-    scroll = Gtk.ScrolledWindow()
-    scroll.set_min_content_height(200)
-    scroll.add(tree)
-    selection = tree.get_selection()
+    picker = BluetoothPicker(on_changed=on_changed, show_switch=True)
+    body.pack_start(picker, False, False, 0)
+    root.pack_start(card, False, False, 0)
+    picker.refresh()
 
-    def reload_devices() -> None:
-        store.clear()
-        for dev in _bt_devices():
-            store.append(
-                [
-                    dev["name"],
-                    "Paired" if dev["paired"] else "",
-                    "Connected" if dev["connected"] else "",
-                    dev["mac"],
-                ]
-            )
-
-    def selected_mac() -> str | None:
-        model, it = selection.get_selected()
-        if it is None:
-            return None
-        return model.get_value(it, 3)
-
-    def scan(_button=None) -> None:
-        status_cb("Scanning…")
-        _run(["bluetoothctl", "scan", "on"], timeout=12)
-        GLib.timeout_add(500, lambda: (reload_devices(), status_cb("Scan finished."), False))
-
-    def bt_cmd(args: list[str], label_text: str) -> None:
-        mac = selected_mac()
-        if not mac:
-            status_cb("Select a device first.")
-            return
-        code, out = _run(["bluetoothctl", *args, mac], timeout=30)
-        if code == 0:
-            status_cb(f"{label_text} {mac}.")
-        else:
-            status_cb(out or f"Could not {label_text.lower()} device.")
-        reload_devices()
-
-    def on_power(_sw: Gtk.Switch, state: bool) -> bool:
-        code, _ = _run(["bluetoothctl", "power", "on" if state else "off"], timeout=15)
-        if code != 0:
-            status_cb("Could not change Bluetooth power.")
-            return True
-        GLib.idle_add(reload_devices)
-        return False
-
-    power_sw.connect("state-set", on_power)
-
-    reload_devices()
-
-    root.pack_start(settings_row("Bluetooth", "", trailing=power_sw), False, False, 0)
-
-    scan_btn = button("Scan", variant="outline", size="sm")
-    scan_btn.connect("clicked", scan)
-    root.pack_start(scan_btn, False, False, 0)
-    root.pack_start(scroll, True, True, 0)
-
-    actions = Gtk.Box(spacing=6)
-    for text, cmd in (
-        ("Connect", ["connect"]),
-        ("Disconnect", ["disconnect"]),
-        ("Pair", ["pair"]),
-        ("Remove", ["remove"]),
-    ):
-        b = button(text, variant="ghost", size="sm")
-        b.connect("clicked", lambda _btn, a=cmd, t=text: bt_cmd(a, t))
-        actions.pack_start(b, False, False, 0)
-    root.pack_start(actions, False, False, 0)
-
-    def advanced(_button=None) -> None:
-        if appmod.spawn(["blueman-manager"]):
-            status_cb("Opened Blueman.")
-        else:
-            status_cb("blueman-manager is not installed.")
-
-    adv = button("Advanced…", variant="outline", size="sm")
-    adv.connect("clicked", advanced)
-    root.pack_start(adv, False, False, 0)
+    tip = label(
+        "Click a device to connect or disconnect. Use Scan to discover new hardware.",
+        "fos-small",
+        "fos-muted",
+    )
+    tip.set_line_wrap(True)
+    root.pack_start(tip, False, False, 0)
     return root
 
 

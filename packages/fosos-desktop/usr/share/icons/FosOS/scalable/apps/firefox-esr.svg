@@ -1,7 +1,10 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#fafafa" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
-  <circle cx="12" cy="12" r="9"/>
-  <path d="M3 12h18"/>
-  <path d="M12 3a14 14 0 0 1 0 18"/>
-  <path d="M12 3a14 14 0 0 0 0 18"/>
+<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16">
+  <path fill="#fafafa" d="M1 2h14v12H1z"/>
+  <path fill="#171717" d="M1 2h14v3H1z"/>
+  <path fill="#fafafa" d="M3 3h1v1H3z"/>
+  <path fill="#fafafa" d="M5 3h1v1H5z"/>
+  <path fill="#fafafa" d="M7 3h1v1H7z"/>
+  <path fill="#2563eb" d="M5 7h6v5H5z"/>
+  <path fill="#fafafa" d="M6 8h4v3H6z"/>
 </svg>

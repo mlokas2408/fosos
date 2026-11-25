@@ -70,7 +70,8 @@ class SnapZoneOverlay(Gtk.Window):
 class EdgeSnap:
     """Poll pointer button state; preview zones while dragging; snap on release."""
 
-    def __init__(self) -> None:
+    def __init__(self, shell=None) -> None:
+        self.shell = shell
         self._was_pressed = False
         self._press_geom: tuple[int, tuple[int, int, int, int]] | None = None
         self._disp = None
@@ -201,6 +202,8 @@ class EdgeSnap:
             return None
         if window.is_skip_tasklist() or window.get_window_type() in SKIP_TYPES:
             return None
+        if window.get_window_type() != Wnck.WindowType.NORMAL:
+            return None
         _x, _y, _w, height = window.get_geometry()
         if height <= HEIGHT + 8:
             return None
@@ -251,6 +254,11 @@ class EdgeSnap:
             return
 
         stamp = int(GLib.get_monotonic_time() / 1000)
+        if self.shell is not None:
+            try:
+                self.shell.clear_snap_assist()
+            except Exception:
+                pass
         if maximize:
             if window.is_maximized():
                 return

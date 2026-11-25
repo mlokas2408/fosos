@@ -43,6 +43,7 @@ from .snaplayouts import (
     snap_maximize,
     snap_right,
 )
+from .windowplace import persist_closed, track_window
 from .startmenu import StartMenu
 from .taskpeek import TaskPeek
 from .taskview import TaskView
@@ -102,8 +103,8 @@ class Shell(Gtk.Application):
         self.quick_links = QuickLinks(self)
         self.run_dialog = RunDialog(self)
         self.alt_tab = AltTabSwitcher(self)
-        self.edge_snap = EdgeSnap()
         self.snap_layouts = SnapLayouts(self)
+        self.edge_snap = EdgeSnap(self)
         self.task_view = TaskView(self)
         self.task_peek = TaskPeek(self)
         self.quick_settings = QuickSettings(self)
@@ -162,13 +163,13 @@ class Shell(Gtk.Application):
         elif "--snap-layouts" in args:
             self.toggle_snap_layouts()
         elif "--snap-left" in args:
-            snap_left()
+            self._arrow_snap(snap_left)
         elif "--snap-right" in args:
-            snap_right()
+            self._arrow_snap(snap_right)
         elif "--snap-down" in args:
-            snap_down()
+            self._arrow_snap(snap_down)
         elif "--snap-maximize" in args:
-            snap_maximize()
+            self._arrow_snap(snap_maximize)
         elif "--task-view" in args:
             self.toggle_task_view()
         elif "--quick-settings" in args:
@@ -253,17 +254,27 @@ class Shell(Gtk.Application):
                 closed = None
             if closed is not None and all(w.get_xid() != closed for w in screen.get_windows()):
                 self._watched_windows.discard(closed)
+                # Cache may already hold last floating size; flush to disk.
+                persist_closed(closed)
         for window in self.screen.get_windows():
             key = window.get_xid()
             if key in self._watched_windows:
                 continue
             self._watched_windows.add(key)
-            window.connect("state-changed", lambda *_a: self._refresh_panels())
+            window.connect("state-changed", self._on_window_state)
             window.connect("name-changed", lambda *_a: self._refresh_panels())
-            window.connect("geometry-changed", lambda *_a: self._rebuild_tasks())
+            window.connect("geometry-changed", self._on_window_geometry)
             window.connect("workspace-changed", lambda *_a: self._rebuild_tasks())
-            # GTK often maps at 0,0 with a stub size; retry after the client settles.
+            # GTK often maps at 0,0; restore last size/pos or cascade after settle.
             self._schedule_startup_repair(window)
+        self._rebuild_tasks()
+
+    def _on_window_state(self, window, *_args) -> None:
+        track_window(window)
+        self._refresh_panels()
+
+    def _on_window_geometry(self, window, *_args) -> None:
+        track_window(window)
         self._rebuild_tasks()
 
     def _schedule_startup_repair(self, window: Wnck.Window) -> None:
@@ -275,6 +286,7 @@ class Shell(Gtk.Application):
             target = next((w for w in screen.get_windows() if w.get_xid() == xid), None)
             if target is not None:
                 repair_startup_geometry(target)
+                track_window(target)
             # Later passes catch apps that resize themselves after the first map
             # and put the window back in the corner.
             if pass_no < 2:
@@ -437,6 +449,15 @@ class Shell(Gtk.Application):
         if self.task_view.get_visible():
             self.task_view.hide_view()
         self.snap_layouts.toggle()
+
+    def _arrow_snap(self, action) -> None:
+        """Win+arrow tiles the focused window; cancel any Win+Z fill-assist."""
+        self.snap_layouts.assist.clear()
+        action()
+
+    def clear_snap_assist(self) -> None:
+        """Cancel pending Win+Z fill-assist (e.g. after an edge drag)."""
+        self.snap_layouts.assist.clear()
 
     def toggle_task_view(self) -> None:
         if self.alt_tab.get_visible():

@@ -94,3 +94,7 @@ plymouth-themes
 freerdp3-x11
 xrdp
 xorgxrdp
+
+# PowerShell (pwsh) is not a Debian package. The image hook
+# hooks/normal/0180-powershell.hook.chroot installs it from Microsoft's
+# Debian 13 repository and pins that source to the powershell package.

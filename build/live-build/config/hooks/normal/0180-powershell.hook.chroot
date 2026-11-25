@@ -1,0 +1,135 @@
+#!/bin/sh
+# PowerShell is not in Debian. Install Microsoft's stable powershell package
+# (pwsh) and keep that apt source so fos upgrade can update it later.
+# preferences.d blocks every other package from packages.microsoft.com.
+set -eu
+
+key_asc=/usr/share/keyrings/microsoft-powershell.asc
+key_gpg=/usr/share/keyrings/microsoft-powershell.gpg
+expected=AA86F75E427A19DD33346403EE4D7792F748182B
+
+if [ ! -f "$key_asc" ]; then
+  echo "Microsoft PowerShell signing key missing: $key_asc" >&2
+  exit 1
+fi
+
+# shellcheck disable=SC1091
+. /etc/os-release
+if [ "${VERSION_CODENAME:-}" != trixie ]; then
+  echo "PowerShell repository is for Debian 13 (trixie), not ${VERSION_CODENAME:-unknown}." >&2
+  exit 1
+fi
+
+fingerprint="$(python3 - "$key_asc" <<'PY'
+import base64, hashlib, re, sys
+text = open(sys.argv[1], encoding="ascii").read()
+match = re.search(
+    r"-----BEGIN PGP PUBLIC KEY BLOCK-----\r?\n(?:[^\n]*\n)*?\r?\n(.+?)\r?\n=[A-Za-z0-9+/]{4}\r?\n-----END PGP PUBLIC KEY BLOCK-----",
+    text,
+    re.S,
+)
+if not match:
+    raise SystemExit("Microsoft signing key is not an armored public key")
+raw = base64.b64decode(re.sub(r"\s+", "", match.group(1)))
+
+def packets(data):
+    i = 0
+    n = len(data)
+    while i < n:
+        header = data[i]
+        i += 1
+        if header & 0x40:
+            tag = header & 0x3F
+            first = data[i]
+            i += 1
+            if first < 192:
+                length = first
+            elif first < 224:
+                length = ((first - 192) << 8) + data[i] + 192
+                i += 1
+            elif first == 255:
+                length = int.from_bytes(data[i:i + 4], "big")
+                i += 4
+            else:
+                raise SystemExit("partial OpenPGP length")
+        else:
+            tag = (header & 0x3C) >> 2
+            kind = header & 0x03
+            if kind == 0:
+                length = data[i]
+                i += 1
+            elif kind == 1:
+                length = int.from_bytes(data[i:i + 2], "big")
+                i += 2
+            elif kind == 2:
+                length = int.from_bytes(data[i:i + 4], "big")
+                i += 4
+            else:
+                length = n - i
+        yield tag, data[i:i + length]
+        i += length
+
+for tag, body in packets(raw):
+    if tag == 6 and body[:1] == b"\x04":
+        sys.stdout.write(hashlib.sha1(b"\x99" + len(body).to_bytes(2, "big") + body).hexdigest().upper())
+        raise SystemExit(0)
+raise SystemExit("Microsoft signing key has no v4 primary key")
+PY
+)"
+
+if [ "$fingerprint" != "$expected" ]; then
+  echo "Microsoft PowerShell key fingerprint mismatch." >&2
+  echo "Expected $expected" >&2
+  echo "Got      ${fingerprint:-<empty>}" >&2
+  exit 1
+fi
+
+python3 - "$key_asc" "$key_gpg" <<'PY'
+import base64, re, sys
+text = open(sys.argv[1], encoding="ascii").read()
+match = re.search(
+    r"-----BEGIN PGP PUBLIC KEY BLOCK-----\r?\n(?:[^\n]*\n)*?\r?\n(.+?)\r?\n=[A-Za-z0-9+/]{4}\r?\n-----END PGP PUBLIC KEY BLOCK-----",
+    text,
+    re.S,
+)
+if not match:
+    raise SystemExit("Microsoft signing key is not an armored public key")
+open(sys.argv[2], "wb").write(base64.b64decode(re.sub(r"\s+", "", match.group(1))))
+PY
+chmod 0644 "$key_gpg"
+rm -f "$key_asc"
+
+cat > /etc/apt/sources.list.d/microsoft-powershell.sources <<EOF
+# PowerShell only. preferences.d/microsoft-powershell blocks the rest of this archive.
+Types: deb
+URIs: https://packages.microsoft.com/debian/13/prod
+Suites: trixie
+Components: main
+Architectures: amd64
+Signed-By: $key_gpg
+EOF
+
+cat > /etc/apt/preferences.d/microsoft-powershell <<'EOF'
+# packages.microsoft.com also publishes dotnet, SQL tools, and other products.
+# Keep those uninstallable. PowerShell itself stays at normal priority.
+Package: powershell
+Pin: origin packages.microsoft.com
+Pin-Priority: 500
+
+Package: *
+Pin: origin packages.microsoft.com
+Pin-Priority: -1
+EOF
+chmod 0644 /etc/apt/sources.list.d/microsoft-powershell.sources \
+  /etc/apt/preferences.d/microsoft-powershell
+
+export DEBIAN_FRONTEND=noninteractive
+apt-get update
+apt-get install -y --no-install-recommends powershell
+
+if ! command -v pwsh >/dev/null 2>&1; then
+  echo "powershell installed but pwsh is not on PATH." >&2
+  exit 1
+fi
+
+pwsh -NoLogo -NoProfile -NonInteractive -Command 'Write-Output $PSVersionTable.PSVersion'

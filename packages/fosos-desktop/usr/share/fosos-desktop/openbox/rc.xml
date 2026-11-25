@@ -17,8 +17,10 @@
   </focus>
 
   <placement>
-    <policy>Smart</policy>
-    <center>yes</center>
+    <!-- Cascade like Windows when the client has no program position;
+         FosOS shell restores last size/position per app when known. -->
+    <policy>Cascade</policy>
+    <center>no</center>
     <monitor>Primary</monitor>
     <primaryMonitor>1</primaryMonitor>
   </placement>
@@ -401,33 +403,22 @@
   </menu>
 
   <applications>
-    <!-- force=yes: GTK sets program-specified location 0,0 which otherwise
-         sticks new windows in the top-left corner. -->
-    <application class="Fosos-settings">
-      <position force="yes"><x>center</x><y>center</y></position>
-    </application>
+    <!-- Undecorated CardWindow apps; size/position restored by fosos-shell
+         (Win11-like), not forced to center. -->
     <application class="Fosos-files">
       <decor>no</decor>
-      <position force="yes"><x>center</x><y>center</y></position>
     </application>
     <application class="Fosos-terminal">
       <decor>no</decor>
-      <position force="yes"><x>center</x><y>center</y></position>
     </application>
     <application class="Fosos-notepad">
       <decor>no</decor>
-      <position force="yes"><x>center</x><y>center</y></position>
     </application>
     <application class="Fosos-remote">
       <decor>no</decor>
-      <position force="yes"><x>center</x><y>center</y></position>
     </application>
     <application class="Fosos-taskmgr">
       <decor>no</decor>
-      <position force="yes"><x>center</x><y>center</y></position>
-    </application>
-    <application class="Fosos-install-package">
-      <position force="yes"><x>center</x><y>center</y></position>
     </application>
   </applications>
 </openbox_config>

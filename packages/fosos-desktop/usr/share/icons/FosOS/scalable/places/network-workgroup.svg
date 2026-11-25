@@ -1,12 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#fafafa" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
-  <circle cx="12" cy="12" r="3"/>
-  <path d="M12 2v3"/>
-  <path d="M12 19v3"/>
-  <path d="M2 12h3"/>
-  <path d="M19 12h3"/>
-  <path d="M4.9 4.9l2.1 2.1"/>
-  <path d="M17 17l2.1 2.1"/>
-  <path d="M4.9 19.1 7 17"/>
-  <path d="M17 7l2.1-2.1"/>
+<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16">
+  <path fill="#a1a1aa" d="M5 3h6v2H5z"/>
+  <path fill="#a1a1aa" d="M7 5h2v5H7z"/>
+  <path fill="#fafafa" d="M1 2h4v4H1z"/>
+  <path fill="#fafafa" d="M11 2h4v4h-4z"/>
+  <path fill="#fafafa" d="M6 10h4v4H6z"/>
 </svg>
