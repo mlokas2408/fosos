@@ -1,0 +1,13 @@
+[Desktop Entry]
+Type=Application
+Name=Photos
+GenericName=Image Viewer
+Comment=Preview and edit photos
+Exec=fosos-photos %F
+Icon=image-x-generic
+Terminal=false
+Categories=Graphics;Viewer;Photography;
+MimeType=image/jpeg;image/png;image/gif;image/bmp;image/tiff;image/x-ico;image/x-icon;image/webp;image/x-tga;
+Keywords=photo;image;viewer;picture;edit;rotate;crop;
+StartupWMClass=fosos-photos
+OnlyShowIn=FosOS;

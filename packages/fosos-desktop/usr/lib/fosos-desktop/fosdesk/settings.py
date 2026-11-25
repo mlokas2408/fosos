@@ -34,6 +34,7 @@ PANELS = [
         {"page": "network"},
     ),
     ("System", "Bluetooth", "Pair and manage devices", "bluetooth-active-symbolic", {"page": "bluetooth"}),
+    ("System", "Printers", "Add and manage printers", "printer-symbolic", {"page": "printers"}),
     (
         "System",
         "Remote Desktop",
@@ -217,6 +218,8 @@ def panel_available(action: dict) -> bool:
             return shutil.which("nmcli") is not None
         if page_id == "bluetooth":
             return shutil.which("bluetoothctl") is not None or shutil.which("blueman-manager") is not None
+        if page_id == "printers":
+            return shutil.which("lpstat") is not None
         return True
     command = action.get("command") or []
     return bool(command) and shutil.which(command[0]) is not None

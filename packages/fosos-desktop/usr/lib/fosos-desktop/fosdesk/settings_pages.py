@@ -55,6 +55,7 @@ DEFAULT_TYPES = [
     ("PDF", "application/pdf"),
     ("Archives", "application/zip"),
     ("Images", "image/jpeg"),
+    ("Videos", "video/mp4"),
     ("Mail", "x-scheme-handler/mailto"),
 ]
 
@@ -70,6 +71,15 @@ DEFAULT_MIME_ALIASES = {
         "application/vnd.rar",
     ),
     "image/jpeg": ("image/png", "image/webp", "image/gif", "image/bmp"),
+    "video/mp4": (
+        "video/x-matroska",
+        "video/webm",
+        "video/x-msvideo",
+        "video/quicktime",
+        "video/x-m4v",
+        "video/ogg",
+        "video/mpeg",
+    ),
 }
 
 
@@ -1472,6 +1482,12 @@ def build_bluetooth(status_cb) -> Gtk.Box:
     return build_bluetooth_full(status_cb)
 
 
+def build_printers(status_cb) -> Gtk.Box:
+    from .settings_more import build_printers as build_printers_full
+
+    return build_printers_full(status_cb)
+
+
 def reboot_required() -> bool:
     for path in (Path("/run/reboot-required"), Path("/var/run/reboot-required")):
         if path.is_file():
@@ -2190,6 +2206,7 @@ PAGES = {
     "sound": ("Sound", build_sound),
     "network": ("Network", build_network),
     "bluetooth": ("Bluetooth", build_bluetooth),
+    "printers": ("Printers", build_printers),
     "remote": ("Remote Desktop", build_remote_desktop),
     "updates": ("Updates", build_updates),
     "storage": ("Storage", build_storage),
@@ -2215,6 +2232,7 @@ def register_extra_pages() -> None:
             "multitasking": ("Multitasking", more.build_multitasking),
             "nightlight": ("Night light", more.build_nightlight),
             "bluetooth": ("Bluetooth", more.build_bluetooth_full),
+            "printers": ("Printers", more.build_printers),
         }
     )
 

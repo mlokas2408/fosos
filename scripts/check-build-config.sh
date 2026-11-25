@@ -89,6 +89,7 @@ required_files=(
   "$repo_root/packages/fosos-desktop/usr/bin/fosos-store"
   "$repo_root/packages/fosos-desktop/usr/bin/fosos-taskmgr"
   "$repo_root/packages/fosos-desktop/usr/bin/fosos-devicemgr"
+  "$repo_root/packages/fosos-desktop/usr/bin/fosos-camera"
   "$repo_root/packages/fosos-desktop/usr/share/applications/fosos-files.desktop"
   "$repo_root/packages/fosos-desktop/usr/share/applications/fosos-terminal.desktop"
   "$repo_root/packages/fosos-desktop/usr/share/applications/fosos-notepad.desktop"
@@ -96,7 +97,9 @@ required_files=(
   "$repo_root/packages/fosos-desktop/usr/share/applications/fosos-remote.desktop"
   "$repo_root/packages/fosos-desktop/usr/share/applications/fosos-taskmgr.desktop"
   "$repo_root/packages/fosos-desktop/usr/share/applications/fosos-devicemgr.desktop"
+  "$repo_root/packages/fosos-desktop/usr/share/applications/fosos-camera.desktop"
   "$repo_root/packages/fosos-desktop/usr/lib/fosos-desktop/fosdesk/devicemgr.py"
+  "$repo_root/packages/fosos-desktop/usr/lib/fosos-desktop/fosdesk/camera.py"
   "$repo_root/packages/fosos-desktop/usr/lib/fosos-desktop/fosdesk/store.py"
   "$repo_root/packages/fosos-desktop/usr/lib/fosos-desktop/fosdesk/taskmgr.py"
   "$repo_root/packages/fosos-desktop/usr/lib/fosos-desktop/fosdesk/files.py"
@@ -544,6 +547,40 @@ for pkg in \
     exit 1
   fi
 done
+for pkg in \
+  python3-gst-1.0 \
+  gir1.2-gstreamer-1.0 \
+  gir1.2-gst-plugins-base-1.0 \
+  gstreamer1.0-plugins-base \
+  gstreamer1.0-plugins-good \
+  gstreamer1.0-plugins-ugly \
+  gstreamer1.0-plugins-bad \
+  gstreamer1.0-libav \
+  gstreamer1.0-gtk3 \
+  v4l-utils \
+  pipewire-v4l2 \
+  firmware-intel-graphics; do
+  if ! grep -qx "$pkg" "$repo_root/build/live-build/config/package-lists/fosos-base.list.chroot"; then
+    echo "fosos-base.list.chroot must list $pkg (webcam / camera)." >&2
+    exit 1
+  fi
+done
+if ! grep -qE '(^|[, ])gstreamer1.0-gtk3([, ]|$)' "$repo_root/packages/fosos-desktop/DEBIAN/control"; then
+  echo "fosos-desktop must Depend on gstreamer1.0-gtk3 (Camera preview)." >&2
+  exit 1
+fi
+if ! grep -qE '(^|[, ])python3-gst-1.0([, ]|$)' "$repo_root/packages/fosos-desktop/DEBIAN/control"; then
+  echo "fosos-desktop must Depend on python3-gst-1.0 (Camera)." >&2
+  exit 1
+fi
+if grep -qx 'guvcview' "$repo_root/build/live-build/config/package-lists/fosos-base.list.chroot"; then
+  echo "fosos-base.list.chroot must not list guvcview (replaced by fosos-camera)." >&2
+  exit 1
+fi
+if ! grep -q 'Fosos-camera' "$repo_root/packages/fosos-desktop/usr/share/fosos-desktop/openbox/rc.xml"; then
+  echo "openbox rc.xml must undecorate Fosos-camera (CardWindow)." >&2
+  exit 1
+fi
 
 pwsh_hook="$repo_root/build/live-build/config/hooks/normal/0180-powershell.hook.chroot"
 pwsh_key="$repo_root/build/live-build/config/includes.chroot/usr/share/keyrings/microsoft-powershell.asc"

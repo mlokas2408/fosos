@@ -1144,6 +1144,75 @@ tooltip label {
   font-size: 11px;
 }
 
+/* Camera */
+.fos-camera-preview {
+  background-color: #000000;
+  min-height: 240px;
+}
+
+/* Photos */
+.fos-photos-stage {
+  background-color: #111214;
+  min-height: 240px;
+}
+
+.fos-photos-sep {
+  margin: 2px 2px;
+  opacity: 0.5;
+}
+
+.fos-photos-cropbar {
+  background-color: @fos_card;
+  border-top: 1px solid @fos_border;
+  padding: 8px 12px;
+}
+
+/* Videos */
+.fos-videos-stage,
+.fos-videos-preview {
+  background-color: #000000;
+  min-height: 240px;
+}
+
+.fos-videos-controls {
+  background-color: @fos_card;
+  border-top: 1px solid @fos_border;
+  padding: 8px 12px;
+}
+
+.fos-videos-seek {
+  min-width: 120px;
+}
+
+.fos-videos-volume {
+  min-width: 80px;
+  margin-right: 4px;
+}
+
+.fos-camera-settings {
+  background-color: @fos_card;
+  border-left: 1px solid @fos_border;
+  min-width: 280px;
+}
+
+.fos-camera-settings-header {
+  padding: 10px 12px 6px;
+  border-bottom: 1px solid @fos_border;
+}
+
+.fos-camera-settings-body {
+  padding: 12px;
+}
+
+.fos-camera-setting-row {
+  min-height: 28px;
+}
+
+button.fos-btn.outline.active {
+  background-color: @fos_muted;
+  color: @fos_fg;
+}
+
 .fos-taskmgr-tree {
   background-color: @fos_card;
 }

@@ -420,5 +420,14 @@
     <application class="Fosos-taskmgr">
       <decor>no</decor>
     </application>
+    <application class="Fosos-camera">
+      <decor>no</decor>
+    </application>
+    <application class="Fosos-videos">
+      <decor>no</decor>
+    </application>
+    <application class="Fosos-photos">
+      <decor>no</decor>
+    </application>
   </applications>
 </openbox_config>

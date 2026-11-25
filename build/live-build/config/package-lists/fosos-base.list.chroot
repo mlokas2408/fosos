@@ -46,6 +46,30 @@ lxpolkit
 firmware-sof-signed
 firmware-intel-sound
 alsa-ucm-conf
+# Webcam: FosOS Camera (GStreamer + GTK3), V4L2 CLI helpers, PipeWire
+# camera bridge for browser getUserMedia. IPU/MIPI blobs are not in
+# firmware-misc-nonfree.
+python3-gst-1.0
+gir1.2-gstreamer-1.0
+gir1.2-gst-plugins-base-1.0
+gstreamer1.0-plugins-base
+gstreamer1.0-plugins-good
+gstreamer1.0-plugins-ugly
+gstreamer1.0-plugins-bad
+gstreamer1.0-libav
+gstreamer1.0-gtk3
+v4l-utils
+pipewire-v4l2
+firmware-intel-graphics
+# Printing: lean driverless CUPS (USB IPP + network IPP/AirPrint-style).
+# APT recommends are off, so list the stack explicitly. No vendor drivers.
+cups
+cups-client
+cups-bsd
+cups-filters
+cups-browsed
+ipp-usb
+avahi-daemon
 
 # Essential user and compatibility tools
 sudo

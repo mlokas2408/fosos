@@ -66,7 +66,7 @@ Revisit Wayland when the shell is stable for daily use.
 | `fosos-greeter` | LightDM greeter (two-column Sign in; always Desktop; power menu) |
 | `fosos-shell` | Taskbar, Start menu, desktop, notifications, status menus |
 | `fosos-lock` | Fullscreen lock screen (same layout + power menu) |
-| `fosos-settings` | Settings shell (card chrome): Display, Sound, Network, Bluetooth, Power, Storage, Wallpaper, Appearance, Taskbar, Multitasking, Notifications, Accounts, Keyboard / shortcuts, Mouse, Date & time, Region, Defaults, Startup, Accessibility, Privacy, Night light, Remote Desktop, Updates |
+| `fosos-settings` | Settings shell (card chrome): Display, Sound, Network, Bluetooth, Printers, Power, Storage, Wallpaper, Appearance, Taskbar, Multitasking, Notifications, Accounts, Keyboard / shortcuts, Mouse, Date & time, Region, Defaults, Startup, Accessibility, Privacy, Night light, Remote Desktop, Updates |
 | `fosos-taskmgr` | Task Manager (Processes, Performance, Startup apps, Details; Ctrl+Shift+Esc / taskbar menu) |
 | `fosos-remote` | RDP client (card chrome; FreeRDP to Windows / Ubuntu / other hosts) |
 | `fosos-welcome` | First-login / `--again` welcome (card chrome; guide, install, updates) |

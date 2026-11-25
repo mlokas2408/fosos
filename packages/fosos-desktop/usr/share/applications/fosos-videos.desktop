@@ -1,0 +1,13 @@
+[Desktop Entry]
+Type=Application
+Name=Videos
+GenericName=Video Player
+Comment=Play video files
+Exec=fosos-videos %F
+Icon=multimedia-player
+Terminal=false
+Categories=AudioVideo;Player;Video;
+MimeType=video/mp4;video/x-matroska;video/webm;video/x-msvideo;video/quicktime;video/x-m4v;video/ogg;video/mpeg;video/x-ogm+ogg;application/ogg;
+Keywords=video;player;movie;media;mp4;mkv;webm;
+StartupWMClass=fosos-videos
+OnlyShowIn=FosOS;

@@ -1664,6 +1664,440 @@ def build_bluetooth_full(status_cb) -> Gtk.Box:
     return root
 
 
+def printers_installed() -> bool:
+    return shutil.which("lpstat") is not None
+
+
+def _printer_safe_name(raw: str) -> str:
+    cleaned = re.sub(r"[^A-Za-z0-9._-]+", "_", raw.strip())
+    cleaned = cleaned.strip("._-") or "printer"
+    return cleaned[:48]
+
+
+def _printer_name_from_uri(uri: str) -> str:
+    host = ""
+    match = re.match(r"^[a-zA-Z0-9+.-]+://([^/?#]+)", uri)
+    if match:
+        host = match.group(1).split("@")[-1].split(":")[0]
+    if not host:
+        host = uri.rsplit("/", 1)[-1] or "printer"
+    return _printer_safe_name(host)
+
+
+def list_cups_printers() -> tuple[list[dict[str, object]], str]:
+    """Return (printers, error). Each printer: name, enabled, status, is_default."""
+    if not printers_installed():
+        return [], "lpstat is not available"
+    code, out = _run(["lpstat", "-p", "-d"], timeout=12)
+    if code != 0 and not out:
+        return [], "Could not query printers"
+    default = ""
+    printers: list[dict[str, object]] = []
+    for line in out.splitlines():
+        stripped = line.strip()
+        lower = stripped.lower()
+        if lower.startswith("system default destination:"):
+            default = stripped.split(":", 1)[1].strip()
+            continue
+        if lower.startswith("no system default destination"):
+            default = ""
+            continue
+        match = re.match(r"^printer\s+(\S+)\s+(.+)$", stripped, re.IGNORECASE)
+        if not match:
+            continue
+        name = match.group(1)
+        rest = match.group(2)
+        enabled = "disabled" not in rest.lower()
+        status = "Disabled"
+        if "is idle" in rest.lower():
+            status = "Idle"
+        elif "is printing" in rest.lower() or "printing" in rest.lower():
+            status = "Printing"
+        elif "is busy" in rest.lower():
+            status = "Busy"
+        elif enabled:
+            status = "Ready"
+        printers.append(
+            {
+                "name": name,
+                "enabled": enabled,
+                "status": status,
+                "is_default": False,
+            }
+        )
+    if default:
+        for item in printers:
+            if str(item["name"]) == default:
+                item["is_default"] = True
+                break
+    return printers, ""
+
+
+def discover_printer_uris() -> tuple[list[tuple[str, str]], str]:
+    """Return ([(label, uri), ...], error). Skips abstract backend stubs."""
+    if shutil.which("lpinfo") is None:
+        return [], "lpinfo is not available"
+    code, out = _run(["lpinfo", "-v"], timeout=30)
+    if code != 0 and not out:
+        return [], "Could not discover printers"
+    # lpinfo lists both concrete devices and bare scheme stubs (e.g. "network ipp").
+    stub_only = {
+        "http",
+        "https",
+        "ipp",
+        "ipps",
+        "lpd",
+        "socket",
+        "beh",
+        "serial",
+        "parallel",
+        "file",
+        "cups-brf",
+    }
+    found: list[tuple[str, str]] = []
+    seen: set[str] = set()
+    for line in out.splitlines():
+        stripped = line.strip()
+        if not stripped:
+            continue
+        parts = stripped.split(None, 1)
+        if len(parts) < 2:
+            continue
+        uri = parts[1].strip()
+        if "://" not in uri:
+            continue
+        scheme, rest = uri.split("://", 1)
+        scheme = scheme.lower()
+        if not rest:
+            continue
+        # Stub backends have no path/query and match a known abstract scheme.
+        if scheme in stub_only and "/" not in rest and "?" not in rest:
+            continue
+        if uri in seen:
+            continue
+        seen.add(uri)
+        if scheme in ("usb", "hp", "hpfax"):
+            label = f"USB · {uri}"
+        elif scheme in ("dnssd", "mdns"):
+            label = f"Network · {rest.split('.', 1)[0]}"
+        elif scheme.startswith("ipp"):
+            label = f"IPP · {rest.split('/')[0]}"
+        else:
+            label = uri
+        found.append((label, uri))
+    found.sort(key=lambda item: item[0].lower())
+    return found, ""
+
+
+def add_cups_printer(name: str, uri: str) -> tuple[bool, str]:
+    safe = _printer_safe_name(name)
+    if not safe or not uri.strip():
+        return False, "Name and address are required"
+    if shutil.which("lpadmin") is None:
+        return False, "lpadmin is not available"
+    code, out = _run(
+        ["lpadmin", "-p", safe, "-E", "-v", uri.strip(), "-m", "everywhere"],
+        timeout=60,
+    )
+    if code != 0:
+        return False, out or "Could not add printer"
+    return True, safe
+
+
+def build_printers(status_cb) -> Gtk.Box:
+    root = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=16)
+    root.pack_start(
+        pack_header("Printers", "Add and manage printers."),
+        False,
+        False,
+        0,
+    )
+
+    if not printers_installed():
+        root.pack_start(
+            label(
+                "Printing is not installed. Install cups from the Store or with fos install cups.",
+                "fos-text",
+                "fos-muted",
+            ),
+            False,
+            False,
+            0,
+        )
+        return root
+
+    from threading import Thread
+
+    list_card = add_classes(Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0), "fos-settings-card")
+    busy = {"refresh": False, "discover": False}
+
+    def parent_window() -> Gtk.Window | None:
+        toplevel = root.get_toplevel()
+        return toplevel if isinstance(toplevel, Gtk.Window) else None
+
+    def paint(printers: list[dict[str, object]] | None = None, error: str = "") -> None:
+        clear(list_card)
+        if error:
+            list_card.pack_start(
+                settings_row(error, ""),
+                False,
+                False,
+                0,
+            )
+            list_card.show_all()
+            return
+        items = printers if printers is not None else []
+        if not items:
+            list_card.pack_start(
+                settings_row("No printers yet", "Add a USB or network printer below."),
+                False,
+                False,
+                0,
+            )
+            list_card.show_all()
+            return
+        for index, item in enumerate(items):
+            name = str(item.get("name") or "")
+            status = str(item.get("status") or "")
+            enabled = bool(item.get("enabled"))
+            is_default = bool(item.get("is_default"))
+            subtitle_parts = [status]
+            if is_default:
+                subtitle_parts.append("Default")
+            if not enabled:
+                subtitle_parts.append("Paused")
+            trailing = Gtk.Box(spacing=6)
+            if not is_default:
+                def_btn = button("Set default", variant="ghost", size="sm")
+
+                def on_default(_btn: Gtk.Button, printer=name) -> None:
+                    code, out = _run(["lpoptions", "-d", printer], timeout=12)
+                    if code != 0:
+                        status_cb(out or f"Could not set {printer} as default.")
+                        return
+                    status_cb(f"{printer} is the default printer.")
+                    refresh()
+
+                def_btn.connect("clicked", on_default)
+                trailing.pack_start(def_btn, False, False, 0)
+
+            toggle_label = "Resume" if not enabled else "Pause"
+            toggle_btn = button(toggle_label, variant="ghost", size="sm")
+
+            def on_toggle(_btn: Gtk.Button, printer=name, turn_on=not enabled) -> None:
+                cmd = "cupsenable" if turn_on else "cupsdisable"
+                if shutil.which(cmd) is None:
+                    status_cb(f"{cmd} is not available.")
+                    return
+                code, out = _run([cmd, printer], timeout=12)
+                if code != 0:
+                    status_cb(out or f"Could not {toggle_label.lower()} {printer}.")
+                    return
+                status_cb(f"{printer} {'resumed' if turn_on else 'paused'}.")
+                refresh()
+
+            toggle_btn.connect("clicked", on_toggle)
+            trailing.pack_start(toggle_btn, False, False, 0)
+
+            remove_btn = button("Remove", variant="ghost", size="sm")
+
+            def on_remove(_btn: Gtk.Button, printer=name) -> None:
+                if not fos_confirm(
+                    parent_window(),
+                    f"Remove {printer}?",
+                    "This printer will be removed from this PC.",
+                    ok="Remove",
+                    destructive=True,
+                ):
+                    return
+                if shutil.which("lpadmin") is None:
+                    status_cb("lpadmin is not available.")
+                    return
+                code, out = _run(["lpadmin", "-x", printer], timeout=20)
+                if code != 0:
+                    status_cb(out or f"Could not remove {printer}.")
+                    return
+                status_cb(f"Removed {printer}.")
+                refresh()
+
+            remove_btn.connect("clicked", on_remove)
+            trailing.pack_start(remove_btn, False, False, 0)
+
+            list_card.pack_start(
+                settings_row(
+                    name,
+                    " · ".join(subtitle_parts),
+                    trailing=trailing,
+                    icon_name="printer-symbolic",
+                ),
+                False,
+                False,
+                0,
+            )
+            if index < len(items) - 1:
+                list_card.pack_start(add_classes(Gtk.Box(), "fos-settings-row-sep"), False, False, 0)
+        list_card.show_all()
+
+    def refresh() -> None:
+        if busy["refresh"]:
+            return
+        busy["refresh"] = True
+        status_cb("Reading printers…")
+
+        def work() -> None:
+            printers, error = list_cups_printers()
+
+            def done() -> bool:
+                busy["refresh"] = False
+                paint(printers, error)
+                if error:
+                    status_cb(error)
+                elif not printers:
+                    status_cb("No printers configured.")
+                else:
+                    status_cb(f"{len(printers)} printer{'s' if len(printers) != 1 else ''}.")
+                return False
+
+            GLib.idle_add(done)
+
+        Thread(target=work, daemon=True).start()
+
+    actions = Gtk.Box(spacing=8)
+    refresh_btn = button("Refresh", variant="ghost", size="sm")
+    refresh_btn.connect("clicked", lambda _b: refresh())
+    actions.pack_start(refresh_btn, False, False, 0)
+
+    add_discovered_btn = button("Add discovered…", variant="default", size="sm")
+    add_manual_btn = button("Add by address…", variant="ghost", size="sm")
+    actions.pack_start(add_discovered_btn, False, False, 0)
+    actions.pack_start(add_manual_btn, False, False, 0)
+
+    def add_with_uri(uri: str, suggested: str = "") -> None:
+        name = suggested or _printer_name_from_uri(uri)
+        prompt = fos_prompt(parent_window(), "Add printer", "Printer name", name)
+        if not prompt:
+            return
+        status_cb(f"Adding {prompt}…")
+
+        def work() -> None:
+            ok, message = add_cups_printer(prompt, uri)
+
+            def done() -> bool:
+                if ok:
+                    status_cb(f"Added {message}.")
+                    refresh()
+                else:
+                    fos_alert(parent_window(), "Could not add printer", message)
+                    status_cb(message)
+                return False
+
+            GLib.idle_add(done)
+
+        Thread(target=work, daemon=True).start()
+
+    def on_add_manual(_btn: Gtk.Button) -> None:
+        host = fos_prompt(
+            parent_window(),
+            "Add network printer",
+            "Hostname or IP address",
+            "",
+        )
+        if not host:
+            return
+        host = host.strip()
+        if "://" in host:
+            uri = host
+        else:
+            uri = f"ipp://{host}/ipp/print"
+        add_with_uri(uri, _printer_safe_name(host.split("/")[0].split(":")[0]))
+
+    def on_add_discovered(_btn: Gtk.Button) -> None:
+        if busy["discover"]:
+            return
+        busy["discover"] = True
+        add_discovered_btn.set_sensitive(False)
+        status_cb("Looking for printers…")
+
+        def work() -> None:
+            devices, error = discover_printer_uris()
+
+            def done() -> bool:
+                busy["discover"] = False
+                add_discovered_btn.set_sensitive(True)
+                if error:
+                    fos_alert(parent_window(), "Discover printers", error)
+                    status_cb(error)
+                    return False
+                if not devices:
+                    fos_alert(
+                        parent_window(),
+                        "No printers found",
+                        "Connect a USB printer or use Add by address for a network IPP printer.",
+                    )
+                    status_cb("No printers found.")
+                    return False
+                picker = FosDialog(parent_window(), title="Add discovered printer", width=520)
+                picker.add_body_text("Choose a printer to add with driverless IPP.")
+                list_box = add_classes(
+                    Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0),
+                    "fos-settings-card",
+                )
+                selected: dict[str, str | None] = {"uri": None}
+                for index, (label_text, uri) in enumerate(devices[:40]):
+                    row_btn = button(label_text, variant="ghost", size="sm")
+                    row_btn.set_halign(Gtk.Align.FILL)
+                    row_btn.set_hexpand(True)
+
+                    def on_pick(_b: Gtk.Button, pick_uri=uri) -> None:
+                        selected["uri"] = pick_uri
+                        picker.respond(True)
+
+                    row_btn.connect("clicked", on_pick)
+                    wrap = add_classes(Gtk.Box(), "fos-settings-row")
+                    wrap.pack_start(row_btn, True, True, 0)
+                    list_box.pack_start(wrap, False, False, 0)
+                    if index < min(len(devices), 40) - 1:
+                        list_box.pack_start(
+                            add_classes(Gtk.Box(), "fos-settings-row-sep"),
+                            False,
+                            False,
+                            0,
+                        )
+                scroll = Gtk.ScrolledWindow()
+                scroll.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
+                scroll.set_min_content_height(180)
+                scroll.set_max_content_height(320)
+                scroll.add(list_box)
+                picker.content.pack_start(scroll, True, True, 0)
+                picker.add_action("Cancel", False, variant="ghost")
+                if picker.run() and selected["uri"]:
+                    uri = str(selected["uri"])
+                    add_with_uri(uri, _printer_name_from_uri(uri))
+                else:
+                    status_cb("Add cancelled.")
+                return False
+
+            GLib.idle_add(done)
+
+        Thread(target=work, daemon=True).start()
+
+    add_discovered_btn.connect("clicked", on_add_discovered)
+    add_manual_btn.connect("clicked", on_add_manual)
+
+    root.pack_start(actions, False, False, 0)
+    root.pack_start(list_card, False, False, 0)
+    tip = label(
+        "USB printers use IPP-over-USB. Network printers use driverless IPP "
+        "(hostname or IP). Managing printers needs the lpadmin group.",
+        "fos-small",
+        "fos-muted",
+    )
+    tip.set_line_wrap(True)
+    root.pack_start(tip, False, False, 0)
+    refresh()
+    return root
+
+
 def restore_session_accessibility() -> None:
     """Re-apply sticky/slow keys and xsettings font from saved prefs."""
     from .settings_pages import current_layout
@@ -1703,6 +2137,7 @@ __all__ = [
     "build_installed_apps",
     "build_multitasking",
     "build_nightlight",
+    "build_printers",
     "build_privacy",
     "build_shortcuts",
     "build_ssh",

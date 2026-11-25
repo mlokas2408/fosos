@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Name=Camera
+GenericName=Webcam
+Comment=Preview, capture photos, and record video from a camera
+Exec=fosos-camera
+Icon=camera-web
+Terminal=false
+Categories=AudioVideo;Video;Photography;
+Keywords=camera;webcam;photo;video;record;capture;v4l;
+StartupWMClass=fosos-camera
+OnlyShowIn=FosOS;

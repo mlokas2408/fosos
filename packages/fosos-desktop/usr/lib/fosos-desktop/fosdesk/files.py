@@ -530,6 +530,9 @@ class FilesWindow(CardWindow):
         self._item_widgets: dict[Path, Gtk.Widget] = {}
         self._click_path: Path | None = None
         self._click_time = 0
+        # Set when a synthetic double-click already opened; skip the follow-up
+        # _2BUTTON_PRESS so handlers (browser, Photos, …) are not launched twice.
+        self._suppress_2button = False
         self.options = load_options()
         self.pins = load_pins()
         self._nav_buttons: dict[str, Gtk.Button] = {}
@@ -1981,17 +1984,26 @@ class FilesWindow(CardWindow):
             return False
 
         # Double-click open (must not rebuild listing between the two clicks).
-        is_double = event.type == Gdk.EventType._2BUTTON_PRESS
-        if not is_double and self._click_path == path:
-            delta = int(event.time) - int(self._click_time)
-            if 0 <= delta <= self._double_click_time_ms():
-                is_double = True
-        if is_double:
+        # GTK delivers BUTTON_PRESS then _2BUTTON_PRESS; opening on both would
+        # launch the default app twice (e.g. two browser tabs).
+        if event.type == Gdk.EventType._2BUTTON_PRESS:
             self._click_path = None
             self._click_time = 0
+            if self._suppress_2button:
+                self._suppress_2button = False
+                return True
             self.open_path(path)
             return True
+        if self._click_path == path:
+            delta = int(event.time) - int(self._click_time)
+            if 0 <= delta <= self._double_click_time_ms():
+                self._click_path = None
+                self._click_time = 0
+                self._suppress_2button = True
+                self.open_path(path)
+                return True
 
+        self._suppress_2button = False
         self._click_path = path
         self._click_time = int(event.time)
 
