@@ -66,12 +66,27 @@ described in [the testing guide](TESTING.md).
 ## Release build (dedicated Debian VM)
 
 Build a release image only on a Debian 13 VM that is not a daily-use install.
-Clone this repository onto the VM's own disk, then run:
+Clone this repository onto the VM's own disk (or use the helper below), then
+run:
 
 ```bash
 sudo bash scripts/check-build-config.sh
 sudo bash scripts/build-iso.sh
 ```
+
+From this Windows development machine, after your changes are on `origin/main`:
+
+```powershell
+# Sync VM checkout, check config, build, copy ISO to output/
+.\scripts\release-vm-iso.ps1
+
+# Sync + check only (no live-build)
+.\scripts\release-vm-iso.ps1 -SkipBuild
+```
+
+Defaults: `amagi@10.0.99.203`, remote `~/fosos`. Override with `-HostName`,
+`-User`, `-RemoteRepo`, or env `FOSOS_RELEASE_VM` / `FOSOS_RELEASE_USER` /
+`FOSOS_RELEASE_REPO`. `-SkipFetch` leaves the ISO on the VM.
 
 The default Debian suite is `trixie`. Override it only for controlled porting
 work:
