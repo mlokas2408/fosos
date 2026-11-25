@@ -87,7 +87,7 @@ the soak log.
 | ID | Check |
 | --- | --- |
 | C01 | Taskbar: Start, Task View button (no numbered 1–4 pager), pins, status cluster, clock, Show Desktop strip |
-| C02 | Super tap / Super+Space / Alt+F1 opens Start |
+| C02 | Super tap / Super+Space / Super+S / Alt+F1 / Ctrl+Esc opens Start |
 | C03 | Start search: clear (×); Esc clears then dismisses; finds app, settings panel, recent file |
 | C04 | Start: Down/Up highlight + Enter launch; All apps under home with A–Z; Account left / Power right |
 | C05 | Start Account menu: home, Lock, Sign out; Power confirm (Shut down / Restart / Suspend / Lock) |
@@ -101,6 +101,7 @@ the soak log.
 | ID | Check |
 | --- | --- |
 | D01 | Super+E / Super+I / Ctrl+Alt+T / Ctrl+Shift+Esc / Super+L / Super+R / Super+X work |
+| D01b | Win+S / Ctrl+Esc open Start; Win+U Accessibility; Win+P Display; Win+M show desktop; Win+B notification area |
 | D02 | Alt+Tab: larger selected tile; Esc cancels without switch; release Alt focuses |
 | D03 | Super+↑ maximize; Super+←/→ tile above panel; Super+↓ restore-from-snap then minimize |
 | D04 | Drag to edge/corner: zone preview then half/quarter; top edge maximizes |
@@ -108,7 +109,7 @@ the soak log.
 | D06 | CardWindow titlebar right-click: Restore / Minimize / Maximize / Snap layouts / Close |
 | D07 | Maximize button right-click opens snap layouts |
 | D08 | Win+Tab Task View: four desktops; click window to switch; Esc closes |
-| D09 | Move window to Desktop N (Task View or taskbar app menu); Super+1…4 / Ctrl+Win+←/→ |
+| D09 | Move window to Desktop N (Task View or taskbar app menu); Ctrl+Win+1…4 / Ctrl+Win+←/→; Super+1…9 pins |
 | D10 | Super+Shift+S / Shift+Print region capture; Print full → under Pictures |
 | D11 | Taskbar: focused single window toggles minimize; multi-window cycles |
 
@@ -132,11 +133,14 @@ the soak log.
 | ID | Check |
 | --- | --- |
 | F01 | Files: Ctrl+C/X/V, multi-select, Delete → Recycle Bin, restore |
+| F01b | Files: arrows move selection; Shift+arrows/Home/End extend range; Ctrl+Space toggles; type-ahead jumps by name |
 | F02 | Files: F2, Alt+Up, Ctrl+L; Search keeps focus; Esc clears Search |
 | F03 | Files context menus (item vs empty folder); drag into folders |
 | F04 | Desktop icons (Computer, Files, Recycle Bin — no Home); grid snap; no overlap; restart keeps place |
 | F05 | Desktop right-click: Refresh, Auto arrange, Display, Personalize, New folder, Open Files/Terminal |
 | F06 | Personalize single-click vs double-click; Reset icon positions + F5 |
+| F07 | Files: Connect to Server (This PC / More / Win+X Map network drive) mounts `\\server\share`; appears on This PC |
+| F08 | Files: address bar accepts UNC / `smb://`; breadcrumb shows `\\host\share`; Disconnect unmounts |
 
 ### G — Settings and theme
 

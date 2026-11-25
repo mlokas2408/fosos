@@ -18,6 +18,7 @@ from .ui import (
     badge,
     button,
     clear,
+    full_icon,
     icon,
     label,
     separator,
@@ -86,7 +87,9 @@ class TaskButton(Gtk.Box):
         self.app = app
         self.lone_window = window
         if app is not None:
-            name, icon_name = app.name, app.icon_name()
+            # Match Start pinned tiles / File Explorer: desktop Icon= via full_icon
+            # (not KNOWN_APPS symbolic overrides, which differ e.g. folder vs system-file-manager).
+            name, icon_name = app.name, app.icon_name(symbolic=False)
         else:
             name = window.get_class_group_name() or window.get_name()
             icon_name = None
@@ -94,9 +97,9 @@ class TaskButton(Gtk.Box):
         self.button = button(variant="ghost", size="icon", tooltip=name)
         add_classes(self.button, "fos-task-btn")
         if icon_name:
-            self.button.add(icon(icon_name, 20))
+            self.button.add(full_icon(icon_name, 20))
         else:
-            self.button.add(icon("application-x-executable-symbolic", 20))
+            self.button.add(full_icon("application-x-executable", 20))
         self.button.connect("clicked", self._on_clicked)
         self.button.connect("button-press-event", self._on_press)
         self.button.connect("button-release-event", self._on_release)
@@ -122,7 +125,7 @@ class TaskButton(Gtk.Box):
             PIN_DRAG_TARGET,
             Gdk.DragAction.MOVE,
         )
-        self.button.drag_source_set_icon_name(self.app.icon_name())
+        self.button.drag_source_set_icon_name(self.app.icon_name(symbolic=False))
         self.button.connect("drag-data-get", self._on_drag_data_get)
         self.button.drag_dest_set(
             Gtk.DestDefaults.ALL,

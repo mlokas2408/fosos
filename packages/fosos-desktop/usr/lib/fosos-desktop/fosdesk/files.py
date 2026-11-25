@@ -20,6 +20,7 @@ gi.require_version("Gtk", "3.0")
 from gi.repository import Gdk, GdkPixbuf, Gio, GLib, Gtk
 
 from . import apps as appmod
+from . import smb as smbmod
 from .onedrive import existing_sync_dir
 from .ui import (
     FosDialog,
@@ -119,6 +120,9 @@ def path_display(path: Path) -> str:
     try:
         if is_trash_path(path) and path.resolve() == trash_dir().resolve():
             return "Recycle Bin"
+        unc = smbmod.unc_display_for_path(path)
+        if unc:
+            return unc
         home = Path.home()
         if path == home:
             return "Home"
@@ -399,12 +403,21 @@ def list_drives() -> list[tuple[str, str, Path, str]]:
             path = Path(path_str)
             if path in (Path("/"), Path("/boot"), Path("/boot/efi"), Path("/home")):
                 continue
-            if path_str.startswith("/snap") or path_str.startswith("/run/user"):
+            if path_str.startswith("/snap"):
+                continue
+            # Skip session run dirs except GVFS FUSE mounts (network shares).
+            if path_str.startswith("/run/user") and "/gvfs" not in path_str:
                 continue
             # Skip bind-style system mounts under /var, /usr, etc.
             if path_str in ("/var", "/usr", "/tmp", "/opt"):
                 continue
             name = mount.get_name() or path.name or str(path)
+            uri = (root.get_uri() or "") if root is not None else ""
+            if smbmod.is_gvfs_smb_mount(mount) or uri.lower().startswith("smb://"):
+                icon_name = "folder-remote"
+                subtitle = smbmod.unc_display_from_uri(uri) if uri else str(path)
+                add(name, icon_name, path, subtitle)
+                continue
             removable = _mount_is_removable(mount) or path_str.startswith("/media") or path_str.startswith("/run/media")
             icon_name = "drive-removable-media-symbolic" if removable else "drive-harddisk-symbolic"
             if removable and not name:
@@ -452,6 +465,10 @@ class Location:
             return "FosOS (C:)"
         if self.path == Path.home():
             return "Home"
+        unc = smbmod.unc_display_for_path(self.path)
+        if unc:
+            # Leaf share/folder name for tab title; full UNC in address bar.
+            return unc.rsplit("\\", 1)[-1] or unc
         return self.path.name or str(self.path)
 
     def folder_path(self) -> Path | None:
@@ -491,6 +508,7 @@ class FilesTab:
         self.history_index = 0
         self.selected: set[Path] = set()
         self._anchor: Path | None = None
+        self._cursor: Path | None = None
         self.view_mode = "details"
         self.sort_key = "name"
         self.sort_asc = True
@@ -533,6 +551,8 @@ class FilesWindow(CardWindow):
         # Set when a synthetic double-click already opened; skip the follow-up
         # _2BUTTON_PRESS so handlers (browser, Photos, …) are not launched twice.
         self._suppress_2button = False
+        self._typeahead = ""
+        self._typeahead_at = 0.0
         self.options = load_options()
         self.pins = load_pins()
         self._nav_buttons: dict[str, Gtk.Button] = {}
@@ -541,6 +561,8 @@ class FilesWindow(CardWindow):
         self._this_pc_expanded = True
         self._this_pc_children: Gtk.Box | None = None
         self._this_pc_chevron: Gtk.Button | None = None
+        self._volume_monitor: Gio.VolumeMonitor | None = None
+        self._mount_refresh_id = 0
 
         # Titlebar tabs
         self.tab_strip = add_classes(Gtk.Box(spacing=2), "fos-files-tabs")
@@ -709,9 +731,33 @@ class FilesWindow(CardWindow):
         self.body.pack_start(self.footer, False, False, 0)
 
         self.connect("key-press-event", self._on_key)
+        self._watch_volumes()
 
         initial = self._initial_location(start)
         self.new_tab(initial)
+
+    def _watch_volumes(self) -> None:
+        """Rebuild This PC / sidebar when USB or network mounts appear or leave."""
+        try:
+            self._volume_monitor = Gio.VolumeMonitor.get()
+        except GLib.Error:
+            return
+        for signal in ("mount-added", "mount-removed", "mount-changed"):
+            self._volume_monitor.connect(signal, lambda *_a: self._schedule_mount_refresh())
+
+    def _schedule_mount_refresh(self) -> None:
+        if self._mount_refresh_id:
+            GLib.source_remove(self._mount_refresh_id)
+
+        def _run() -> bool:
+            self._mount_refresh_id = 0
+            self._rebuild_sidebar()
+            loc = self.location()
+            if loc is not None and loc.page == PAGE_THIS_PC:
+                self.refresh()
+            return False
+
+        self._mount_refresh_id = GLib.timeout_add(200, _run)
 
     # --- Tabs -----------------------------------------------------------------
 
@@ -778,6 +824,8 @@ class FilesWindow(CardWindow):
         tab = self.tab()
         if tab is None or not tab.selected:
             return None
+        if tab._cursor is not None and tab._cursor in tab.selected:
+            return tab._cursor
         if tab._anchor is not None and tab._anchor in tab.selected:
             return tab._anchor
         return next(iter(tab.selected))
@@ -808,6 +856,7 @@ class FilesWindow(CardWindow):
             tab.history_index = 0
         tab.selected = set()
         tab._anchor = None
+        tab._cursor = None
         self._hide_address()
         self.refresh()
 
@@ -844,6 +893,7 @@ class FilesWindow(CardWindow):
             return
         tab.selected = set(matched)
         tab._anchor = matched[0]
+        tab._cursor = matched[0]
         self._apply_selection_ui()
         GLib.idle_add(self._scroll_to_path, matched[0])
 
@@ -872,6 +922,7 @@ class FilesWindow(CardWindow):
         tab.history_index -= 1
         tab.selected = set()
         tab._anchor = None
+        tab._cursor = None
         self.refresh()
 
     def go_forward(self) -> None:
@@ -881,6 +932,7 @@ class FilesWindow(CardWindow):
         tab.history_index += 1
         tab.selected = set()
         tab._anchor = None
+        tab._cursor = None
         self.refresh()
 
     def go_up(self) -> None:
@@ -945,7 +997,10 @@ class FilesWindow(CardWindow):
         if loc is None:
             return
         self._address_mode = True
-        text = str(loc.path) if loc.page == PAGE_FOLDER and loc.path else loc.title()
+        if loc.page == PAGE_FOLDER and loc.path is not None:
+            text = path_display(loc.path)
+        else:
+            text = loc.title()
         self.address.set_text(text)
         self.location_stack.set_visible_child_name("address")
         self.address.grab_focus()
@@ -973,6 +1028,12 @@ class FilesWindow(CardWindow):
         if lower in ("home", "~"):
             self.navigate(Path.home(), push=True)
             return
+        smb_uri = smbmod.parse_smb_location(text)
+        if smb_uri is None and ("\\" in text or text.startswith("//")):
+            smb_uri = smbmod.parse_smb_location("\\\\" + text.lstrip("\\/"))
+        if smb_uri is not None:
+            self._open_smb_uri(smb_uri)
+            return
         target = Path(text).expanduser()
         if target.is_dir():
             self.navigate(target, push=True)
@@ -980,8 +1041,10 @@ class FilesWindow(CardWindow):
             self.navigate(target.parent, push=True)
             tab = self.tab()
             if tab is not None:
-                tab.selected = {target.resolve()}
-                tab._anchor = target.resolve()
+                resolved = target.resolve()
+                tab.selected = {resolved}
+                tab._anchor = resolved
+                tab._cursor = resolved
                 self.refresh()
 
     # --- Sidebar --------------------------------------------------------------
@@ -1278,22 +1341,37 @@ class FilesWindow(CardWindow):
                 if is_trash_path(path) and path.resolve() == trash_dir().resolve():
                     parts = [(trash_dir(), "Recycle Bin")]
                 else:
-                    home = Path.home()
-                    if path == Path("/"):
-                        parts = [(Path("/"), "FosOS (C:)")]
-                    elif path == home or path.is_relative_to(home):
-                        parts = [(home, "Home")]
-                        current = home
-                        if path != home:
-                            for part in path.relative_to(home).parts:
-                                current = current / part
-                                parts.append((current, part))
-                    else:
-                        parts = [(Path("/"), "FosOS (C:)")]
-                        current = Path("/")
-                        for part in path.parts[1:]:
+                    smb_info = smbmod.find_smb_mount_for_path(path)
+                    if smb_info is not None:
+                        mount_root, uri = smb_info
+                        unc = smbmod.unc_display_from_uri(uri)
+                        # First crumb is the share root (\\\\host\\share).
+                        parts = [(mount_root, unc)]
+                        try:
+                            rel = path.resolve().relative_to(Path(mount_root).resolve())
+                        except (OSError, ValueError):
+                            rel = path.relative_to(mount_root) if path != mount_root else Path()
+                        current = mount_root
+                        for part in rel.parts:
                             current = current / part
                             parts.append((current, part))
+                    else:
+                        home = Path.home()
+                        if path == Path("/"):
+                            parts = [(Path("/"), "FosOS (C:)")]
+                        elif path == home or path.is_relative_to(home):
+                            parts = [(home, "Home")]
+                            current = home
+                            if path != home:
+                                for part in path.relative_to(home).parts:
+                                    current = current / part
+                                    parts.append((current, part))
+                        else:
+                            parts = [(Path("/"), "FosOS (C:)")]
+                            current = Path("/")
+                            for part in path.parts[1:]:
+                                current = current / part
+                                parts.append((current, part))
             except (OSError, ValueError, AttributeError):
                 parts = [(path, path.name or str(path))]
             for index, (target, name) in enumerate(parts):
@@ -1360,6 +1438,8 @@ class FilesWindow(CardWindow):
         tab.selected = {p for p in tab.selected if p in entries}
         if tab._anchor is not None and tab._anchor not in tab.selected:
             tab._anchor = next(iter(tab.selected), None)
+        if tab._cursor is not None and tab._cursor not in entries:
+            tab._cursor = tab._anchor if tab._anchor in entries else next(iter(tab.selected), None)
         if not entries:
             self._set_listing_inset(tab.view_mode)
             empty = "Recycle Bin is empty." if is_trash_path(path) else (
@@ -1611,11 +1691,20 @@ class FilesWindow(CardWindow):
     # --- Virtual pages --------------------------------------------------------
 
     def _build_this_pc(self, tab: FilesTab) -> None:
-        self.listing.pack_start(label("Devices and drives", "fos-label"), False, False, 0)
+        header = Gtk.Box(spacing=8)
+        header.pack_start(label("Devices and drives", "fos-label"), True, True, 0)
+        connect_btn = button("Connect to Server", icon_name="folder-remote-symbolic", size="sm", icon_size=14)
+        connect_btn.connect("clicked", lambda _b: self.connect_to_server())
+        header.pack_end(connect_btn, False, False, 0)
+        self.listing.pack_start(header, False, False, 0)
         drives = list_drives()
         query = tab.search_text.strip().lower()
         if query:
-            drives = [d for d in drives if query in d[0].lower() or query in str(d[2]).lower()]
+            drives = [
+                d
+                for d in drives
+                if query in d[0].lower() or query in str(d[2]).lower() or query in d[3].lower()
+            ]
         if not drives:
             self.listing.pack_start(label("No drives found.", "fos-text", "fos-muted"), False, False, 8)
             self.status_left.set_text("This PC")
@@ -1633,15 +1722,17 @@ class FilesWindow(CardWindow):
             title.set_max_width_chars(24)
             col.pack_start(title, False, False, 0)
             col.pack_start(label(subtitle, "fos-small", "fos-muted", ellipsize=True), False, False, 0)
-            try:
-                usage = shutil.disk_usage(path)
-                bar = Gtk.ProgressBar()
-                bar.set_fraction(usage.used / usage.total if usage.total else 0)
-                bar.set_show_text(False)
-                add_classes(bar, "fos-files-usage")
-                col.pack_start(bar, False, False, 4)
-            except OSError:
-                pass
+            network = smbmod.find_smb_mount_for_path(path) is not None
+            if not network:
+                try:
+                    usage = shutil.disk_usage(path)
+                    bar = Gtk.ProgressBar()
+                    bar.set_fraction(usage.used / usage.total if usage.total else 0)
+                    bar.set_show_text(False)
+                    add_classes(bar, "fos-files-usage")
+                    col.pack_start(bar, False, False, 4)
+                except OSError:
+                    pass
             row.pack_start(col, True, True, 0)
             btn.add(row)
             btn.connect("button-press-event", self._on_drive_press, path)
@@ -1661,6 +1752,22 @@ class FilesWindow(CardWindow):
             open_tab = Gtk.MenuItem(label="Open in new tab")
             open_tab.connect("activate", lambda _i: self.new_tab(Location(PAGE_FOLDER, path)))
             menu.append(open_tab)
+            network = smbmod.find_smb_mount_for_path(path) is not None
+            removable = False
+            try:
+                for mount in Gio.VolumeMonitor.get().get_mounts():
+                    root = mount.get_root()
+                    root_path = root.get_path() if root is not None else None
+                    if root_path and Path(root_path) == path:
+                        removable = _mount_is_removable(mount)
+                        break
+            except GLib.Error:
+                pass
+            if network or removable:
+                menu.append(Gtk.SeparatorMenuItem())
+                disconnect = Gtk.MenuItem(label="Disconnect" if network else "Eject")
+                disconnect.connect("activate", lambda _i, p=path: self._unmount_drive(p))
+                menu.append(disconnect)
             menu.append(Gtk.SeparatorMenuItem())
             props = Gtk.MenuItem(label="Properties")
             props.connect("activate", lambda _i: self._properties(path))
@@ -1669,6 +1776,48 @@ class FilesWindow(CardWindow):
             menu.popup_at_pointer(event)
             return True
         return False
+
+    def connect_to_server(self) -> None:
+        """Prompt for \\\\server\\share and mount via GVFS."""
+        uri = smbmod.connect_dialog(self)
+        if not uri:
+            return
+        self._open_smb_uri(uri)
+
+    def _open_smb_uri(self, uri: str) -> None:
+        existing = smbmod.local_path_for_smb_uri(uri)
+        if existing is not None and existing.exists():
+            self.navigate(existing if existing.is_dir() else existing.parent, push=True)
+            return
+
+        def on_done(path: Path | None, error: str | None) -> None:
+            if error:
+                fos_alert(self, "Could not connect", error)
+                return
+            if path is None:
+                fos_alert(self, "Could not connect", "No local path for this share.")
+                return
+            target = path if path.is_dir() else path.parent
+            self.navigate(target, push=True)
+            self._schedule_mount_refresh()
+
+        smbmod.mount_smb_async(uri, self, on_done)
+
+    def _unmount_drive(self, path: Path) -> None:
+        def on_done(ok: bool, error: str | None) -> None:
+            if not ok:
+                fos_alert(self, "Could not disconnect", error or "Unmount failed.")
+                return
+            loc = self.location()
+            if loc is not None and loc.path is not None:
+                try:
+                    if loc.path.resolve().is_relative_to(path.resolve()):
+                        self.navigate_location(Location(PAGE_THIS_PC), push=True)
+                except (OSError, ValueError, AttributeError):
+                    pass
+            self._schedule_mount_refresh()
+
+        smbmod.unmount_path(path, self, on_done)
 
     # --- Details pane / command bar -------------------------------------------
 
@@ -1819,6 +1968,9 @@ class FilesWindow(CardWindow):
         hidden.connect("activate", lambda _i: self._toggle_hidden())
         menu.append(hidden)
         menu.append(Gtk.SeparatorMenuItem())
+        connect = Gtk.MenuItem(label="Connect to Server…")
+        connect.connect("activate", lambda _i: self.connect_to_server())
+        menu.append(connect)
         refresh = Gtk.MenuItem(label="Refresh")
         refresh.connect("activate", lambda _i: self.refresh())
         menu.append(refresh)
@@ -1951,12 +2103,15 @@ class FilesWindow(CardWindow):
             if tab.selected:
                 tab.selected = set()
                 tab._anchor = None
+                tab._cursor = None
                 self._apply_selection_ui()
+            self.list_hit.grab_focus()
             return False
         if event.button == 3:
             if tab.selected:
                 tab.selected = set()
                 tab._anchor = None
+                tab._cursor = None
                 self._apply_selection_ui()
             self._popup_background_menu(event)
             return True
@@ -1977,6 +2132,7 @@ class FilesWindow(CardWindow):
             if path not in tab.selected:
                 tab.selected = {path}
                 tab._anchor = path
+                tab._cursor = path
                 self._apply_selection_ui()
             self._popup_item_menu(path, event)
             return True
@@ -2017,16 +2173,20 @@ class FilesWindow(CardWindow):
             else:
                 lo, hi = sorted((start, end))
                 tab.selected = set(tab._entries_cache[lo : hi + 1])
+            tab._cursor = path
         elif ctrl:
             if path in tab.selected:
                 tab.selected.remove(path)
             else:
                 tab.selected.add(path)
             tab._anchor = path
+            tab._cursor = path
         else:
             tab.selected = {path}
             tab._anchor = path
+            tab._cursor = path
         self._apply_selection_ui()
+        self.list_hit.grab_focus()
         return True
 
     def open_path(self, path: Path) -> None:
@@ -2193,6 +2353,11 @@ class FilesWindow(CardWindow):
             sensitive=bool(self.tab() and self.tab()._entries_cache),  # type: ignore[union-attr]
         )
 
+        loc = self.location()
+        if loc is not None and loc.page == PAGE_THIS_PC:
+            menu.append(Gtk.SeparatorMenuItem())
+            self._menu_add(menu, "Connect to Server…", self.connect_to_server)
+
         if can_edit:
             menu.append(Gtk.SeparatorMenuItem())
             self._menu_add(menu, "Open in Terminal", lambda: self._open_terminal(current))
@@ -2285,6 +2450,7 @@ class FilesWindow(CardWindow):
         if tab is not None:
             tab.selected = set()
             tab._anchor = None
+            tab._cursor = None
         self.refresh()
         if failed:
             self._alert("Could not trash some items", ", ".join(failed[:5]))
@@ -2307,6 +2473,7 @@ class FilesWindow(CardWindow):
         if tab is not None:
             tab.selected = set()
             tab._anchor = None
+            tab._cursor = None
         self.refresh()
 
     def _restore_paths(self, paths: list[Path]) -> None:
@@ -2335,6 +2502,7 @@ class FilesWindow(CardWindow):
         if tab is not None:
             tab.selected = set()
             tab._anchor = None
+            tab._cursor = None
         self.refresh()
 
     def _transfer(self, sources: list[Path], dest_dir: Path, move: bool = False) -> None:
@@ -2432,6 +2600,7 @@ class FilesWindow(CardWindow):
         if tab is not None:
             tab.selected = {target}
             tab._anchor = target
+            tab._cursor = target
         self.refresh()
 
     def _new_file(self) -> None:
@@ -2451,6 +2620,7 @@ class FilesWindow(CardWindow):
         if tab is not None:
             tab.selected = {target}
             tab._anchor = target
+            tab._cursor = target
         self.refresh()
 
     def _rename(self, path: Path) -> None:
@@ -2467,6 +2637,7 @@ class FilesWindow(CardWindow):
         if tab is not None:
             tab.selected = {target}
             tab._anchor = target
+            tab._cursor = target
         self.refresh()
 
     def _open_with(self, path: Path) -> None:
@@ -2570,6 +2741,121 @@ class FilesWindow(CardWindow):
         else:
             self.list_hit.grab_focus()
 
+    def _grid_cols(self) -> int:
+        tab = self.tab()
+        if tab is None or tab.view_mode in ("details", "list"):
+            return 1
+        return max(1, int(getattr(self, "_icon_wrap_cols", 1) or 1))
+
+    def _page_step(self) -> int:
+        cols = self._grid_cols()
+        if cols > 1:
+            return cols * 4
+        return 10
+
+    def _selection_index(self, tab: FilesTab) -> int | None:
+        cache = tab._entries_cache
+        if not cache:
+            return None
+        for candidate in (tab._cursor, tab._anchor):
+            if candidate is not None:
+                try:
+                    return cache.index(candidate)
+                except ValueError:
+                    pass
+        if tab.selected:
+            for path in cache:
+                if path in tab.selected:
+                    return cache.index(path)
+        return None
+
+    def _jump_cursor(self, index: int, *, extend: bool) -> bool:
+        """Move keyboard cursor to index; plain select or Shift-extend from anchor."""
+        tab = self.tab()
+        if tab is None:
+            return False
+        cache = tab._entries_cache
+        if not cache:
+            return False
+        index = max(0, min(len(cache) - 1, index))
+        path = cache[index]
+        tab._cursor = path
+        if extend:
+            anchor = tab._anchor
+            if anchor is None or anchor not in cache:
+                tab._anchor = path
+                tab.selected = {path}
+            else:
+                start = cache.index(tab._anchor)
+                lo, hi = sorted((start, index))
+                tab.selected = set(cache[lo : hi + 1])
+        else:
+            tab.selected = {path}
+            tab._anchor = path
+        self._apply_selection_ui()
+        self.list_hit.grab_focus()
+        GLib.idle_add(self._scroll_to_path, path)
+        return True
+
+    def _move_cursor(self, delta: int, *, extend: bool) -> bool:
+        tab = self.tab()
+        if tab is None or not tab._entries_cache:
+            return False
+        current = self._selection_index(tab)
+        if current is None:
+            # Nothing selected: Down/Right → first; Up/Left → last.
+            target = 0 if delta >= 0 else len(tab._entries_cache) - 1
+            return self._jump_cursor(target, extend=False)
+        return self._jump_cursor(current + delta, extend=extend)
+
+    def _toggle_cursor_selection(self) -> bool:
+        tab = self.tab()
+        if tab is None or not tab._entries_cache:
+            return False
+        index = self._selection_index(tab)
+        if index is None:
+            return self._jump_cursor(0, extend=False)
+        path = tab._entries_cache[index]
+        tab._cursor = path
+        if path in tab.selected:
+            tab.selected.remove(path)
+        else:
+            tab.selected.add(path)
+        if tab._anchor is None:
+            tab._anchor = path
+        self._apply_selection_ui()
+        self.list_hit.grab_focus()
+        return True
+
+    def _typeahead_select(self, ch: str) -> bool:
+        """Jump to next entry whose name starts with the typed prefix (Explorer-style)."""
+        tab = self.tab()
+        if tab is None or not tab._entries_cache:
+            return False
+        now = time.monotonic()
+        if now - self._typeahead_at > 1.0:
+            self._typeahead = ""
+        self._typeahead_at = now
+        self._typeahead += ch
+        prefix = self._typeahead.casefold()
+        cache = tab._entries_cache
+        start = self._selection_index(tab)
+        start = (start + 1) if start is not None else 0
+        for offset in range(len(cache)):
+            index = (start + offset) % len(cache)
+            name = entry_name(cache[index]).casefold()
+            if name.startswith(prefix):
+                return self._jump_cursor(index, extend=False)
+        # Fallback: single-character match from the new character only.
+        if len(prefix) > 1:
+            self._typeahead = ch
+            prefix = ch.casefold()
+            for offset in range(len(cache)):
+                index = (start + offset) % len(cache)
+                if entry_name(cache[index]).casefold().startswith(prefix):
+                    return self._jump_cursor(index, extend=False)
+        return True
+
     def _on_key(self, _widget, event: Gdk.EventKey) -> bool:
         key = Gdk.keyval_name(event.keyval) or ""
         ctrl = bool(event.state & Gdk.ModifierType.CONTROL_MASK)
@@ -2595,6 +2881,7 @@ class FilesWindow(CardWindow):
             if tab and tab.selected:
                 tab.selected = set()
                 tab._anchor = None
+                tab._cursor = None
                 self._apply_selection_ui()
                 return True
             return False
@@ -2657,6 +2944,10 @@ class FilesWindow(CardWindow):
             return True
         if ctrl and key.lower() == "a" and tab and tab._entries_cache:
             tab.selected = set(tab._entries_cache)
+            if tab._entries_cache:
+                tab._cursor = tab._entries_cache[-1]
+                if tab._anchor is None:
+                    tab._anchor = tab._entries_cache[0]
             self._apply_selection_ui()
             return True
         if ctrl and key.lower() == "c" and tab and tab.selected:
@@ -2671,6 +2962,39 @@ class FilesWindow(CardWindow):
         if alt and key in ("Up", "KP_Up"):
             self.go_up()
             return True
+
+        # Windows Explorer–style list navigation (when content can take keys).
+        if tab and tab._entries_cache:
+            cols = self._grid_cols()
+            extend = shift and not ctrl
+            if key in ("Up", "KP_Up") and not alt:
+                return self._move_cursor(-cols, extend=extend)
+            if key in ("Down", "KP_Down"):
+                return self._move_cursor(cols, extend=extend)
+            if key in ("Left", "KP_Left"):
+                return self._move_cursor(-1, extend=extend)
+            if key in ("Right", "KP_Right"):
+                return self._move_cursor(1, extend=extend)
+            if key in ("Home", "KP_Home"):
+                return self._jump_cursor(0, extend=extend)
+            if key in ("End", "KP_End"):
+                return self._jump_cursor(len(tab._entries_cache) - 1, extend=extend)
+            if key in ("Page_Up", "KP_Page_Up"):
+                return self._move_cursor(-self._page_step(), extend=extend)
+            if key in ("Page_Down", "KP_Page_Down"):
+                return self._move_cursor(self._page_step(), extend=extend)
+            if ctrl and key.lower() == "space":
+                return self._toggle_cursor_selection()
+            if (
+                not ctrl
+                and not alt
+                and not shift
+                and len(key) == 1
+                and key.isprintable()
+                and not key.isspace()
+            ):
+                return self._typeahead_select(key)
+
         return False
 
 
@@ -2700,31 +3024,61 @@ class FilesApp(Gtk.Application):
     def do_command_line(self, command_line):
         argv = command_line.get_arguments()[1:]
         properties = "--properties" in argv
+        connect = "--connect" in argv
         cwd = command_line.get_cwd()
         paths: list[Path] = []
+        pending_smb: list[str] = []
         for arg in argv:
             if not arg or arg.startswith("-"):
                 continue
-            path = self._coerce_path(arg, cwd)
+            path, smb_uri = self._coerce_arg(arg, cwd)
             if path is not None:
                 paths.append(path)
+            elif smb_uri is not None:
+                pending_smb.append(smb_uri)
         self._present_paths(paths, properties=properties)
+        if connect or pending_smb:
+            self._ensure_window(None)
+            if self.window is not None:
+                self.window.present()
+                if pending_smb:
+                    for uri in pending_smb:
+                        self.window._open_smb_uri(uri)
+                elif connect:
+                    GLib.idle_add(lambda: (self.window.connect_to_server() if self.window else None) or False)
         return 0
 
-    def _coerce_path(self, arg: str, cwd: str | None) -> Path | None:
+    def _coerce_arg(self, arg: str, cwd: str | None) -> tuple[Path | None, str | None]:
+        """Return (local_path, smb_uri). smb_uri set when mount is still needed."""
         text = arg.strip()
+        smb_uri = smbmod.parse_smb_location(text)
+        if smb_uri is None and ("\\" in text or text.startswith("//")):
+            smb_uri = smbmod.parse_smb_location("\\\\" + text.lstrip("\\/"))
+        if smb_uri is not None:
+            local = smbmod.local_path_for_smb_uri(smb_uri)
+            if local is not None and (local.exists() or local.parent.exists()):
+                return local, None
+            # Prefer already-mounted Gio path when gvfs-fuse is up.
+            gpath = Gio.File.new_for_uri(smb_uri).get_path()
+            if gpath and Path(gpath).exists():
+                return Path(gpath), None
+            return None, smb_uri
         if "://" in text:
             local = Gio.File.new_for_uri(text).get_path()
             if not local:
-                return None
+                return None, None
             path = Path(local)
         else:
             path = Path(text).expanduser()
             if not path.is_absolute() and cwd:
                 path = Path(cwd) / path
         if path.exists() or path.parent.exists():
-            return path
-        return None
+            return path, None
+        return None, None
+
+    def _coerce_path(self, arg: str, cwd: str | None) -> Path | None:
+        path, _uri = self._coerce_arg(arg, cwd)
+        return path
 
     def _present_paths(self, paths: list[Path], *, properties: bool = False) -> None:
         """Open a folder, and select a file when the browser asked to reveal one."""

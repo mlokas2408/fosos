@@ -22,21 +22,26 @@ ShortcutAction = tuple[str, str, str, str, str]
 
 SHORTCUT_ACTIONS: list[ShortcutAction] = [
     ("start", "Start menu", "W-space", "execute", "fosos-shell --toggle-start"),
+    ("search", "Search", "W-s", "execute", "fosos-shell --toggle-start"),
     ("files", "Files", "W-e", "execute", "fosos-files"),
     ("terminal", "Terminal", "C-A-t", "execute", "fosos-terminal"),
     ("taskmgr", "Task Manager", "C-S-Escape", "execute", "fosos-taskmgr"),
     ("settings", "Settings", "W-i", "execute", "fosos-settings"),
+    ("accessibility", "Accessibility", "W-u", "execute", "fosos-settings --builtin accessibility"),
+    ("display", "Display", "W-p", "execute", "fosos-settings --builtin display"),
     ("lock", "Lock", "W-l", "execute", "fosos-lock"),
     ("run", "Run", "W-r", "execute", "fosos-shell --run"),
     ("quick_links", "Quick links", "W-x", "execute", "fosos-shell --quick-links"),
     ("quick_settings", "Quick settings", "W-a", "execute", "fosos-shell --quick-settings"),
     ("notification_center", "Notification center", "W-n", "execute", "fosos-shell --notification-center"),
+    ("notification_area", "Notification area", "W-b", "execute", "fosos-shell --toggle-popup notifications"),
     ("clipboard", "Clipboard history", "W-v", "execute", "fosos-shell --clipboard-history"),
     ("screenshot_full", "Screenshot (full screen)", "Print", "execute", "fosos-screenshot -f"),
     ("screenshot_region", "Screenshot (region)", "W-S-s", "execute", "fosos-screenshot -r"),
     ("task_view", "Task view", "W-Tab", "execute", "fosos-shell --task-view"),
     ("snap_layouts", "Snap layouts", "W-z", "execute", "fosos-shell --snap-layouts"),
-    ("show_desktop", "Show desktop", "W-d", "ob", '<action name="ToggleShowDesktop"/>'),
+    ("show_desktop", "Show desktop", "W-d", "execute", "fosos-shell --show-desktop"),
+    ("minimize_all", "Minimize all", "W-m", "execute", "fosos-shell --show-desktop"),
     ("snap_max", "Snap maximize", "W-Up", "execute", "fosos-shell --snap-maximize"),
     ("snap_down", "Snap down", "W-Down", "execute", "fosos-shell --snap-down"),
     ("snap_left", "Snap left", "W-Left", "execute", "fosos-shell --snap-left"),
@@ -165,7 +170,7 @@ def find_conflicts(values: dict[str, str]) -> list[tuple[str, list[str]]]:
         if not key:
             continue
         by_key.setdefault(key, []).append(action_id)
-    # A-F1 is a fixed alias for start; ignore it for conflict detection.
+    # A-F1 / C-Escape are fixed Start aliases; ignore them for conflict detection.
     return sorted((key, ids) for key, ids in by_key.items() if len(ids) > 1)
 
 
@@ -195,22 +200,29 @@ def _action_key(values: dict[str, str], action_id: str) -> str:
 
 def _render_shortcuts_block(values: dict[str, str]) -> str:
     lines: list[str] = []
-    lines.append("    <!-- Start: Super alone via xcape → Alt+F1; Super+Space remains an alias. -->")
+    lines.append(
+        "    <!-- Start: Super alone via xcape → Alt+F1; Ctrl+Esc / Super+Space / Super+S are aliases. -->"
+    )
     start_id, _, _, start_kind, start_payload = _ACTION_BY_ID["start"]
     start_key = _action_key(values, start_id)
     lines.append(_keybind_xml(start_key, start_kind, start_payload))
     lines.append(_keybind_xml("A-F1", start_kind, start_payload))
+    lines.append(_keybind_xml("C-Escape", start_kind, start_payload))
 
     pre_static = (
+        "search",
         "files",
         "terminal",
         "taskmgr",
         "settings",
+        "accessibility",
+        "display",
         "lock",
         "run",
         "quick_links",
         "quick_settings",
         "notification_center",
+        "notification_area",
         "clipboard",
         "screenshot_full",
     )
@@ -229,6 +241,7 @@ def _render_shortcuts_block(values: dict[str, str]) -> str:
         "snap_layouts",
         "close_window",
         "show_desktop",
+        "minimize_all",
         "snap_max",
         "snap_down",
         "snap_left",

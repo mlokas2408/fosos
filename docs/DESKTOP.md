@@ -24,6 +24,9 @@ Wayland compositor, and FosOS does not build one at this stage.
   built into `fosos-settings`.
 - Screenshots use `fosos-screenshot` (`scrot`).
 - `fosos-files`, `fosos-terminal` and `fosos-notepad` are first-party apps.
+  Files mounts SMB/CIFS shares through GVFS (`smb://` and UNC
+  `\\server\share` in the address bar or Connect to Server); mounted
+  shares appear under This PC and disconnect from the drive menu.
 - `fosos-settings` and `fosos-welcome` use the same undecorated card chrome
   (`CardWindow` / `fos-card`) as Files, Terminal and Notepad.
 - First-party dialogs (alerts, confirms, prompts, file chooser, install
@@ -77,24 +80,28 @@ Revisit Wayland when the shell is stable for daily use.
 
 | Keys | Action |
 | --- | --- |
-| Super (tap) / Super+Space / Alt+F1 | Start menu |
+| Super (tap) / Super+Space / Super+S / Alt+F1 / Ctrl+Esc | Start menu / Search |
 | Super+X | Quick links |
 | Super+A | Quick settings |
 | Super+N | Notification center |
+| Super+B | Notification area (bell / NC) |
 | Super+V | Clipboard history |
 | Super+R | Run |
 | Super+E | Files |
 | Ctrl+Alt+T | Terminal |
 | Ctrl+Shift+Esc | Task Manager |
 | Super+I | Settings |
+| Super+U | Accessibility |
+| Super+P | Display |
 | Super+L | Lock |
-| Super+D | Show desktop (also far-right taskbar strip) |
+| Super+D / Super+M | Show desktop (also far-right taskbar strip) |
 | Super+↑ / ↓ / ← / → | Maximize / restore-from-snap then minimize / tile left / right |
 | Super+Z | Snap layouts (right-click maximize also) |
 | Super+Tab | Task View (desktops + windows; taskbar button) |
 | Ctrl+Super+← / → | Previous / next virtual desktop |
+| Ctrl+Super+1 … 4 | Jump to desktop 1–4 |
 | Alt+Tab / Alt+Shift+Tab | Window switcher |
-| Super+1 … Super+4 | Jump to workspace 1–4 |
+| Super+1 … Super+9 | Launch / cycle pinned taskbar apps |
 | Print / Shift+Print / Super+Shift+S | Screenshot full / region |
 
 ## Testing

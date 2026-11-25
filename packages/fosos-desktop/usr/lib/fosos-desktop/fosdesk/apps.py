@@ -19,7 +19,8 @@ CONFIG_DIR = Path(GLib.get_user_config_dir()) / "fosos-desktop"
 PINNED_FILE = CONFIG_DIR / "pinned"
 DEFAULT_PINNED_FILE = DATA_DIR / "pinned"
 
-# Short names and monochrome icons for the apps FosOS ships.
+# Short names and monochrome icons for compact lists (Start search, Settings).
+# Taskbar and Start pinned tiles use desktop Icon= via icon_name(symbolic=False).
 KNOWN_APPS = {
     "fosos-files.desktop": ("Files", "folder-symbolic"),
     "fosos-terminal.desktop": ("Terminal", "utilities-terminal-symbolic"),

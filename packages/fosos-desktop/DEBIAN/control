@@ -1,9 +1,9 @@
 Package: fosos-desktop
-Version: 1.13.30
+Version: 1.13.31
 Section: x11
 Priority: optional
 Architecture: all
-Depends: python3, python3-gi, python3-gi-cairo, python3-pamela, gir1.2-gtk-3.0, gir1.2-wnck-3.0, gir1.2-vte-2.91, gir1.2-lightdm-1, gir1.2-appstream-1.0, appstream, lightdm, python3-xlib, openbox, xss-lock, xcape, brightnessctl, brightness-udev, xsettingsd, arandr, scrot, x11-xkb-utils, x11-xserver-utils, network-manager, network-manager-gnome, blueman, gvfs, onedrive, wireplumber, pipewire-bin, sound-theme-freedesktop, firmware-sof-signed, firmware-intel-sound, alsa-ucm-conf, python3-gst-1.0, gir1.2-gstreamer-1.0, gir1.2-gst-plugins-base-1.0, gstreamer1.0-plugins-base, gstreamer1.0-plugins-good, gstreamer1.0-plugins-ugly, gstreamer1.0-plugins-bad, gstreamer1.0-libav, gstreamer1.0-gtk3, v4l-utils, pipewire-v4l2, cups, cups-client, cups-bsd, cups-filters, cups-browsed, ipp-usb, avahi-daemon, locales, gnome-keyring, libpam-gnome-keyring, libsecret-1-0, fonts-inter, fonts-liberation, adwaita-icon-theme, pkexec, ufw, openssh-client, openssh-server, xdg-user-dirs, fosos-theme, fosos-cli
+Depends: python3, python3-gi, python3-gi-cairo, python3-pamela, gir1.2-gtk-3.0, gir1.2-wnck-3.0, gir1.2-vte-2.91, gir1.2-lightdm-1, gir1.2-appstream-1.0, appstream, lightdm, python3-xlib, openbox, xss-lock, xcape, brightnessctl, brightness-udev, xsettingsd, arandr, scrot, x11-xkb-utils, x11-xserver-utils, network-manager, network-manager-gnome, blueman, gvfs, gvfs-backends, gvfs-fuse, onedrive, wireplumber, pipewire-bin, sound-theme-freedesktop, firmware-sof-signed, firmware-intel-sound, alsa-ucm-conf, python3-gst-1.0, gir1.2-gstreamer-1.0, gir1.2-gst-plugins-base-1.0, gstreamer1.0-plugins-base, gstreamer1.0-plugins-good, gstreamer1.0-plugins-ugly, gstreamer1.0-plugins-bad, gstreamer1.0-libav, gstreamer1.0-gtk3, v4l-utils, pipewire-v4l2, cups, cups-client, cups-bsd, cups-filters, cups-browsed, ipp-usb, avahi-daemon, locales, gnome-keyring, libpam-gnome-keyring, libsecret-1-0, fonts-inter, fonts-liberation, adwaita-icon-theme, pkexec, ufw, openssh-client, openssh-server, xdg-user-dirs, file, fosos-theme, fosos-cli
 Recommends: freerdp3-x11, xrdp, xorgxrdp, pinentry-gnome3
 Maintainer: FosOS <dev@fosos.local>
 Description: FosOS Desktop session

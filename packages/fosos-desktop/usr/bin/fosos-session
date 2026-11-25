@@ -49,7 +49,9 @@ if [ -f "$config/xsettingsd.conf" ]; then
 	xsettings_conf="$config/xsettingsd.conf"
 fi
 
-activation_env="DISPLAY XAUTHORITY XDG_CURRENT_DESKTOP XDG_SESSION_DESKTOP DESKTOP_SESSION GTK_THEME GTK_ICON_THEME_NAME GTK_USE_PORTAL"
+# XDG_CONFIG_DIRS must be imported too: host Chrome/Firefox open downloads via
+# xdg-open, which only finds /etc/xdg/fosos-desktop/mimeapps.list when this is set.
+activation_env="DISPLAY XAUTHORITY XDG_CURRENT_DESKTOP XDG_SESSION_DESKTOP DESKTOP_SESSION XDG_CONFIG_DIRS GTK_THEME GTK_ICON_THEME_NAME GTK_USE_PORTAL"
 if command -v dbus-update-activation-environment >/dev/null 2>&1; then
 	# shellcheck disable=SC2086
 	dbus-update-activation-environment --systemd $activation_env >/dev/null 2>&1 || true
@@ -195,7 +197,7 @@ pkill -u "$(id -u)" -x blueman-tray 2>/dev/null || true
 pkill -u "$(id -u)" -x nm-applet 2>/dev/null || true
 pkill -u "$(id -u)" -f '/usr/bin/fosos-file-chooser' 2>/dev/null || true
 if command -v systemctl >/dev/null 2>&1; then
-	systemctl --user unset-environment XDG_CURRENT_DESKTOP XDG_SESSION_DESKTOP DESKTOP_SESSION GTK_THEME GTK_ICON_THEME_NAME \
+	systemctl --user unset-environment XDG_CURRENT_DESKTOP XDG_SESSION_DESKTOP DESKTOP_SESSION XDG_CONFIG_DIRS GTK_THEME GTK_ICON_THEME_NAME GTK_USE_PORTAL \
 		>/dev/null 2>&1 || true
 fi
 exit "$status"

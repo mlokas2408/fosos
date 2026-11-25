@@ -100,14 +100,20 @@
 
     <!-- FOSOS-SHORTCUTS-BEGIN -->
 
-    <!-- Start: Super alone via xcape → Alt+F1; Super+Space remains an alias. -->
+    <!-- Start: Super alone via xcape → Alt+F1; Ctrl+Esc / Super+Space / Super+S are aliases. -->
     <keybind key="W-space">
       <action name="Execute"><command>fosos-shell --toggle-start</command></action>
     </keybind>
     <keybind key="A-F1">
       <action name="Execute"><command>fosos-shell --toggle-start</command></action>
     </keybind>
+    <keybind key="C-Escape">
+      <action name="Execute"><command>fosos-shell --toggle-start</command></action>
+    </keybind>
 
+    <keybind key="W-s">
+      <action name="Execute"><command>fosos-shell --toggle-start</command></action>
+    </keybind>
     <keybind key="W-e">
       <action name="Execute"><command>fosos-files</command></action>
     </keybind>
@@ -119,6 +125,12 @@
     </keybind>
     <keybind key="W-i">
       <action name="Execute"><command>fosos-settings</command></action>
+    </keybind>
+    <keybind key="W-u">
+      <action name="Execute"><command>fosos-settings --builtin accessibility</command></action>
+    </keybind>
+    <keybind key="W-p">
+      <action name="Execute"><command>fosos-settings --builtin display</command></action>
     </keybind>
     <keybind key="W-l">
       <action name="Execute"><command>fosos-lock</command></action>
@@ -134,6 +146,9 @@
     </keybind>
     <keybind key="W-n">
       <action name="Execute"><command>fosos-shell --notification-center</command></action>
+    </keybind>
+    <keybind key="W-b">
+      <action name="Execute"><command>fosos-shell --toggle-popup notifications</command></action>
     </keybind>
     <keybind key="W-v">
       <action name="Execute"><command>fosos-shell --clipboard-history</command></action>
@@ -235,7 +250,10 @@
       <action name="Close"/>
     </keybind>
     <keybind key="W-d">
-      <action name="ToggleShowDesktop"/>
+      <action name="Execute"><command>fosos-shell --show-desktop</command></action>
+    </keybind>
+    <keybind key="W-m">
+      <action name="Execute"><command>fosos-shell --show-desktop</command></action>
     </keybind>
     <keybind key="W-Up">
       <action name="Execute"><command>fosos-shell --snap-maximize</command></action>

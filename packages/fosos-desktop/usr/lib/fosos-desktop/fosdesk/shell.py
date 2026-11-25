@@ -172,6 +172,8 @@ class Shell(Gtk.Application):
             self._arrow_snap(snap_maximize)
         elif "--task-view" in args:
             self.toggle_task_view()
+        elif "--show-desktop" in args:
+            self.toggle_show_desktop()
         elif "--quick-settings" in args:
             self.toggle_quick_settings()
         elif "--notification-center" in args:

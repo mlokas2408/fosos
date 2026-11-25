@@ -36,6 +36,7 @@ pavucontrol
 blueman
 gvfs
 gvfs-backends
+gvfs-fuse
 polkitd
 # Debian 13 removed policykit-1-gnome. Without an agent named here, APT
 # satisfies polkit-1-auth-agent with ukui-polkit, which pulls in OpenCV.

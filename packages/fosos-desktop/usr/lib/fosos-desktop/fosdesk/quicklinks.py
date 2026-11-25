@@ -40,6 +40,7 @@ class QuickLinks(Popup):
                 ("Installed apps", "system-software-install-symbolic", "apps"),
                 ("Power options", "preferences-system-power-symbolic", "power"),
                 ("Network connections", "network-wired-symbolic", "network"),
+                ("Map network drive", "folder-remote-symbolic", "mapdrive"),
                 ("Storage", "drive-harddisk-symbolic", "storage"),
             ),
         )
@@ -149,6 +150,14 @@ class QuickLinks(Popup):
             return
         if action == "network":
             self.shell.open_settings("network")
+            return
+        if action == "mapdrive":
+            from . import apps as appmod
+
+            if not appmod.spawn(["fosos-files", "--connect"]):
+                app = appmod.load_app("fosos-files.desktop")
+                if app is not None:
+                    app.launch()
             return
         if action == "storage":
             self.shell.open_settings("storage")

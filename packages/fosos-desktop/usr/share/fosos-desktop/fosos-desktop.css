@@ -77,6 +77,53 @@
   padding: 16px;
 }
 
+.fos-setup-body {
+  background-color: @fos_card;
+}
+
+.fos-setup-sidebar {
+  background-color: @fos_background;
+  border-right: 1px solid @fos_border;
+  padding: 16px;
+  min-width: 220px;
+}
+
+.fos-setup-main {
+  background-color: @fos_card;
+}
+
+.fos-setup-page {
+  padding: 16px;
+}
+
+.fos-setup-heading {
+  font-size: 16px;
+  font-weight: 500;
+}
+
+.fos-setup-step {
+  color: alpha(@fos_fg, 0.55);
+  padding: 2px 0;
+}
+
+.fos-setup-step.done {
+  color: alpha(@fos_fg, 0.75);
+}
+
+.fos-setup-step.active {
+  color: @fos_fg;
+  font-weight: 500;
+}
+
+.fos-setup-footer {
+  background-color: @fos_card;
+}
+
+.fos-setup-log {
+  font-family: monospace;
+  font-size: 10px;
+}
+
 .fos-title {
   font-size: 14px;
   font-weight: 500;
