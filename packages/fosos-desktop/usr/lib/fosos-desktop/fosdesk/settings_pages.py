@@ -273,9 +273,11 @@ def set_default_for_type(app: Gio.AppInfo, mime: str) -> bool:
 
 
 def pack_header(title: str, subtitle: str) -> Gtk.Box:
-    box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
-    box.pack_start(label(title, "fos-title"), False, False, 0)
-    box.pack_start(label(subtitle, "fos-small", "fos-muted"), False, False, 0)
+    """Kept for call-site compatibility; the Settings toolbar already shows title/subtitle."""
+    del title, subtitle
+    box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
+    box.set_no_show_all(True)
+    box.hide()
     return box
 
 
@@ -1854,8 +1856,8 @@ def build_remote_desktop(status_cb) -> Gtk.Box:
             "(any local user). Works even when nobody is signed in on this PC. "
             "mstsc will ask you to accept the certificate once, then ask for username "
             "and password. Live image: user / live. A FosOS-Remote-Desktop.rdp helper "
-            "is written to the Desktop when you enable. Turn off when finished — "
-            "no firewall on the live image by default.",
+            "is written to the Desktop when you enable. Enabling opens TCP 3389 in the "
+            "firewall; turn Remote Desktop off when finished.",
             "fos-small",
             "fos-muted",
         )
@@ -2205,8 +2207,11 @@ def register_extra_pages() -> None:
             "appearance": ("Appearance", more.build_appearance),
             "shortcuts": ("Keyboard shortcuts", more.build_shortcuts),
             "startup": ("Startup", more.build_startup),
+            "apps": ("Installed apps", more.build_installed_apps),
             "accessibility": ("Accessibility", more.build_accessibility),
             "privacy": ("Privacy", more.build_privacy),
+            "firewall": ("Firewall", more.build_firewall),
+            "ssh": ("SSH", more.build_ssh),
             "multitasking": ("Multitasking", more.build_multitasking),
             "nightlight": ("Night light", more.build_nightlight),
             "bluetooth": ("Bluetooth", more.build_bluetooth_full),

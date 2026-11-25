@@ -202,6 +202,13 @@ button.fos-btn.destructive:hover {
   background-color: alpha(@fos_destructive, 0.3);
 }
 
+/* Caption / tab close: bare icon at rest, destructive wash on hover. */
+button.fos-btn.close {
+  background-color: transparent;
+  background-image: none;
+  border-color: transparent;
+}
+
 button.fos-btn.close:hover {
   background-color: alpha(@fos_destructive, 0.15);
   color: @fos_destructive;
@@ -890,6 +897,75 @@ calendar.fos-calendar.highlight {
   border-right: 1px solid @fos_border;
 }
 
+/* FosOS Store (APT + AppStream) */
+.fos-store-root {
+  background-color: @fos_background;
+}
+
+.fos-store-nav {
+  background-color: alpha(@fos_card, 0.92);
+  border-right: 1px solid @fos_frame_inactive;
+}
+
+.fos-store-nav-list {
+  padding-bottom: 8px;
+}
+
+button.fos-btn.fos-store-nav-item {
+  min-height: 36px;
+  padding: 0 10px;
+}
+
+button.fos-btn.fos-store-nav-item.secondary {
+  background-color: alpha(@fos_fg, 0.10);
+  border-color: transparent;
+}
+
+.fos-store-main {
+  background-color: @fos_background;
+}
+
+.fos-store-toolbar {
+  padding: 18px 28px 12px;
+  border-bottom: 1px solid @fos_border;
+}
+
+.fos-store-toolbar .fos-title {
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.fos-store-search {
+  min-height: 34px;
+}
+
+.fos-store-list {
+  padding: 16px 20px 28px;
+}
+
+.fos-store-detail {
+  background-color: alpha(@fos_card, 0.85);
+  border-left: 1px solid @fos_frame_inactive;
+  padding: 20px 18px 28px;
+}
+
+.fos-store-empty {
+  padding: 24px 8px;
+}
+
+button.fos-btn.fos-store-row {
+  min-height: 56px;
+  padding: 8px 14px;
+}
+
+button.fos-btn.fos-store-row.secondary {
+  background-color: alpha(@fos_fg, 0.08);
+}
+
+button.fos-btn.fos-store-row:hover {
+  background-color: alpha(@fos_fg, 0.06);
+}
+
 /* Full-screen Settings shell (Windows 11–like navigation) */
 .fos-settings-root {
   background-color: @fos_background;
@@ -919,18 +995,27 @@ button.fos-btn.fos-settings-nav-item.secondary {
 }
 
 .fos-settings-toolbar {
-  padding: 16px 24px 8px;
+  padding: 18px 28px 12px;
   border-bottom: 1px solid @fos_border;
 }
 
+.fos-settings-toolbar .fos-title {
+  font-size: 18px;
+  font-weight: 600;
+}
+
 .fos-settings-content {
-  padding: 20px 24px 28px;
+  padding: 16px 28px 32px;
+}
+
+.fos-settings-apps-filter {
+  min-height: 34px;
 }
 
 .fos-settings-hero {
   background-color: @fos_card;
   border: 1px solid @fos_frame_inactive;
-  padding: 16px 18px;
+  padding: 18px 20px;
 }
 
 .fos-settings-card {
@@ -942,6 +1027,10 @@ button.fos-btn.fos-settings-nav-item.secondary {
   background-color: transparent;
   padding: 12px 16px;
   min-height: 52px;
+}
+
+.fos-settings-row:hover {
+  background-color: alpha(@fos_fg, 0.04);
 }
 
 .fos-settings-row-sep {
@@ -1031,6 +1120,28 @@ tooltip label {
   border-top: 1px solid @fos_border;
   padding: 6px 12px;
   min-height: 28px;
+}
+
+/* Device Manager */
+.fos-devmgr-toolbar {
+  padding: 8px 12px;
+  border-bottom: 1px solid @fos_border;
+}
+
+.fos-devmgr-tree {
+  background-color: @fos_card;
+}
+
+.fos-devmgr-detail {
+  background-color: alpha(@fos_card, 0.92);
+  border-top: 1px solid @fos_border;
+  padding: 12px 14px;
+}
+
+.fos-devmgr-props {
+  padding: 4px;
+  font-family: "Liberation Mono", "DejaVu Sans Mono", monospace;
+  font-size: 11px;
 }
 
 .fos-taskmgr-tree {
@@ -1257,14 +1368,32 @@ button.fos-btn.tile.fos-files-tile.selected {
   background-color: transparent;
 }
 
+.fos-files-tab-chip.secondary {
+  background-color: @fos_muted;
+}
+
 .fos-files-tab {
   min-width: 84px;
   min-height: 28px;
 }
 
-.fos-files-tab-close {
+.fos-files-tab-chip.secondary button.fos-btn.fos-files-tab,
+.fos-files-tab-chip.secondary button.fos-btn.fos-files-tab:hover {
+  background-color: transparent;
+}
+
+button.fos-btn.fos-files-tab-close {
   min-width: 22px;
   min-height: 28px;
+  background-color: transparent;
+  background-image: none;
+  border: none;
+  padding: 0 4px;
+}
+
+button.fos-btn.fos-files-tab-close:hover {
+  background-color: alpha(@fos_destructive, 0.15);
+  color: @fos_destructive;
 }
 
 .fos-files-flow {
@@ -1312,14 +1441,32 @@ button.fos-btn.fos-files-tile {
   background-color: transparent;
 }
 
+.fos-term-tab-chip.secondary {
+  background-color: @fos_muted;
+}
+
 .fos-term-tab {
   min-width: 84px;
   min-height: 28px;
 }
 
-.fos-term-tab-close {
+.fos-term-tab-chip.secondary button.fos-btn.fos-term-tab,
+.fos-term-tab-chip.secondary button.fos-btn.fos-term-tab:hover {
+  background-color: transparent;
+}
+
+button.fos-btn.fos-term-tab-close {
   min-width: 22px;
   min-height: 28px;
+  background-color: transparent;
+  background-image: none;
+  border: none;
+  padding: 0 4px;
+}
+
+button.fos-btn.fos-term-tab-close:hover {
+  background-color: alpha(@fos_destructive, 0.15);
+  color: @fos_destructive;
 }
 
 .fos-term-body {
@@ -1393,14 +1540,32 @@ button.fos-btn.fos-files-tile {
   background-color: transparent;
 }
 
+.fos-editor-tab-chip.secondary {
+  background-color: @fos_muted;
+}
+
 .fos-editor-tab {
   min-width: 84px;
   min-height: 28px;
 }
 
-.fos-editor-tab-close {
+.fos-editor-tab-chip.secondary button.fos-btn.fos-editor-tab,
+.fos-editor-tab-chip.secondary button.fos-btn.fos-editor-tab:hover {
+  background-color: transparent;
+}
+
+button.fos-btn.fos-editor-tab-close {
   min-width: 22px;
   min-height: 28px;
+  background-color: transparent;
+  background-image: none;
+  border: none;
+  padding: 0 4px;
+}
+
+button.fos-btn.fos-editor-tab-close:hover {
+  background-color: alpha(@fos_destructive, 0.15);
+  color: @fos_destructive;
 }
 
 .fos-editor-drag {

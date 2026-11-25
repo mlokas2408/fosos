@@ -1,0 +1,21 @@
+#!/bin/sh
+# Enable UFW on the live/install image: deny inbound, allow outbound.
+# fosos-desktop postinst also seeds this for apt upgrades of older installs.
+set -eu
+
+if ! command -v ufw >/dev/null 2>&1; then
+  echo "ufw missing; add ufw to fosos-base.list.chroot." >&2
+  exit 1
+fi
+
+ufw --force reset >/dev/null
+ufw default deny incoming
+ufw default allow outgoing
+# DHCP/DNS and related are handled by ufw defaults for client hosts.
+# SSH is enabled by default on FosOS — open it through the firewall.
+ufw allow OpenSSH comment 'FosOS SSH' >/dev/null 2>&1 \
+  || ufw allow 22/tcp comment 'FosOS SSH' >/dev/null
+ufw --force enable
+
+mkdir -p /var/lib/fosos
+touch /var/lib/fosos/firewall-seeded

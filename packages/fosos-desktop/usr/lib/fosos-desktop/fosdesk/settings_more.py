@@ -14,13 +14,14 @@ import gi
 
 gi.require_version("Gdk", "3.0")
 gi.require_version("Gtk", "3.0")
-from gi.repository import Gdk, GLib, Gtk
+from gi.repository import Gdk, Gio, GLib, Gtk
 
 from . import apps as appmod
+from .onedrive import accounts_section
 from .settings_helpers import settings_row, settings_section
 from .settings_pages import CONFIG, load_kv, pack_header, run, save_kv, truthy
 from .settings_pages import _request_shell_reload  # noqa: PLC2701 — shared shell reload
-from .ui import add_classes, button, label
+from .ui import FosDialog, add_classes, button, clear, fos_alert, fos_confirm, label
 
 POLICY = Path("/usr/libexec/fosos-settings-policy")
 AUTOLOGIN_CONF = Path("/etc/lightdm/lightdm.conf.d/95-fosos-autologin.conf")
@@ -437,6 +438,8 @@ def build_accounts(status_cb) -> Gtk.Box:
         0,
     )
 
+    root.pack_start(accounts_section(status_cb), False, False, 0)
+
     def apply(_button=None) -> None:
         new_name = name_entry.get_text().strip()
         if new_name and new_name != display:
@@ -662,6 +665,199 @@ def build_shortcuts(status_cb) -> Gtk.Box:
     return root
 
 
+def _app_subtitle(app: appmod.App, kind: str, package: str | None) -> str:
+    if kind == "local":
+        return "Local app · not from APT"
+    if package:
+        version, size = appmod.package_details(package)
+        bits = [package]
+        if version:
+            bits.append(version)
+        if size:
+            bits.append(size)
+        if kind == "required":
+            bits.append("required by FosOS")
+        return " · ".join(bits)
+    return app.description or "System component"
+
+
+def build_installed_apps(status_cb) -> Gtk.Box:
+    """Windows-style Installed apps: searchable list with Uninstall."""
+    root = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=16)
+    root.pack_start(
+        pack_header("Installed apps", "Uninstall programs on this PC."),
+        False,
+        False,
+        0,
+    )
+
+    store_row = Gtk.Box(spacing=8)
+    store_row.pack_start(
+        label("Get more apps from the FosOS Store.", "fos-text", "fos-muted"),
+        True,
+        True,
+        0,
+    )
+    open_store = button("Get apps", variant="default", size="sm")
+    open_store.connect(
+        "clicked",
+        lambda _b: status_cb("Opened Store.") if appmod.spawn(["fosos-store"]) else status_cb("Store is not available."),
+    )
+    store_row.pack_end(open_store, False, False, 0)
+    root.pack_start(store_row, False, False, 0)
+
+    filter_entry = add_classes(Gtk.Entry(), "fos-input", "fos-settings-apps-filter")
+    filter_entry.set_placeholder_text("Filter apps")
+    filter_entry.set_icon_from_icon_name(Gtk.EntryIconPosition.PRIMARY, "system-search-symbolic")
+    root.pack_start(filter_entry, False, False, 0)
+
+    summary = label("", "fos-small", "fos-muted")
+    root.pack_start(summary, False, False, 0)
+
+    list_host = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
+    root.pack_start(list_host, False, False, 0)
+
+    busy = {"value": False}
+
+    def rebuild(_entry=None) -> None:
+        clear(list_host)
+        needle = filter_entry.get_text().strip().lower()
+        apps = appmod.all_apps()
+        if needle:
+            apps = [app for app in apps if needle in app.search_text()]
+
+        card = add_classes(Gtk.Box(orientation=Gtk.Orientation.VERTICAL), "fos-settings-card")
+        if not apps:
+            empty = add_classes(Gtk.Box(), "fos-settings-row")
+            empty.pack_start(
+                label("No apps match your filter." if needle else "No apps found.", "fos-small", "fos-muted"),
+                False,
+                False,
+                0,
+            )
+            card.pack_start(empty, False, False, 0)
+            summary.set_text("0 apps")
+        else:
+            summary.set_text(f"{len(apps)} app{'s' if len(apps) != 1 else ''}")
+            for index, app in enumerate(apps):
+                kind, package = appmod.app_install_kind(app)
+                if kind == "uninstallable" and package:
+                    uninstall_btn = button("Uninstall", variant="outline", size="sm")
+                    uninstall_btn.connect(
+                        "clicked",
+                        lambda _b, a=app, p=package: _uninstall_app(a, p, status_cb, rebuild, busy),
+                    )
+                    trailing: Gtk.Widget = uninstall_btn
+                elif kind == "local":
+                    trailing = label("Local", "fos-small", "fos-muted")
+                else:
+                    trailing = label("Required", "fos-small", "fos-muted")
+                card.pack_start(
+                    settings_row(
+                        app.name,
+                        _app_subtitle(app, kind, package),
+                        trailing=trailing,
+                        icon_name=app.icon_name(),
+                    ),
+                    False,
+                    False,
+                    0,
+                )
+                if index < len(apps) - 1:
+                    card.pack_start(add_classes(Gtk.Box(), "fos-settings-row-sep"), False, False, 0)
+
+        list_host.pack_start(card, False, False, 0)
+        list_host.show_all()
+
+    filter_entry.connect("changed", rebuild)
+    rebuild()
+    status_cb("Choose an app to uninstall.")
+    return root
+
+
+def _uninstall_app(
+    app: appmod.App,
+    package: str,
+    status_cb,
+    rebuild,
+    busy: dict[str, bool],
+) -> None:
+    if busy["value"]:
+        return
+    if not fos_confirm(
+        None,
+        f"Uninstall {app.name}?",
+        f"This removes the package “{package}” and may remove related components.\n\n"
+        "Administrator permission is required.",
+        ok="Uninstall",
+        destructive=True,
+    ):
+        return
+
+    busy["value"] = True
+    status_cb(f"Uninstalling {app.name}…")
+    progress = FosDialog(None, title=f"Uninstalling {app.name}…")
+    progress.add_body_text("Approve the password prompt if asked, then wait.")
+    progress.footer.set_no_show_all(True)
+    progress.footer.hide()
+    progress.show_all()
+
+    argv = [
+        "pkexec",
+        "env",
+        "DEBIAN_FRONTEND=noninteractive",
+        "apt-get",
+        "remove",
+        "--yes",
+        "--",
+        package,
+    ]
+    try:
+        proc = Gio.Subprocess.new(
+            argv,
+            Gio.SubprocessFlags.STDOUT_PIPE | Gio.SubprocessFlags.STDERR_MERGE,
+        )
+    except GLib.Error as error:
+        progress.destroy()
+        busy["value"] = False
+        fos_alert(None, "Could not start uninstall", error.message)
+        status_cb("Uninstall did not start.")
+        return
+
+    def finished(process, result) -> None:
+        try:
+            _ok, stdout, _stderr = process.communicate_utf8_finish(result)
+        except GLib.Error as error:
+            stdout = error.message
+        progress.destroy()
+        busy["value"] = False
+        output = (stdout or "").strip()
+        if len(output) > 1200:
+            output = "…\n" + output[-1200:]
+        if process.get_successful():
+            # Drop Start / taskbar pins for this launcher if present.
+            try:
+                pins = appmod.Pinned()
+                if pins.contains(app.id):
+                    pins.unpin(app.id)
+            except OSError:
+                pass
+            body = f"{app.name} ({package}) was removed."
+            if output:
+                body = f"{body}\n\n{output}"
+            fos_alert(None, "App uninstalled", body)
+            status_cb(f"Uninstalled {app.name}.")
+            rebuild()
+        else:
+            body = f"{app.name} could not be uninstalled."
+            if output:
+                body = f"{body}\n\n{output}"
+            fos_alert(None, "Uninstall failed", body)
+            status_cb("Uninstall failed.")
+
+    proc.communicate_utf8_async(None, None, finished)
+
+
 def build_startup(status_cb) -> Gtk.Box:
     from .taskmgr import list_startup_apps, set_startup_enabled
 
@@ -823,6 +1019,408 @@ def build_privacy(status_cb) -> Gtk.Box:
     note = label("Lock always requires your password to unlock.", "fos-small", "fos-muted")
     note.set_line_wrap(True)
     root.pack_start(note, False, False, 0)
+    return root
+
+
+def _ufw_bin() -> str | None:
+    path = shutil.which("ufw")
+    if path:
+        return path
+    for candidate in ("/usr/sbin/ufw", "/sbin/ufw"):
+        if Path(candidate).is_file():
+            return candidate
+    return None
+
+
+def firewall_installed() -> bool:
+    return _ufw_bin() is not None
+
+
+def firewall_active_from_conf() -> bool | None:
+    """Read ENABLED from ufw.conf without privileges. None if unknown."""
+    path = Path("/etc/ufw/ufw.conf")
+    try:
+        for line in path.read_text(encoding="utf-8").splitlines():
+            if line.upper().startswith("ENABLED="):
+                return line.split("=", 1)[1].strip().lower() in ("yes", "true", "1")
+    except OSError:
+        return None
+    return None
+
+
+def firewall_status() -> dict[str, object]:
+    """Query firewall state without pkexec (conf + optional unprivileged ufw status)."""
+    info: dict[str, object] = {
+        "installed": firewall_installed(),
+        "active": False,
+        "incoming": "deny",
+        "outgoing": "allow",
+        "rules": [],
+    }
+    if not info["installed"]:
+        return info
+    conf_active = firewall_active_from_conf()
+    if conf_active is not None:
+        info["active"] = conf_active
+    try:
+        defaults = Path("/etc/default/ufw").read_text(encoding="utf-8")
+    except OSError:
+        defaults = ""
+    for line in defaults.splitlines():
+        if line.startswith("DEFAULT_INPUT_POLICY="):
+            info["incoming"] = line.split("=", 1)[1].strip().strip('"').lower()
+        elif line.startswith("DEFAULT_OUTPUT_POLICY="):
+            info["outgoing"] = line.split("=", 1)[1].strip().strip('"').lower()
+    # ufw status is often readable without root on Debian; never call pkexec here.
+    ufw = _ufw_bin()
+    if ufw is None:
+        return info
+    code, out = _run([ufw, "status", "numbered"], timeout=5)
+    if code != 0 or not out:
+        return info
+    rules: list[str] = []
+    for line in out.splitlines():
+        stripped = line.strip()
+        lower = stripped.lower()
+        if lower.startswith("status:"):
+            info["active"] = "inactive" not in lower
+            continue
+        match = re.match(r"^\[\s*(\d+)\]\s+(.*)$", stripped)
+        if match:
+            rules.append(match.group(2).strip())
+    info["rules"] = rules
+    return info
+
+
+def set_firewall_enabled_async(enabled: bool, done_cb) -> None:
+    """Toggle UFW via pkexec without blocking the GTK main loop."""
+    if not firewall_installed() or not POLICY.is_file() or shutil.which("pkexec") is None:
+        done_cb(False, "Firewall helper is not available.")
+        return
+    argv = ["pkexec", str(POLICY), "set-firewall", "on" if enabled else "off"]
+    try:
+        proc = Gio.Subprocess.new(argv, Gio.SubprocessFlags.NONE)
+    except GLib.Error as exc:
+        done_cb(False, exc.message)
+        return
+
+    def finished(process, result) -> None:
+        try:
+            process.wait_finish(result)
+        except GLib.Error as error:
+            done_cb(False, error.message)
+            return
+        if process.get_exit_status() != 0:
+            done_cb(False, "Request cancelled or failed.")
+            return
+        done_cb(True, "enabled" if enabled else "disabled")
+
+    proc.wait_async(None, finished)
+
+
+def build_firewall(status_cb) -> Gtk.Box:
+    root = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=16)
+    root.pack_start(
+        pack_header("Firewall", "Block unexpected inbound connections."),
+        False,
+        False,
+        0,
+    )
+
+    if not firewall_installed():
+        root.pack_start(
+            label(
+                "The firewall package (ufw) is not installed. Install it from the Store or with fos install ufw.",
+                "fos-text",
+                "fos-muted",
+            ),
+            False,
+            False,
+            0,
+        )
+        return root
+
+    # Avoid pkexec on first paint — use conf for the switch, refresh details after.
+    active = firewall_active_from_conf()
+    if active is None:
+        active = False
+
+    switch = Gtk.Switch()
+    switch.set_active(bool(active))
+    state_label = label("", "fos-text")
+    defaults_label = label("", "fos-small", "fos-muted")
+    defaults_label.set_line_wrap(True)
+    rules_card = add_classes(Gtk.Box(orientation=Gtk.Orientation.VERTICAL), "fos-settings-card")
+
+    def paint(info: dict[str, object] | None = None) -> None:
+        data = info if info is not None else {
+            "active": firewall_active_from_conf() or False,
+            "incoming": "deny",
+            "outgoing": "allow",
+            "rules": [],
+        }
+        is_on = bool(data.get("active"))
+        toggling["busy"] = True
+        switch.set_active(is_on)
+        toggling["busy"] = False
+        state_label.set_text("Firewall is on" if is_on else "Firewall is off")
+        incoming = str(data.get("incoming") or "deny")
+        outgoing = str(data.get("outgoing") or "allow")
+        defaults_label.set_text(
+            f"Default: inbound {incoming}, outbound {outgoing}. "
+            "SSH opens TCP 22 and Remote Desktop opens TCP 3389 when those services are on."
+        )
+        clear(rules_card)
+        rules = list(data.get("rules") or [])
+        if not is_on:
+            empty = add_classes(Gtk.Box(), "fos-settings-row")
+            empty.pack_start(label("Turn the firewall on to enforce rules.", "fos-small", "fos-muted"), False, False, 0)
+            rules_card.pack_start(empty, False, False, 0)
+        elif not rules:
+            empty = add_classes(Gtk.Box(), "fos-settings-row")
+            empty.pack_start(
+                label("No extra allow rules. Inbound traffic is blocked by default.", "fos-small", "fos-muted"),
+                False,
+                False,
+                0,
+            )
+            rules_card.pack_start(empty, False, False, 0)
+        else:
+            for index, rule in enumerate(rules[:40]):
+                rules_card.pack_start(
+                    settings_row(rule, ""),
+                    False,
+                    False,
+                    0,
+                )
+                if index < min(len(rules), 40) - 1:
+                    rules_card.pack_start(add_classes(Gtk.Box(), "fos-settings-row-sep"), False, False, 0)
+        rules_card.show_all()
+
+    toggling = {"busy": False}
+
+    def refresh_details() -> None:
+        # Detailed rule list needs privileges; run off the click path via idle.
+        def load() -> bool:
+            info = firewall_status()
+            paint(info)
+            status_cb("Firewall is on." if info.get("active") else "Firewall is off.")
+            return False
+
+        status_cb("Reading firewall status…")
+        GLib.idle_add(load)
+
+    def on_toggle(widget: Gtk.Switch, _gparam) -> None:
+        if toggling["busy"]:
+            return
+        want = widget.get_active()
+        current = bool(firewall_active_from_conf())
+        if want == current:
+            return
+        toggling["busy"] = True
+        widget.set_sensitive(False)
+        status_cb("Authenticating to change the firewall…")
+
+        def done(ok: bool, message: str) -> None:
+            toggling["busy"] = False
+            widget.set_sensitive(True)
+            if not ok:
+                # Revert switch.
+                toggling["busy"] = True
+                widget.set_active(not want)
+                toggling["busy"] = False
+                status_cb(message or "Firewall change failed.")
+                return
+            status_cb(f"Firewall {message}.")
+            refresh_details()
+
+        set_firewall_enabled_async(want, done)
+
+    switch.connect("notify::active", on_toggle)
+
+    root.pack_start(
+        settings_section(
+            "",
+            settings_row("Firewall", "Block unexpected inbound connections", trailing=switch),
+        ),
+        False,
+        False,
+        0,
+    )
+    root.pack_start(state_label, False, False, 0)
+    root.pack_start(defaults_label, False, False, 0)
+
+    rules_heading = label("Allowed inbound", "fos-label")
+    rules_heading.set_margin_top(4)
+    root.pack_start(rules_heading, False, False, 0)
+    root.pack_start(rules_card, False, False, 0)
+
+    paint({"active": active, "incoming": "deny", "outgoing": "allow", "rules": []})
+    GLib.idle_add(lambda: refresh_details() or False)
+    return root
+
+
+def ssh_server_installed() -> bool:
+    return shutil.which("sshd") is not None or Path("/usr/sbin/sshd").is_file()
+
+
+def ssh_client_installed() -> bool:
+    return shutil.which("ssh") is not None or Path("/usr/bin/ssh").is_file()
+
+
+def ssh_server_active() -> bool:
+    try:
+        result = subprocess.run(
+            ["systemctl", "is-active", "ssh.service"],
+            capture_output=True,
+            text=True,
+            timeout=5,
+            check=False,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return False
+    return result.returncode == 0 and (result.stdout or "").strip() == "active"
+
+
+def ssh_host_addresses() -> list[str]:
+    try:
+        result = subprocess.run(
+            ["hostname", "-I"],
+            capture_output=True,
+            text=True,
+            timeout=5,
+            check=False,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return []
+    return [part for part in (result.stdout or "").split() if part]
+
+
+def set_ssh_enabled_async(enabled: bool, done_cb) -> None:
+    """Toggle OpenSSH server via pkexec without blocking the GTK main loop."""
+    if not ssh_server_installed() or not POLICY.is_file() or shutil.which("pkexec") is None:
+        done_cb(False, "SSH helper is not available.")
+        return
+    argv = ["pkexec", str(POLICY), "set-ssh", "on" if enabled else "off"]
+    try:
+        proc = Gio.Subprocess.new(argv, Gio.SubprocessFlags.NONE)
+    except GLib.Error as exc:
+        done_cb(False, exc.message)
+        return
+
+    def finished(process, result) -> None:
+        try:
+            process.wait_finish(result)
+        except GLib.Error as error:
+            done_cb(False, error.message)
+            return
+        if process.get_exit_status() != 0:
+            done_cb(False, "Request cancelled or failed.")
+            return
+        done_cb(True, "enabled" if enabled else "disabled")
+
+    proc.wait_async(None, finished)
+
+
+def build_ssh(status_cb) -> Gtk.Box:
+    root = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=16)
+    root.pack_start(
+        pack_header("SSH", "Remote terminal access in and out."),
+        False,
+        False,
+        0,
+    )
+
+    if not ssh_server_installed():
+        root.pack_start(
+            label(
+                "OpenSSH server is not installed. Install openssh-server from the Store or with fos install openssh-server.",
+                "fos-text",
+                "fos-muted",
+            ),
+            False,
+            False,
+            0,
+        )
+        return root
+
+    active = ssh_server_active()
+    switch = Gtk.Switch()
+    switch.set_active(active)
+    state_label = label("", "fos-text")
+    how_label = label("", "fos-small", "fos-muted")
+    how_label.set_line_wrap(True)
+    how_label.set_selectable(True)
+    client_label = label(
+        "SSH client is ready — use Terminal: ssh user@host"
+        if ssh_client_installed()
+        else "SSH client (openssh-client) is missing.",
+        "fos-small",
+        "fos-muted",
+    )
+    client_label.set_line_wrap(True)
+
+    toggling = {"busy": False}
+
+    def paint() -> None:
+        is_on = ssh_server_active()
+        toggling["busy"] = True
+        switch.set_active(is_on)
+        toggling["busy"] = False
+        if is_on:
+            addrs = ssh_host_addresses() or ["(no address yet)"]
+            primary = addrs[0]
+            lines = [f"Listening on port 22 · {item}" for item in addrs]
+            state_label.set_text("SSH server is on\n" + "\n".join(lines))
+            user = getpass.getuser()
+            how_label.set_text(
+                f"From another PC: ssh {user}@{primary}\n"
+                "Sign in with the same username and password as on this FosOS account. "
+                "The firewall opens TCP 22 while SSH is on."
+            )
+        else:
+            state_label.set_text("SSH server is off.")
+            how_label.set_text("Turn on to allow remote terminal access to this PC on port 22.")
+
+    def on_toggle(widget: Gtk.Switch, _gparam) -> None:
+        if toggling["busy"]:
+            return
+        want = widget.get_active()
+        if want == ssh_server_active():
+            return
+        toggling["busy"] = True
+        widget.set_sensitive(False)
+        status_cb("Authenticating to change SSH…")
+
+        def done(ok: bool, message: str) -> None:
+            toggling["busy"] = False
+            widget.set_sensitive(True)
+            if not ok:
+                toggling["busy"] = True
+                widget.set_active(not want)
+                toggling["busy"] = False
+                status_cb(message or "SSH change failed.")
+                return
+            status_cb(f"SSH server {message}.")
+            paint()
+
+        set_ssh_enabled_async(want, done)
+
+    switch.connect("notify::active", on_toggle)
+    root.pack_start(
+        settings_section(
+            "",
+            settings_row("SSH server", "Allow others to connect to this PC", trailing=switch),
+        ),
+        False,
+        False,
+        0,
+    )
+    root.pack_start(state_label, False, False, 0)
+    root.pack_start(how_label, False, False, 0)
+    root.pack_start(client_label, False, False, 0)
+    paint()
+    status_cb("SSH server is on." if active else "SSH server is off.")
     return root
 
 
@@ -1101,10 +1699,13 @@ __all__ = [
     "build_appearance",
     "build_bluetooth_full",
     "build_datetime",
+    "build_firewall",
+    "build_installed_apps",
     "build_multitasking",
     "build_nightlight",
     "build_privacy",
     "build_shortcuts",
+    "build_ssh",
     "build_startup",
     "restore_session_accessibility",
     "write_xsettings",

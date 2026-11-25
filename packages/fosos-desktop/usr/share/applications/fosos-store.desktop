@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Name=Store
+GenericName=Software Store
+Comment=Browse and install apps from Debian
+Exec=fosos-store
+Icon=system-software-install
+Terminal=false
+Categories=System;PackageManager;
+Keywords=store;software;apps;install;apt;package;
+StartupWMClass=fosos-store
+OnlyShowIn=FosOS;

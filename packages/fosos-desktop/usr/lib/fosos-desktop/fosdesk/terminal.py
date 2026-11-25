@@ -22,7 +22,7 @@ from gi.repository import Gdk, Gio, GLib, Gtk, Pango, Vte
 from .settings_helpers import settings_row, settings_section
 from .settings_pages import load_kv, save_kv, truthy
 from .ui import FosDialog, add_classes, button, icon, label, load_css, set_class
-from .windowchrome import CardWindow
+from .windowchrome import CardWindow, caption_image
 
 APP_ID = "org.fosos.Terminal"
 CONFIG_NAME = "terminal"
@@ -349,7 +349,8 @@ def _build_tab_chip(
     tab_label.set_max_width_chars(16)
     focus_btn.add(tab_label)
     focus_btn.connect("clicked", lambda _b: on_focus())
-    close = button(icon_name="window-close-symbolic", size="icon-xs", tooltip="Close tab", icon_size=12)
+    close = button(size="icon-xs", tooltip="Close tab")
+    close.add(caption_image("close"))
     add_classes(close, "close", "fos-term-tab-close")
     close.connect("clicked", lambda _b: on_close())
     chip.pack_start(focus_btn, False, False, 0)
@@ -983,10 +984,10 @@ class TerminalWindow(CardWindow):
         tab.page.show_all()
         self.stack.set_visible_child(tab.page)
         for other in self.tabs:
-            set_class(other.tab_button, "secondary", other is tab)
-            set_class(other.tab_button, "ghost", other is not tab)
+            set_class(other.tab_chip, "secondary", other is tab)
+            set_class(other.tab_button, "ghost", True)
         if self.settings_tab is not None:
-            set_class(self.settings_tab.tab_button, "secondary", False)
+            set_class(self.settings_tab.tab_chip, "secondary", False)
             set_class(self.settings_tab.tab_button, "ghost", True)
         tab.terminal.grab_focus()
         title = tab.tab_label.get_text() or "Terminal"
@@ -1000,10 +1001,10 @@ class TerminalWindow(CardWindow):
         self.settings_tab.page.show_all()
         self.stack.set_visible_child(self.settings_tab.page)
         for other in self.tabs:
-            set_class(other.tab_button, "secondary", False)
+            set_class(other.tab_chip, "secondary", False)
             set_class(other.tab_button, "ghost", True)
-        set_class(self.settings_tab.tab_button, "secondary", True)
-        set_class(self.settings_tab.tab_button, "ghost", False)
+        set_class(self.settings_tab.tab_chip, "secondary", True)
+        set_class(self.settings_tab.tab_button, "ghost", True)
         self.set_title("Settings")
 
     def close_tab(self, tab: TerminalTab) -> None:

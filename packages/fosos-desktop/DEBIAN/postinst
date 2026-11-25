@@ -46,6 +46,43 @@ if [ -f /etc/locale.gen ] && command -v locale-gen >/dev/null 2>&1; then
 	fi
 fi
 
+# Host firewall: enable once by default (deny inbound / allow outbound).
+# After /var/lib/fosos/firewall-seeded exists, Settings owns on/off — do not
+# re-enable on every upgrade if the user turned it off.
+if command -v ufw >/dev/null 2>&1; then
+	mkdir -p /var/lib/fosos
+	if [ ! -f /var/lib/fosos/firewall-seeded ]; then
+		ufw default deny incoming >/dev/null 2>&1 || true
+		ufw default allow outgoing >/dev/null 2>&1 || true
+		ufw allow OpenSSH comment 'FosOS SSH' >/dev/null 2>&1 \
+			|| ufw allow 22/tcp comment 'FosOS SSH' >/dev/null 2>&1 || true
+		ufw --force enable >/dev/null 2>&1 || true
+		touch /var/lib/fosos/firewall-seeded
+	fi
+fi
+
+# OpenSSH server: enable once by default so others can connect in.
+# Marker stops re-enabling after the user turns SSH off in Settings.
+if command -v systemctl >/dev/null 2>&1 \
+	&& { command -v sshd >/dev/null 2>&1 || [ -x /usr/sbin/sshd ]; }; then
+	mkdir -p /var/lib/fosos
+	if [ ! -f /var/lib/fosos/ssh-seeded ]; then
+		systemctl enable ssh.service >/dev/null 2>&1 || systemctl enable ssh >/dev/null 2>&1 || true
+		systemctl restart ssh.service >/dev/null 2>&1 || systemctl start ssh.service >/dev/null 2>&1 || true
+		if command -v ufw >/dev/null 2>&1; then
+			ufw allow OpenSSH comment 'FosOS SSH' >/dev/null 2>&1 \
+				|| ufw allow 22/tcp comment 'FosOS SSH' >/dev/null 2>&1 || true
+		fi
+		touch /var/lib/fosos/ssh-seeded
+	fi
+fi
+
+# Debian enables onedrive.service for every user at login. FosOS starts it
+# only after this user signs in from Settings → Accounts.
+if command -v systemctl >/dev/null 2>&1; then
+	systemctl --global disable onedrive.service >/dev/null 2>&1 || true
+fi
+
 # Remote Desktop (xrdp) stays off until Settings enables it.
 if command -v systemctl >/dev/null 2>&1 \
 	&& { [ -d /lib/systemd/system ] || [ -d /usr/lib/systemd/system ]; }; then

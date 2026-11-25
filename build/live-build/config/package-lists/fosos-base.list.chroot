@@ -49,6 +49,13 @@ alsa-ucm-conf
 
 # Essential user and compatibility tools
 sudo
+# Host firewall (Uncomplicated Firewall). Enabled by default via the
+# 0190-fosos-firewall.hook.chroot and fosos-desktop postinst seed.
+ufw
+# SSH client + server. Server enabled by default (0200-fosos-ssh.hook.chroot);
+# UFW allows OpenSSH when the firewall is seeded.
+openssh-client
+openssh-server
 # APT recommends are off: without locales, LANG=en_US.UTF-8 is unsettable and
 # GTK apps warn "Locale not supported". Calamares localecfg also needs it.
 locales

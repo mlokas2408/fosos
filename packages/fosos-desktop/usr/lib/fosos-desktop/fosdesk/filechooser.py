@@ -16,6 +16,7 @@ from gi.repository import Gdk, Gio, GLib, Gtk, Pango
 
 from .apps import user_dir
 from .files import entry_icon
+from .onedrive import existing_sync_dir
 from .ui import add_classes, button, fos_confirm, fos_prompt, full_icon, icon, label, load_css
 
 PANEL_HEIGHT = 48
@@ -41,13 +42,18 @@ def _places() -> list[tuple[str, str, Path]]:
     home = Path.home()
     rows = [
         ("Home", "user-home-symbolic", home),
+    ]
+    cloud = existing_sync_dir()
+    if cloud is not None:
+        rows.append(("OneDrive", "folder-remote-symbolic", cloud))
+    rows.extend([
         ("Desktop", "user-desktop-symbolic", user_dir(GLib.UserDirectory.DIRECTORY_DESKTOP, "Desktop")),
         ("Downloads", "folder-download-symbolic", user_dir(GLib.UserDirectory.DIRECTORY_DOWNLOAD, "Downloads")),
         ("Documents", "folder-documents-symbolic", user_dir(GLib.UserDirectory.DIRECTORY_DOCUMENTS, "Documents")),
         ("Pictures", "folder-pictures-symbolic", user_dir(GLib.UserDirectory.DIRECTORY_PICTURES, "Pictures")),
         ("Music", "folder-music-symbolic", user_dir(GLib.UserDirectory.DIRECTORY_MUSIC, "Music")),
         ("Videos", "folder-videos-symbolic", user_dir(GLib.UserDirectory.DIRECTORY_VIDEOS, "Videos")),
-    ]
+    ])
     seen: set[Path] = set()
     places: list[tuple[str, str, Path]] = []
     for title, icon_name, path in rows:

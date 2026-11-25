@@ -41,6 +41,13 @@ PANELS = [
         "network-server-symbolic",
         {"page": "remote"},
     ),
+    (
+        "System",
+        "SSH",
+        "Remote terminal access in and out",
+        "utilities-terminal-symbolic",
+        {"page": "ssh"},
+    ),
     ("System", "Power", "Screen, lock, sleep and battery", "battery-good-symbolic", {"page": "power"}),
     ("System", "Storage", "Free space on disks", "drive-harddisk-symbolic", {"page": "storage"}),
     (
@@ -85,6 +92,13 @@ PANELS = [
         "preferences-system-notifications-symbolic",
         {"page": "notifications"},
     ),
+    (
+        "Personalization",
+        "Night light",
+        "Warmer colours at night",
+        "weather-clear-night-symbolic",
+        {"page": "nightlight"},
+    ),
     ("Accounts", "Accounts", "Password, name and sign-in", "avatar-default-symbolic", {"page": "accounts"}),
     ("Input", "Keyboard", "Layout and key repeat", "input-keyboard-symbolic", {"page": "keyboard"}),
     (
@@ -109,6 +123,13 @@ PANELS = [
         "preferences-desktop-locale-symbolic",
         {"page": "region"},
     ),
+    (
+        "Apps",
+        "Installed apps",
+        "Uninstall programs on this PC",
+        "system-software-install-symbolic",
+        {"page": "apps"},
+    ),
     ("Apps", "Default apps", "Browser, PDF, archives and more", "starred-symbolic", {"page": "defaults"}),
     ("Apps", "Startup", "Apps that launch when you sign in", "application-x-executable-symbolic", {"page": "startup"}),
     (
@@ -126,11 +147,11 @@ PANELS = [
         {"page": "privacy"},
     ),
     (
-        "Personalization",
-        "Night light",
-        "Warmer colours at night",
-        "weather-clear-night-symbolic",
-        {"page": "nightlight"},
+        "Privacy",
+        "Firewall",
+        "Block unexpected network connections",
+        "network-wireless-encrypted-symbolic",
+        {"page": "firewall"},
     ),
     (
         "FosOS",

@@ -1,0 +1,23 @@
+#!/bin/sh
+# Enable OpenSSH server on the live/install image so others can connect in,
+# and ship the client so this PC can connect out. Firewall allow is applied
+# by 0190-fosos-firewall.hook.chroot (and fosos-desktop postinst).
+set -eu
+
+if ! command -v ssh >/dev/null 2>&1; then
+  echo "openssh-client missing; add openssh-client to fosos-base.list.chroot." >&2
+  exit 1
+fi
+
+if ! command -v sshd >/dev/null 2>&1 && [ ! -x /usr/sbin/sshd ]; then
+  echo "openssh-server missing; add openssh-server to fosos-base.list.chroot." >&2
+  exit 1
+fi
+
+if command -v systemctl >/dev/null 2>&1; then
+  systemctl enable ssh.service >/dev/null 2>&1 || systemctl enable ssh >/dev/null 2>&1 || true
+  systemctl restart ssh.service >/dev/null 2>&1 || systemctl start ssh.service >/dev/null 2>&1 || true
+fi
+
+mkdir -p /var/lib/fosos
+touch /var/lib/fosos/ssh-seeded

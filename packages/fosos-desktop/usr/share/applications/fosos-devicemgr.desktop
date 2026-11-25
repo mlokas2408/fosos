@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Name=Device Manager
+GenericName=Hardware
+Comment=View devices and hardware on this PC
+Exec=fosos-devicemgr
+Icon=computer
+Terminal=false
+Categories=System;Monitor;
+Keywords=device;hardware;driver;pci;usb;manager;
+StartupWMClass=fosos-devicemgr
+OnlyShowIn=FosOS;

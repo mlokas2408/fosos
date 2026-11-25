@@ -35,6 +35,8 @@ class QuickLinks(Popup):
         self._add_items(
             body,
             (
+                ("Device Manager", "computer-symbolic", "devicemgr"),
+                ("Task Manager", "utilities-system-monitor-symbolic", "taskmgr"),
                 ("Installed apps", "system-software-install-symbolic", "apps"),
                 ("Power options", "preferences-system-power-symbolic", "power"),
                 ("Network connections", "network-wired-symbolic", "network"),
@@ -125,8 +127,22 @@ class QuickLinks(Popup):
             if app is None or not app.launch():
                 appmod.spawn(["fosos-files"])
             return
+        if action == "devicemgr":
+            from . import apps as appmod
+
+            app = appmod.load_app("fosos-devicemgr.desktop")
+            if app is None or not app.launch():
+                appmod.spawn(["fosos-devicemgr"])
+            return
+        if action == "taskmgr":
+            from . import apps as appmod
+
+            app = appmod.load_app("fosos-taskmgr.desktop")
+            if app is None or not app.launch():
+                appmod.spawn(["fosos-taskmgr"])
+            return
         if action == "apps":
-            self.shell.open_settings("defaults")
+            self.shell.open_settings("apps")
             return
         if action == "power":
             self.shell.open_settings("power")

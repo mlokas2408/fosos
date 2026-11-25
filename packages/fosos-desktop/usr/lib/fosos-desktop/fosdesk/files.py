@@ -20,6 +20,7 @@ gi.require_version("Gtk", "3.0")
 from gi.repository import Gdk, GdkPixbuf, Gio, GLib, Gtk
 
 from . import apps as appmod
+from .onedrive import existing_sync_dir
 from .ui import (
     FosDialog,
     add_classes,
@@ -35,7 +36,7 @@ from .ui import (
     separator,
     set_class,
 )
-from .windowchrome import CardWindow
+from .windowchrome import CardWindow, caption_image
 
 APP_ID = "org.fosos.Files"
 URI_TARGET = [Gtk.TargetEntry.new("text/uri-list", 0, 0)]
@@ -474,7 +475,8 @@ def _build_tab_chip(
     focus_btn.add(tab_label)
     focus_btn.set_can_focus(True)
     focus_btn.connect("clicked", lambda _b: on_focus())
-    close = button(icon_name="window-close-symbolic", size="icon-xs", tooltip="Close tab", icon_size=12)
+    close = button(size="icon-xs", tooltip="Close tab")
+    close.add(caption_image("close"))
     add_classes(close, "close", "fos-files-tab-close")
     close.connect("clicked", lambda _b: on_close())
     chip.pack_start(focus_btn, False, False, 0)
@@ -731,8 +733,8 @@ class FilesWindow(CardWindow):
             return
         self.active = tab
         for t in self.tabs:
-            set_class(t.tab_button, "secondary", t is tab)
-            set_class(t.tab_button, "ghost", t is not tab)
+            set_class(t.tab_chip, "secondary", t is tab)
+            set_class(t.tab_button, "ghost", True)
         self.search.set_text(tab.search_text)
         self._address_mode = False
         self.refresh()
@@ -1031,6 +1033,19 @@ class FilesWindow(CardWindow):
             home_key = f"home:{Path.home()}"
         nav_row("Home", "user-home-symbolic", home_key, lambda: self.navigate(Path.home(), push=True))
 
+        cloud = existing_sync_dir()
+        if cloud is not None:
+            try:
+                cloud_key = f"onedrive:{cloud.resolve()}"
+            except OSError:
+                cloud_key = f"onedrive:{cloud}"
+            nav_row(
+                "OneDrive",
+                "folder-remote-symbolic",
+                cloud_key,
+                lambda p=cloud: self.navigate(p, push=True),
+            )
+
         section("Quick access")
         for pin in self.pins:
             path = Path(pin.get("path", ""))
@@ -1162,6 +1177,8 @@ class FilesWindow(CardWindow):
             if key_path == home_key[5:] and home_key in self._nav_buttons:
                 active_key = home_key
             else:
+                cloud_key = ""
+                cloud_child = ""
                 for key in self._nav_buttons:
                     if key.startswith("drive:") and key[6:] == key_path:
                         active_key = key
@@ -1169,6 +1186,20 @@ class FilesWindow(CardWindow):
                     if key.startswith("pin:") and key[4:] == key_path:
                         active_key = key
                         break
+                    if key.startswith("onedrive:"):
+                        root = key[len("onedrive:") :]
+                        if root == key_path:
+                            cloud_key = key
+                        elif not cloud_child:
+                            try:
+                                if Path(key_path).is_relative_to(root):
+                                    cloud_child = key
+                            except (OSError, ValueError):
+                                pass
+                if cloud_key:
+                    active_key = cloud_key
+                elif not active_key:
+                    active_key = cloud_child
             if not active_key and is_trash_path(loc.path):
                 try:
                     active_key = f"pin:{trash_dir().resolve()}"

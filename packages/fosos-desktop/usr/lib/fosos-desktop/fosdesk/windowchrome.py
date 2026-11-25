@@ -96,13 +96,14 @@ def _caption_pixbuf(kind: str) -> GdkPixbuf.Pixbuf:
     return pixbuf
 
 
-def _caption_image(kind: str) -> Gtk.Image:
+def caption_image(kind: str) -> Gtk.Image:
+    """Cursor-matching caption glyph (minimize / maximize / restore / close)."""
     return Gtk.Image.new_from_pixbuf(_caption_pixbuf(kind))
 
 
 def _caption_button(kind: str, tooltip: str) -> Gtk.Button:
     widget = button(size="icon-xs", tooltip=tooltip)
-    widget.add(_caption_image(kind))
+    widget.add(caption_image(kind))
     return widget
 
 

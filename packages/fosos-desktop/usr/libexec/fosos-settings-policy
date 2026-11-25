@@ -156,8 +156,109 @@ get-autologin)
 	fi
 	echo ""
 	;;
+set-firewall)
+	# on|off — Uncomplicated Firewall (ufw)
+	val=${1:-}
+	if ! command -v ufw >/dev/null 2>&1; then
+		echo "ufw is not installed" >&2
+		exit 1
+	fi
+	mkdir -p /var/lib/fosos
+	case "$val" in
+	1|on|true|yes|enable)
+		ufw default deny incoming >/dev/null || exit 1
+		ufw default allow outgoing >/dev/null || exit 1
+		# Keep SSH reachable when the server is enabled.
+		if systemctl is-enabled --quiet ssh.service 2>/dev/null \
+			|| systemctl is-active --quiet ssh.service 2>/dev/null; then
+			ufw allow OpenSSH comment 'FosOS SSH' >/dev/null 2>&1 \
+				|| ufw allow 22/tcp comment 'FosOS SSH' >/dev/null || true
+		fi
+		ufw --force enable >/dev/null || exit 1
+		touch /var/lib/fosos/firewall-seeded
+		echo "enabled"
+		;;
+	0|off|false|no|disable)
+		ufw disable >/dev/null || exit 1
+		touch /var/lib/fosos/firewall-seeded
+		echo "disabled"
+		;;
+	*)
+		echo "usage: fosos-settings-policy set-firewall on|off" >&2
+		exit 2
+		;;
+	esac
+	;;
+get-firewall)
+	# Machine-readable status for Settings.
+	if ! command -v ufw >/dev/null 2>&1; then
+		echo "installed=no"
+		echo "active=no"
+		exit 0
+	fi
+	echo "installed=yes"
+	conf=/etc/ufw/ufw.conf
+	active=no
+	if [ -f "$conf" ] && grep -qiE '^ENABLED=yes' "$conf"; then
+		active=yes
+	fi
+	# Prefer live status when readable.
+	if ufw status 2>/dev/null | grep -qi 'Status: active'; then
+		active=yes
+	elif ufw status 2>/dev/null | grep -qi 'Status: inactive'; then
+		active=no
+	fi
+	echo "active=$active"
+	if [ -f "$conf" ]; then
+		inc=$(sed -n 's/^DEFAULT_INPUT_POLICY=//p' /etc/default/ufw 2>/dev/null | head -n1)
+		out=$(sed -n 's/^DEFAULT_OUTPUT_POLICY=//p' /etc/default/ufw 2>/dev/null | head -n1)
+		[ -n "$inc" ] && echo "incoming=$inc"
+		[ -n "$out" ] && echo "outgoing=$out"
+	fi
+	# Rule lines after a marker for the UI list.
+	echo "rules:"
+	ufw status numbered 2>/dev/null | sed -n 's/^\[ *\([0-9][0-9]*\)\]  *\(.*\)$/\1|\2/p' || true
+	;;
+set-ssh)
+	# on|off — OpenSSH server (ssh.service)
+	val=${1:-}
+	if ! command -v systemctl >/dev/null 2>&1; then
+		echo "systemctl is required" >&2
+		exit 1
+	fi
+	if ! command -v sshd >/dev/null 2>&1 && [ ! -x /usr/sbin/sshd ]; then
+		echo "openssh-server is not installed" >&2
+		exit 1
+	fi
+	mkdir -p /var/lib/fosos
+	case "$val" in
+	1|on|true|yes|enable)
+		systemctl enable ssh.service >/dev/null 2>&1 || systemctl enable ssh >/dev/null 2>&1 || exit 1
+		systemctl restart ssh.service >/dev/null 2>&1 || systemctl start ssh.service >/dev/null 2>&1 || exit 1
+		if command -v ufw >/dev/null 2>&1; then
+			ufw allow OpenSSH comment 'FosOS SSH' >/dev/null 2>&1 \
+				|| ufw allow 22/tcp comment 'FosOS SSH' >/dev/null || true
+		fi
+		touch /var/lib/fosos/ssh-seeded
+		echo "enabled"
+		;;
+	0|off|false|no|disable)
+		systemctl disable --now ssh.service >/dev/null 2>&1 || systemctl disable --now ssh >/dev/null 2>&1 || exit 1
+		if command -v ufw >/dev/null 2>&1; then
+			ufw --force delete allow OpenSSH >/dev/null 2>&1 || true
+			ufw --force delete allow 22/tcp >/dev/null 2>&1 || true
+		fi
+		touch /var/lib/fosos/ssh-seeded
+		echo "disabled"
+		;;
+	*)
+		echo "usage: fosos-settings-policy set-ssh on|off" >&2
+		exit 2
+		;;
+	esac
+	;;
 *)
-	echo "usage: fosos-settings-policy set-timezone|set-ntp|set-gecos|set-password|set-autologin|set-lid|get-lid|get-autologin ..." >&2
+	echo "usage: fosos-settings-policy set-timezone|set-ntp|set-gecos|set-password|set-autologin|set-lid|get-lid|get-autologin|set-firewall|get-firewall|set-ssh ..." >&2
 	exit 2
 	;;
 esac

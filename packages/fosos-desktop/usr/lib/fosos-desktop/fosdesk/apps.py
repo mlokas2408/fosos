@@ -2,6 +2,7 @@
 
 import os
 import pwd
+import re
 import shutil
 import subprocess
 from pathlib import Path
@@ -25,12 +26,14 @@ KNOWN_APPS = {
     "fosos-notepad.desktop": ("Notepad", "accessories-text-editor-symbolic"),
     "firefox-esr.desktop": ("Firefox", "web-browser-symbolic"),
     "fosos-settings.desktop": ("Settings", "preferences-system-symbolic"),
+    "fosos-store.desktop": ("Store", "system-software-install-symbolic"),
     "fosos-remote.desktop": ("Remote Desktop", "network-server-symbolic"),
     "calamares-install-fosos.desktop": ("Install FosOS", "system-software-install-symbolic"),
     "fosos-welcome.desktop": ("Welcome", "help-about-symbolic"),
     "org.pulseaudio.pavucontrol.desktop": ("Sound", "audio-volume-high-symbolic"),
     "fosos-screenshot.desktop": ("Screenshot", "camera-photo-symbolic"),
     "fosos-taskmgr.desktop": ("Task Manager", "utilities-system-monitor-symbolic"),
+    "fosos-devicemgr.desktop": ("Device Manager", "computer-symbolic"),
 }
 
 
@@ -200,6 +203,129 @@ def all_apps() -> list[App]:
         apps.append(app)
     apps.sort(key=lambda a: a.name.lower())
     return apps
+
+
+# Packages that own the session / shell — never offer Uninstall for these.
+PROTECTED_PACKAGES = frozenset(
+    {
+        "fosos-desktop",
+        "fosos-cli",
+        "fosos-theme",
+        "fosos-archive-keyring",
+        "fosos-installer",
+        "fosos-welcome",
+        "openbox",
+        "lightdm",
+        "xorg",
+        "xserver-xorg",
+        "systemd",
+        "apt",
+        "dpkg",
+        "bash",
+        "login",
+        "passwd",
+        "sudo",
+        "network-manager",
+        "wireplumber",
+        "pipewire",
+        "pipewire-pulse",
+    }
+)
+
+_PKG_NAME_RE = re.compile(r"^[a-z0-9][a-z0-9+.-]*$")
+
+
+def desktop_file(app: App) -> Path | None:
+    try:
+        filename = app.info.get_filename()
+    except (AttributeError, GLib.Error):
+        return None
+    if not filename:
+        return None
+    path = Path(filename)
+    return path if path.is_file() else None
+
+
+def owning_package(path: Path) -> str | None:
+    """Debian package that owns *path*, or None for user/local files."""
+    try:
+        result = subprocess.run(
+            ["dpkg-query", "-S", str(path)],
+            capture_output=True,
+            text=True,
+            timeout=3,
+            check=False,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    if result.returncode != 0:
+        return None
+    line = (result.stdout or "").strip().splitlines()
+    if not line or ":" not in line[0]:
+        return None
+    name = line[0].split(":", 1)[0].split(",")[0].strip()
+    return name if _PKG_NAME_RE.match(name) else None
+
+
+def package_details(name: str) -> tuple[str, str]:
+    """Return (version, size_label) for an installed package."""
+    if not _PKG_NAME_RE.match(name):
+        return "", ""
+    try:
+        result = subprocess.run(
+            ["dpkg-query", "-W", "-f=${Version}\t${Installed-Size}", name],
+            capture_output=True,
+            text=True,
+            timeout=3,
+            check=False,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return "", ""
+    if result.returncode != 0:
+        return "", ""
+    parts = (result.stdout or "").strip().split("\t")
+    version = parts[0] if parts else ""
+    size_label = ""
+    if len(parts) > 1:
+        try:
+            kib = int(parts[1])
+        except ValueError:
+            kib = 0
+        if kib > 0:
+            if kib < 1024:
+                size_label = f"{kib} KB"
+            else:
+                size_label = f"{kib / 1024:.1f} MB"
+    return version, size_label
+
+
+def app_install_kind(app: App) -> tuple[str, str | None]:
+    """Classify a launcher for Settings → Installed apps.
+
+    Returns (kind, package) where kind is one of:
+    uninstallable | local | required
+    """
+    path = desktop_file(app)
+    if path is None:
+        return "required", None
+    try:
+        resolved = path.resolve()
+    except OSError:
+        resolved = path
+    if str(resolved).startswith(str(Path.home())):
+        return "local", None
+    package = owning_package(resolved)
+    if package is None:
+        return "required", None
+    if package in PROTECTED_PACKAGES:
+        return "required", package
+    return "uninstallable", package
+
+
+def uninstallable_package(app: App) -> str | None:
+    """Package name if Settings may offer Uninstall for *app*."""
+    kind, package = app_install_kind(app)
+    return package if kind == "uninstallable" else None
 
 
 def user_dir(kind, fallback: str) -> Path:

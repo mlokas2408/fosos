@@ -216,6 +216,10 @@ enable)
 	apply_config || exit 1
 	mkdir -p /var/lib/fosos
 	touch "$MARKER"
+	# Open RDP through the host firewall when UFW is active.
+	if command -v ufw >/dev/null 2>&1; then
+		ufw allow 3389/tcp comment 'FosOS Remote Desktop' >/dev/null 2>&1 || true
+	fi
 	systemctl enable "$UNIT_SESMAN" >/dev/null 2>&1 || true
 	systemctl enable "$UNIT_XRDP" >/dev/null 2>&1 || true
 	systemctl restart "$UNIT_SESMAN" >/dev/null 2>&1 \
@@ -246,6 +250,9 @@ disable)
 	systemctl disable "$UNIT_XRDP" >/dev/null 2>&1 || true
 	systemctl disable "$UNIT_SESMAN" >/dev/null 2>&1 || true
 	rm -f "$INFOFILE"
+	if command -v ufw >/dev/null 2>&1; then
+		ufw --force delete allow 3389/tcp >/dev/null 2>&1 || true
+	fi
 	systemctl daemon-reload >/dev/null 2>&1 || true
 	echo "disabled"
 	;;

@@ -86,12 +86,18 @@ required_files=(
   "$repo_root/packages/fosos-desktop/etc/firefox-esr/fosos.js"
   "$repo_root/packages/fosos-desktop/usr/bin/fosos-terminal"
   "$repo_root/packages/fosos-desktop/usr/bin/fosos-notepad"
+  "$repo_root/packages/fosos-desktop/usr/bin/fosos-store"
   "$repo_root/packages/fosos-desktop/usr/bin/fosos-taskmgr"
+  "$repo_root/packages/fosos-desktop/usr/bin/fosos-devicemgr"
   "$repo_root/packages/fosos-desktop/usr/share/applications/fosos-files.desktop"
   "$repo_root/packages/fosos-desktop/usr/share/applications/fosos-terminal.desktop"
   "$repo_root/packages/fosos-desktop/usr/share/applications/fosos-notepad.desktop"
+  "$repo_root/packages/fosos-desktop/usr/share/applications/fosos-store.desktop"
   "$repo_root/packages/fosos-desktop/usr/share/applications/fosos-remote.desktop"
   "$repo_root/packages/fosos-desktop/usr/share/applications/fosos-taskmgr.desktop"
+  "$repo_root/packages/fosos-desktop/usr/share/applications/fosos-devicemgr.desktop"
+  "$repo_root/packages/fosos-desktop/usr/lib/fosos-desktop/fosdesk/devicemgr.py"
+  "$repo_root/packages/fosos-desktop/usr/lib/fosos-desktop/fosdesk/store.py"
   "$repo_root/packages/fosos-desktop/usr/lib/fosos-desktop/fosdesk/taskmgr.py"
   "$repo_root/packages/fosos-desktop/usr/lib/fosos-desktop/fosdesk/files.py"
   "$repo_root/packages/fosos-desktop/usr/lib/fosos-desktop/fosdesk/filemanager.py"
@@ -180,6 +186,15 @@ if grep -qE '(^|[, ])python3-pam([, ]|$)' "$repo_root/packages/fosos-desktop/DEB
   echo "fosos-desktop must not depend on python3-pam (wrong module name PAM)." >&2
   exit 1
 fi
+if ! grep -q 'gir1.2-appstream-1.0' "$repo_root/packages/fosos-desktop/DEBIAN/control" \
+  || ! grep -qE '(^|,)[[:space:]]*appstream([,[:space:]]|$)' "$repo_root/packages/fosos-desktop/DEBIAN/control"; then
+  echo "fosos-desktop must depend on appstream and gir1.2-appstream-1.0 for Store." >&2
+  exit 1
+fi
+if ! grep -q 'fosos-store' "$repo_root/packages/fosos-desktop/usr/share/fosos-desktop/pinned"; then
+  echo "Default Start pins must include fosos-store.desktop." >&2
+  exit 1
+fi
 if ! grep -q '^[[:space:]]*desktopFile: "fosos-desktop"$' \
   "$repo_root/packages/fosos-installer/etc/calamares/modules/displaymanager.conf"; then
   echo "Calamares desktopFile must be fosos-desktop, without the .desktop suffix." >&2
@@ -215,6 +230,57 @@ pkg_list="$repo_root/build/live-build/config/package-lists/fosos-base.list.chroo
 desktop_control="$repo_root/packages/fosos-desktop/DEBIAN/control"
 if ! grep -qE '^xrdp$' "$pkg_list" || ! grep -qE '^xorgxrdp$' "$pkg_list"; then
   echo "Remote Desktop host: image package list must install xrdp and xorgxrdp." >&2
+  exit 1
+fi
+if ! grep -qx 'ufw' "$pkg_list"; then
+  echo "Host firewall: image package list must install ufw." >&2
+  exit 1
+fi
+if ! grep -qE '(^|[, ])ufw([, ]|$)' "$desktop_control"; then
+  echo "fosos-desktop must Depend on ufw." >&2
+  exit 1
+fi
+fw_hook="$repo_root/build/live-build/config/hooks/normal/0190-fosos-firewall.hook.chroot"
+if [[ ! -f "$fw_hook" ]] || ! grep -q 'ufw --force enable' "$fw_hook"; then
+  echo "Missing 0190-fosos-firewall.hook.chroot that enables ufw." >&2
+  exit 1
+fi
+if ! grep -q 'set-firewall' "$repo_root/packages/fosos-desktop/usr/libexec/fosos-settings-policy"; then
+  echo "fosos-settings-policy must support set-firewall." >&2
+  exit 1
+fi
+if ! grep -q '{"page": "firewall"}' "$repo_root/packages/fosos-desktop/usr/lib/fosos-desktop/fosdesk/settings.py"; then
+  echo "Settings PANELS must include Firewall." >&2
+  exit 1
+fi
+if ! grep -q 'build_firewall' "$repo_root/packages/fosos-desktop/usr/lib/fosos-desktop/fosdesk/settings_more.py"; then
+  echo "settings_more must define build_firewall." >&2
+  exit 1
+fi
+if ! grep -qx 'openssh-client' "$pkg_list" || ! grep -qx 'openssh-server' "$pkg_list"; then
+  echo "SSH: image package list must install openssh-client and openssh-server." >&2
+  exit 1
+fi
+if ! grep -qE '(^|[, ])openssh-client([, ]|$)' "$desktop_control" \
+  || ! grep -qE '(^|[, ])openssh-server([, ]|$)' "$desktop_control"; then
+  echo "fosos-desktop must Depend on openssh-client and openssh-server." >&2
+  exit 1
+fi
+ssh_hook="$repo_root/build/live-build/config/hooks/normal/0200-fosos-ssh.hook.chroot"
+if [[ ! -f "$ssh_hook" ]] || ! grep -q 'systemctl enable ssh' "$ssh_hook"; then
+  echo "Missing 0200-fosos-ssh.hook.chroot that enables ssh.service." >&2
+  exit 1
+fi
+if ! grep -q 'set-ssh' "$repo_root/packages/fosos-desktop/usr/libexec/fosos-settings-policy"; then
+  echo "fosos-settings-policy must support set-ssh." >&2
+  exit 1
+fi
+if ! grep -q '{"page": "ssh"}' "$repo_root/packages/fosos-desktop/usr/lib/fosos-desktop/fosdesk/settings.py"; then
+  echo "Settings PANELS must include SSH." >&2
+  exit 1
+fi
+if ! grep -q 'build_ssh' "$repo_root/packages/fosos-desktop/usr/lib/fosos-desktop/fosdesk/settings_more.py"; then
+  echo "settings_more must define build_ssh." >&2
   exit 1
 fi
 if grep -qE '^freerdp3-shadow' "$pkg_list"; then
@@ -630,6 +696,14 @@ if ! grep -q 'blueman-applet' "$repo_root/packages/fosos-desktop/usr/bin/fosos-s
 fi
 if ! grep -qE '(^|,)[[:space:]]*blueman([,[:space:]]|$)' "$repo_root/packages/fosos-desktop/DEBIAN/control"; then
   echo "fosos-desktop must Depend on blueman (pairing agent + Settings UI)." >&2
+  exit 1
+fi
+if ! grep -qE '(^|,)[[:space:]]*onedrive([,[:space:]]|$)' "$repo_root/packages/fosos-desktop/DEBIAN/control"; then
+  echo "fosos-desktop must Depend on onedrive (local OneDrive sync)." >&2
+  exit 1
+fi
+if ! grep -q 'systemctl --global disable onedrive.service' "$repo_root/packages/fosos-desktop/DEBIAN/postinst"; then
+  echo "fosos-desktop postinst must disable the global onedrive user service." >&2
   exit 1
 fi
 sh -n "$repo_root/packages/fosos-desktop/usr/bin/fosos-session"
